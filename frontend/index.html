@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compras Vendemmia</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <!-- Design System -->
+  <link rel="stylesheet" href="css/design-system.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+  <style>
+    /* Ensure full-height layout */
+    html, body { height: 100%; overflow: hidden; }
+
+    /* Logout button tint */
+    .sidebar-user-btn-logout { color: var(--accent) !important; }
+    .sidebar-user-btn-logout:hover { background: var(--accent-surface) !important; }
+  </style>
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+  <aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo" onclick="App.navigate('home')"
+         style="cursor:pointer;" title="Ir para Início">
+      <img src="/img/logo.png" alt="Vendemmia"
+           onerror="this.outerHTML='<span style=font-size:16px;font-weight:800;color:var(--brand);letter-spacing:-0.5px>Vendemmia</span>'">
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+
+      <!-- Home -->
+      <div class="nav-item active" id="nav-home" onclick="App.navigate('home')">
+        <i class="fa-solid fa-house"></i>
+        <span>Início</span>
+      </div>
+
+      <!-- Inteligência & Dados -->
+      <span class="nav-group-label">Inteligência & Dados</span>
+
+      <div class="nav-item" id="nav-dashboard" onclick="App.navigate('dashboard')">
+        <i class="fa-solid fa-chart-pie"></i>
+        <span>Dashboard Analítico</span>
+      </div>
+
+      <!-- Operação de Compras -->
+      <span class="nav-group-label">Operação de Compras</span>
+
+      <div class="nav-item" id="nav-intake" onclick="App.navigate('intake')">
+        <i class="fa-solid fa-file-invoice"></i>
+        <span>Nova Requisição</span>
+      </div>
+
+      <div class="nav-item" id="nav-aprovacoes" onclick="App.navigate('aprovacoes')">
+        <i class="fa-solid fa-user-shield"></i>
+        <span>Painel de Requisições</span>
+      </div>
+
+      <div class="nav-item" id="nav-sourcing" onclick="App.navigate('sourcing')">
+        <i class="fa-solid fa-magnifying-glass-chart"></i>
+        <span>Fornecedores & Cotação</span>
+      </div>
+
+      <div class="nav-item" id="nav-recebimento" onclick="App.navigate('recebimento')">
+        <i class="fa-solid fa-boxes-stacked"></i>
+        <span>Conciliação</span>
+      </div>
+
+      <!-- Compras Estratégicas -->
+      <span class="nav-group-label">Compras Estratégicas</span>
+
+      <div class="nav-item" id="nav-catalogo" onclick="App.navigate('catalogo')">
+        <i class="fa-solid fa-book-open"></i>
+        <span>Catálogo de Itens</span>
+      </div>
+
+      <div class="nav-item" id="nav-contratos" onclick="App.navigate('contratos')">
+        <i class="fa-solid fa-calendar-check"></i>
+        <span>Contas Fixas</span>
+      </div>
+
+      <div class="nav-item" id="nav-consulta" onclick="App.navigate('consulta')">
+        <i class="fa-solid fa-magnifying-glass-arrow-right"></i>
+        <span>Consulta de Requisições</span>
+      </div>
+
+      <!-- Fornecedores (external link) -->
+      <span class="nav-group-label">Acesso Externo</span>
+
+      <div class="nav-item" onclick="window.open('fornecedor.html', '_blank')">
+        <i class="fa-solid fa-building-user"></i>
+        <span>Portal do Fornecedor</span>
+        <i class="fa-solid fa-arrow-up-right-from-square" style="margin-left:auto;font-size:10px;opacity:0.5;width:auto;"></i>
+      </div>
+
+    </nav>
+
+  </aside>
+
+  <!-- ═══════════════════ MAIN ═══════════════════════ -->
+  <div class="layout-main">
+
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-breadcrumb">
+        <div class="header-page-title" id="header-page-title">Dashboard Analítico</div>
+        <div class="header-breadcrumb-path" id="header-breadcrumb-path">
+          <span>SHP</span>
+          <i class="fa-solid fa-chevron-right" style="font-size:9px;opacity:0.5;"></i>
+          <span style="color:var(--text);font-weight:600;">Dashboard Analítico</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- API Status -->
+        <div class="api-status-badge" id="api-status">
+          <div class="api-status-dot"></div>
+          API Online
+        </div>
+
+        <!-- Notifications -->
+        <button class="notif-btn" id="notif-btn" title="Notificações" onclick="toggleNotifPanel(event)">
+          <i class="fa-solid fa-bell"></i>
+          <span class="notif-count hidden" id="header-notif-count">0</span>
+        </button>
+
+        <!-- Search -->
+        <div style="position:relative;">
+          <input type="text" placeholder="Buscar..." id="global-search"
+                 style="width:200px;padding:8px 12px 8px 36px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:13px;font-family:var(--font);outline:none;color:var(--text);"
+                 onfocus="this.style.borderColor='var(--brand)'" onblur="this.style.borderColor='var(--border)'">
+          <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-subtle);font-size:12px;"></i>
+        </div>
+
+        <!-- User -->
+        <div class="header-user" id="header-user-btn" onclick="toggleUserMenu(event)">
+          <div class="header-avatar">G</div>
+          <span class="header-user-name">Gueilee</span>
+          <i class="fa-solid fa-chevron-down" style="font-size:10px;color:var(--text-muted);"></i>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT (dynamic) -->
+    <main class="content" id="content">
+      <!-- Pages are loaded dynamically by app.js -->
+      <div class="loading-center">
+        <div class="spinner"></div>
+        <span>Carregando...</span>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<!-- ═══════════════ TOAST CONTAINER ═══════════════════ -->
+<div id="toast-container"></div>
+
+<!-- ═══════════════ NOTIFICATION PANEL ════════════════ -->
+<div id="notif-panel" class="floating-panel" style="display:none;width:340px;">
+  <div class="fp-header">
+    <span><i class="fa-solid fa-bell" style="color:var(--brand);margin-right:7px;"></i>Notificações</span>
+    <button class="fp-close" onclick="closeNotifPanel()"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div id="notif-panel-body" class="fp-body">
+    <div class="fp-loading"><div class="spinner" style="width:20px;height:20px;"></div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ USER DROPDOWN ══════════════════════ -->
+<div id="user-dropdown" class="floating-panel" style="display:none;width:200px;">
+  <div style="padding:12px 16px;border-bottom:1px solid var(--border-subtle);">
+    <div style="font-weight:700;font-size:13px;color:var(--text);">Gueilee</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Head de Projetos</div>
+  </div>
+  <div class="fp-menu">
+    <button class="fp-menu-item" onclick="closeUserMenu();App.navigate('configuracoes')">
+      <i class="fa-solid fa-gear"></i> Configurações
+    </button>
+    <button class="fp-menu-item" onclick="closeUserMenu();Pages.configuracoes._tabTarget='orcamento';App.navigate('configuracoes')">
+      <i class="fa-solid fa-sack-dollar"></i> Orçamento por Unidade
+    </button>
+    <div style="height:1px;background:var(--border-subtle);margin:4px 0;"></div>
+    <button class="fp-menu-item fp-menu-danger" onclick="closeUserMenu();confirmarSaida()">
+      <i class="fa-solid fa-right-from-bracket"></i> Sair
+    </button>
+  </div>
+</div>
+
+<style>
+.floating-panel {
+  position: fixed;
+  background: var(--surface-card, #fff);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.14);
+  z-index: 9999;
+  overflow: hidden;
+  animation: fpFadeIn .15s ease;
+}
+@keyframes fpFadeIn {
+  from { opacity:0; transform:translateY(-6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.fp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.fp-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.fp-close:hover { color: var(--text); background: var(--bg); }
+.fp-body { max-height: 420px; overflow-y: auto; }
+.fp-loading { display:flex;align-items:center;justify-content:center;padding:28px; }
+.fp-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-subtle);
+  padding: 10px 16px 4px;
+}
+.fp-notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background .15s;
+}
+.fp-notif-item:hover { background: var(--bg); }
+.fp-notif-item:last-child { border-bottom: none; }
+.fp-notif-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.fp-notif-text { font-size: 12.5px; color: var(--text); line-height: 1.4; flex: 1; }
+.fp-notif-sub  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.fp-empty {
+  text-align: center;
+  padding: 28px 16px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.fp-empty i { display:block;font-size:22px;margin-bottom:8px;opacity:.35; }
+.fp-menu { padding: 6px 0; }
+.fp-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-family: var(--font);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s;
+}
+.fp-menu-item:hover { background: var(--bg); }
+.fp-menu-item i { color: var(--brand); width: 14px; }
+.fp-menu-danger { color: var(--accent, #ff2f69) !important; }
+.fp-menu-danger i { color: var(--accent, #ff2f69) !important; }
+</style>
+
+<!-- ═══════════════ MODAL OVERLAY ═════════════════════ -->
+<div id="modal-overlay" class="modal-overlay"></div>
+
+<!-- ═══════════════ SCRIPTS ═══════════════════════════ -->
+<!-- Utilities (must load first) -->
+<script src="js/utils.js"></script>
+<script src="js/mapa-cotacao.js"></script>
+<script src="js/po-compra.js"></script>
+
+<!-- Page modules -->
+<script src="js/pages/home.js"></script>
+<script src="js/pages/dashboard.js"></script>
+<script src="js/pages/pedidos.js"></script>
+<script src="js/pages/intake.js"></script>
+<script src="js/pages/aprovacoes.js"></script>
+<script src="js/pages/sourcing.js"></script>
+<script src="js/pages/recebimento.js"></script>
+<script src="js/pages/catalogo.js"></script>
+<script src="js/pages/contratos.js"></script>
+<script src="js/pages/consulta.js"></script>
+<script src="js/pages/configuracoes.js"></script>
+
+<!-- App router (must load last) -->
+<script src="js/app.js"></script>
+
+<!-- Logout com modal moderno -->
+<script>
+  async function confirmarSaida() {
+    const ok = await Modal.confirm({
+      icon: 'warning',
+      title: 'Sair do sistema?',
+      body: 'Você será redirecionado para a tela de login.<br>Certifique-se de que salvou tudo antes de continuar.',
+      confirmText: 'Sair',
+      confirmClass: 'btn-danger',
+      cancelText: 'Cancelar',
+    });
+    if (ok) window.location.href = 'login.html';
+  }
+</script>
+
+<!-- API status check -->
+<script>
+  (async function checkApi() {
+    try {
+      await fetch('http://localhost:8000/dashboard-dados');
+      const el = document.getElementById('api-status');
+      if (el) {
+        el.innerHTML = '<div class="api-status-dot"></div> API Online';
+        el.style.background = 'var(--success-surface)';
+        el.style.color = 'var(--success-deeper)';
+      }
+    } catch {
+      const el = document.getElementById('api-status');
+      if (el) {
+        el.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> API Offline';
+        el.style.background = 'var(--accent-surface)';
+        el.style.color = 'var(--accent-dark)';
+      }
+    }
+  })();
+</script>
+
+</body>
+</html>

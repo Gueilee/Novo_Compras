@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal do Fornecedor | Compras Vendemmia</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="css/design-system.css">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { min-height: 100vh; background: #0f0720; margin: 0; }
+    body { font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; }
+
+    /* ── Background ──────────────────────────────────────────── */
+    .pf-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background: linear-gradient(145deg, #0f0720 0%, #1c0a40 40%, #2d1b5e 75%, #3a2272 100%);
+    }
+    .pf-bg::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(102,51,238,.4) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 40% at 90% 90%, rgba(66,44,118,.3) 0%, transparent 60%);
+    }
+    .pf-bg-dots {
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────── */
+    .pf-topbar {
+      position: relative; z-index: 20; width: 100%;
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: #fff;
+      border-bottom: 1px solid #e8e4f0;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    }
+    .pf-brand { display: flex; align-items: center; gap: 14px; }
+    .pf-brand-logo { height: 32px; display: block; }
+    .pf-brand-sep { width: 1px; height: 22px; background: #e0e0e0; }
+    .pf-brand-tag {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.3px;
+      text-transform: uppercase; color: #999;
+    }
+    .pf-topbar-right { display: flex; align-items: center; gap: 10px; }
+    .pf-secure-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11.5px; font-weight: 600; color: #888;
+      border: 1px solid #e0e0e0; border-radius: 20px; padding: 4px 12px;
+    }
+    .pf-hist-btn {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11.5px; font-weight: 600; color: #6633ee;
+      border: 1.5px solid #d0c4f9; border-radius: 20px;
+      padding: 4px 13px; background: none; cursor: pointer; transition: all .15s;
+    }
+    .pf-hist-btn:hover { background: #f5f0ff; border-color: #6633ee; }
+
+    /* ── Hero ───────────────────────────────────────────────── */
+    .pf-hero {
+      position: relative; z-index: 10; text-align: center;
+      padding: 44px 20px 28px;
+    }
+    .pf-hero-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(102,51,238,.2); border: 1px solid rgba(102,51,238,.35);
+      border-radius: 20px; padding: 5px 14px; margin-bottom: 16px;
+      font-size: 12px; font-weight: 600; color: rgba(180,150,255,.85);
+    }
+    .pf-hero h1 {
+      font-size: clamp(24px, 4vw, 36px); font-weight: 800; color: #fff;
+      letter-spacing: -1px; margin: 0 0 10px; line-height: 1.15;
+    }
+    .pf-hero h1 em { color: #a78bfa; font-style: normal; }
+    .pf-hero p {
+      font-size: 14.5px; color: rgba(255,255,255,.45); margin: 0 auto;
+      max-width: 400px;
+    }
+
+    /* ── Steps ───────────────────────────────────────────────── */
+    .pf-steps {
+      position: relative; z-index: 10; display: none;
+      align-items: center; justify-content: center;
+      gap: 0; margin-bottom: 24px;
+    }
+    .pf-step { display: flex; align-items: center; gap: 7px; padding: 5px 12px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.28); }
+    .pf-step.active { color: #fff; }
+    .pf-step.done   { color: #a78bfa; }
+    .pf-step-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 1.5px solid currentColor; display: flex;
+      align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0;
+    }
+    .pf-step.active .pf-step-num { background: #6633ee; border-color: #6633ee; color: #fff; }
+    .pf-step.done   .pf-step-num { background: #a78bfa; border-color: #a78bfa; color: #fff; }
+    .pf-step-sep { width: 32px; height: 1px; background: rgba(255,255,255,.12); flex-shrink: 0; }
+
+    /* ── Card ────────────────────────────────────────────────── */
+    .pf-wrap { position: relative; z-index: 10; width: 100%; max-width: 640px; padding: 0 20px 56px; }
+    .pf-card {
+      background: #fff; border-radius: 22px;
+      box-shadow: 0 40px 100px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
+      overflow: hidden;
+    }
+    .pf-card-hdr {
+      padding: 20px 26px 17px; border-bottom: 1px solid #f0eff8;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .pf-card-hdr-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 19px; flex-shrink: 0;
+    }
+    .pf-card-hdr-title { font-size: 15.5px; font-weight: 800; color: #1a1a2e; }
+    .pf-card-hdr-sub   { font-size: 12.5px; color: #888; margin-top: 2px; }
+    .pf-card-body { padding: 26px; }
+
+    /* ── Lookup ──────────────────────────────────────────────── */
+    .pf-info-box {
+      background: #f8f6ff; border: 1px solid #e0d9f9; border-radius: 12px;
+      padding: 14px 16px; margin-bottom: 22px;
+      display: flex; gap: 11px; align-items: flex-start;
+    }
+    .pf-info-box i { color: #6633ee; font-size: 15px; margin-top: 2px; flex-shrink: 0; }
+    .pf-info-box p { font-size: 13px; color: #555; line-height: 1.6; margin: 0; }
+    .pf-info-box p strong { color: #1a1a2e; }
+
+    /* ── Req card ────────────────────────────────────────────── */
+    .req-card {
+      background: linear-gradient(135deg, #f8f6ff, #ede9fe);
+      border: 1.5px solid #c4b5fd; border-radius: 16px;
+      padding: 18px 20px; margin-bottom: 22px;
+    }
+    .req-card-hdr { display: flex; align-items: flex-start; gap: 13px; margin-bottom: 14px; }
+    .req-card-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, #6633ee, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 17px; flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(102,51,238,.28);
+    }
+    .req-card-id   { font-size: 14.5px; font-weight: 800; color: #4c1d95; }
+    .req-card-meta { font-size: 12px; color: #7c3aed; margin-top: 3px; opacity: .8; }
+    .req-items-tbl { width: 100%; border-collapse: collapse; }
+    .req-items-tbl thead th {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+      color: #7c3aed; padding: 6px 8px; border-bottom: 1px solid #c4b5fd; text-align: left;
+    }
+    .req-items-tbl tbody td {
+      padding: 8px 8px; font-size: 12.5px; color: #1a1a2e;
+      border-bottom: 1px solid rgba(196,181,253,.35);
+    }
+    .req-items-tbl tbody tr:last-child td { border-bottom: none; }
+    .req-qty { display: inline-flex; align-items: center; justify-content: center;
+      background: #6633ee; color: #fff; font-size: 11px; font-weight: 700;
+      min-width: 26px; height: 20px; border-radius: 5px; padding: 0 4px; }
+
+    /* ── Form sections ───────────────────────────────────────── */
+    .f-sec {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
+      color: #aaa; margin: 24px 0 14px; display: flex; align-items: center; gap: 8px;
+    }
+    .f-sec::after { content: ''; flex: 1; height: 1px; background: #f0f0f0; }
+    .f-sec i { color: #6633ee; }
+    .f-sec:first-child { margin-top: 0; }
+
+    /* ── CNPJ + Razão Social ─────────────────────────────────── */
+    .cnpj-status {
+      font-size: 11.5px; margin-top: 4px; display: flex; align-items: center; gap: 5px;
+    }
+    .cnpj-status.loading { color: #888; }
+    .cnpj-status.ok      { color: #059669; }
+    .cnpj-status.error   { color: #dc2626; }
+
+    /* ── Price banner ────────────────────────────────────────── */
+    .price-banner {
+      background: linear-gradient(135deg, #4c1d95, #6633ee); border-radius: 14px;
+      padding: 14px 18px; margin: 14px 0; display: none;
+      box-shadow: 0 4px 18px rgba(102,51,238,.22);
+    }
+    .price-banner-lbl   { font-size: 11px; color: rgba(255,255,255,.6); font-weight: 600; margin-bottom: 3px; }
+    .price-banner-row   { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .price-banner-unit  { font-size: 14px; color: rgba(255,255,255,.75); }
+    .price-banner-total { font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -.5px; }
+
+    /* ── Toggle cards ────────────────────────────────────────── */
+    .tg-card {
+      background: #fafafa; border: 1.5px solid #e8e8e8; border-radius: 11px;
+      padding: 12px 14px; display: flex; align-items: center; gap: 11px;
+      cursor: pointer; transition: border-color .15s, background .15s; user-select: none;
+    }
+    .tg-card:hover { border-color: #c4b5fd; background: #f8f6ff; }
+    .tg-card.on { border-color: #6633ee; background: #f8f6ff; }
+    .tg-card input[type=checkbox] { width: 17px; height: 17px; accent-color: #6633ee; cursor: pointer; flex-shrink: 0; }
+    .tg-card-title { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+    .tg-card-sub   { font-size: 11.5px; color: #999; margin-top: 1px; }
+
+    /* ── Upload area ─────────────────────────────────────────── */
+    .upload-area {
+      border: 2px dashed #d8d0f7; border-radius: 12px; padding: 18px 16px;
+      text-align: center; cursor: pointer; transition: all .15s;
+      background: #faf9ff; position: relative;
+    }
+    .upload-area:hover { border-color: #6633ee; background: #f5f3ff; }
+    .upload-area.has-file { border-color: #059669; background: #f0fdf4; border-style: solid; }
+    .upload-area input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 24px; color: #c4b5fd; margin-bottom: 7px; }
+    .upload-area.has-file .upload-icon { color: #059669; }
+    .upload-label { font-size: 13px; font-weight: 600; color: #555; }
+    .upload-sub   { font-size: 11.5px; color: #aaa; margin-top: 3px; }
+    .upload-file-name { font-size: 13px; font-weight: 700; color: #059669; }
+    .upload-area.has-file .upload-label { display: none; }
+    .upload-area.has-file .upload-sub   { display: none; }
+    .upload-file-preview { display: none; }
+    .upload-area.has-file .upload-file-preview { display: block; }
+
+    /* ── LGPD ────────────────────────────────────────────────── */
+    .lgpd-box {
+      background: #f9f9f9; border: 1px solid #eee; border-radius: 10px;
+      padding: 11px 13px; margin: 18px 0;
+      font-size: 12px; color: #aaa; line-height: 1.65;
+      display: flex; gap: 9px; align-items: flex-start;
+    }
+    .lgpd-box i { color: #6633ee; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Buttons ─────────────────────────────────────────────── */
+    .btn-pf {
+      width: 100%; padding: 14px; border-radius: 13px; border: none;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      font-size: 14.5px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      transition: all .18s;
+    }
+    .btn-pf + .btn-pf { margin-top: 9px; }
+    .btn-pf-primary {
+      background: linear-gradient(135deg, #5b21b6, #6633ee); color: #fff;
+      box-shadow: 0 4px 18px rgba(102,51,238,.3);
+    }
+    .btn-pf-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(102,51,238,.4); }
+    .btn-pf-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+    .btn-pf-ghost {
+      background: transparent; color: #6633ee;
+      border: 1.5px solid #e0d9f9 !important;
+    }
+    .btn-pf-ghost:hover { background: #f8f6ff; }
+    .spin-sm { width: 17px; height: 17px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.3); border-top-color: #fff; animation: spin .7s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Success ─────────────────────────────────────────────── */
+    .success-wrap { text-align: center; padding: 8px 0 14px; }
+    .success-circle {
+      width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 18px;
+      background: linear-gradient(135deg, #059669, #10b981); color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 36px;
+      box-shadow: 0 8px 28px rgba(16,185,129,.28);
+      animation: bounceIn .5s cubic-bezier(.17,.67,.29,1.3);
+    }
+    @keyframes bounceIn { 0%{transform:scale(0);opacity:0} 80%{transform:scale(1.1)} 100%{transform:scale(1)} }
+    .success-title { font-size: 22px; font-weight: 800; color: #1a1a2e; margin-bottom: 7px; }
+    .success-sub   { font-size: 13.5px; color: #888; margin-bottom: 20px; }
+    .success-proto {
+      background: #f8f6ff; border: 1px solid #e0d9f9; border-radius: 10px;
+      padding: 11px 16px; font-size: 13px; color: #555; margin-bottom: 14px;
+    }
+    .success-proto strong { color: #6633ee; }
+    .success-details {
+      background: linear-gradient(135deg,#f0fdf4,#dcfce7); border: 1px solid #bbf7d0;
+      border-radius: 14px; padding: 18px; text-align: left; margin-bottom: 14px;
+    }
+    .success-details-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #059669; margin-bottom: 12px; }
+    .success-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .si-label { font-size: 11px; color: #888; margin-bottom: 2px; }
+    .si-value { font-size: 13.5px; font-weight: 700; color: #1a1a2e; }
+
+    /* ── Histórico modal ─────────────────────────────────────── */
+    .hist-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000;
+      display: flex; align-items: flex-end; justify-content: center;
+      backdrop-filter: blur(4px); animation: fadeIn .15s ease;
+    }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .hist-panel {
+      background: #fff; border-radius: 22px 22px 0 0; width: 100%; max-width: 640px;
+      max-height: 88vh; display: flex; flex-direction: column;
+      box-shadow: 0 -20px 60px rgba(0,0,0,.3);
+      animation: slideUp .25s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .hist-panel-hdr {
+      padding: 18px 22px 14px; border-bottom: 1px solid #f0f0f0;
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .hist-panel-body { flex: 1; overflow-y: auto; padding: 18px 22px; }
+    .hist-close {
+      width: 30px; height: 30px; border-radius: 8px; border: 1px solid #e8e8e8;
+      background: #fafafa; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; font-size: 14px; color: #999; transition: all .15s;
+    }
+    .hist-close:hover { background: #f0f0f0; color: #333; }
+    .hist-row {
+      background: #fafafa; border: 1px solid #f0f0f0; border-radius: 12px;
+      padding: 14px 16px; margin-bottom: 10px; cursor: pointer; transition: all .15s;
+    }
+    .hist-row:hover { border-color: #c4b5fd; background: #f8f6ff; }
+    .hist-row-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .hist-req-id  { font-size: 13.5px; font-weight: 800; color: #1a1a2e; }
+    .hist-status-ok  { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #059669; border-radius: 10px; padding: 2px 8px; }
+    .hist-status-pen { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; background: #fef3c7; color: #d97706; border-radius: 10px; padding: 2px 8px; }
+    .hist-row-meta { font-size: 12px; color: #888; }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    .pf-footer {
+      position: relative; z-index: 10; text-align: center;
+      padding: 0 20px 28px; font-size: 11px; color: rgba(255,255,255,.22);
+    }
+
+    @media (max-width: 520px) {
+      .pf-topbar { padding: 0 16px; }
+      .pf-brand-tag { display: none; }
+      .pf-card-body { padding: 18px; }
+      .success-grid { grid-template-columns: 1fr; }
+      .pf-hero { padding: 32px 16px 20px; }
+    }
+
+    /* ── Tabela de preços por item ───────────────────────── */
+    .item-price-row {
+      display: grid;
+      grid-template-columns: 1fr auto 140px;
+      gap: 10px;
+      align-items: center;
+      background: #faf9ff;
+      border: 1px solid #e8e4f9;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+    .item-price-label { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+    .item-price-qty {
+      font-size: 11px; background: #6633ee; color: #fff;
+      border-radius: 6px; padding: 2px 8px; font-weight: 700;
+      white-space: nowrap;
+    }
+    .item-price-input {
+      width: 100%; padding: 8px 10px;
+      border: 1.5px solid #e0d9f9; border-radius: 8px;
+      font-size: 14px; font-weight: 700; color: #4c1d95;
+      font-family: 'Inter', sans-serif; text-align: right;
+      outline: none; transition: border-color .15s;
+    }
+    .item-price-input:focus { border-color: #6633ee; }
+    .item-price-subtotal {
+      font-size: 11px; color: #7c3aed; margin-top: 3px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+<div class="pf-bg"><div class="pf-bg-dots"></div></div>
+
+<!-- ── Top bar ──────────────────────────────────────────────── -->
+<div class="pf-topbar">
+  <div class="pf-brand">
+    <img class="pf-brand-logo" src="/img/logo.png" alt="Vendemmia"
+         onerror="this.style.display='none';document.getElementById('pf-brand-fallback').style.display='flex'">
+    <div id="pf-brand-fallback" style="display:none;align-items:center;gap:8px;">
+      <div style="width:30px;height:30px;background:linear-gradient(135deg,#6633ee,#a78bfa);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;">V</div>
+      <span style="font-size:15px;font-weight:800;color:#1a1a2e;letter-spacing:-.4px;">Vendemmia</span>
+    </div>
+    <div class="pf-brand-sep"></div>
+    <span class="pf-brand-tag">Portal do Fornecedor</span>
+  </div>
+  <div class="pf-topbar-right">
+    <button class="pf-hist-btn" onclick="abrirHistorico()">
+      <i class="fa-solid fa-clock-rotate-left"></i> Minhas Cotações
+    </button>
+    <div class="pf-secure-badge">
+      <i class="fa-solid fa-lock" style="font-size:9px;"></i> Ambiente Seguro
+    </div>
+  </div>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────────────────── -->
+<div class="pf-hero" id="pf-hero">
+  <div class="pf-hero-chip"><i class="fa-solid fa-bolt"></i> Plataforma de Cotações</div>
+  <h1>Envie sua <em>Proposta Comercial</em></h1>
+  <p id="pf-hero-sub">Portal exclusivo para fornecedores da Vendemmia enviarem cotações de forma rápida e segura.</p>
+</div>
+
+<!-- ── Steps ────────────────────────────────────────────────── -->
+<div class="pf-steps" id="pf-steps">
+  <div class="pf-step done" id="step-1"><div class="pf-step-num">1</div><span>Identificação</span></div>
+  <div class="pf-step-sep"></div>
+  <div class="pf-step active" id="step-2"><div class="pf-step-num">2</div><span>Proposta</span></div>
+  <div class="pf-step-sep"></div>
+  <div class="pf-step" id="step-3"><div class="pf-step-num">3</div><span>Confirmação</span></div>
+</div>
+
+<!-- ── Card principal ────────────────────────────────────────── -->
+<div class="pf-wrap">
+<div class="pf-card">
+
+  <!-- ═══ LOOKUP ═══════════════════════════════════════════ -->
+  <div id="state-lookup">
+    <div class="pf-card-hdr">
+      <div class="pf-card-hdr-icon" style="background:#f0ebff;color:#6633ee;">
+        <i class="fa-solid fa-building-user"></i>
+      </div>
+      <div>
+        <div class="pf-card-hdr-title">Acessar sua Cotação</div>
+        <div class="pf-card-hdr-sub">Informe seu CNPJ e o número da requisição enviados por e-mail</div>
+      </div>
+    </div>
+    <div class="pf-card-body">
+      <div class="pf-info-box">
+        <i class="fa-solid fa-circle-info"></i>
+        <p>Você recebeu um e-mail da <strong>Vendemmia</strong> com o <strong>número da requisição</strong>. Use esses dados abaixo para acessar sua cotação. Se você veio por um link direto, a cotação é carregada automaticamente.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#1a1a2e;">CNPJ <span style="color:#e11d48;">*</span></label>
+          <input type="text" id="lookup-cnpj" class="form-control"
+                 placeholder="00.000.000/0001-00"
+                 style="height:44px;font-size:14px;"
+                 oninput="maskCNPJ(this)" maxlength="18"
+                 onkeydown="if(event.key==='Enter') lookupCotacao()">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#1a1a2e;">Nº da Requisição <span style="color:#e11d48;">*</span></label>
+          <input type="number" id="lookup-req" class="form-control"
+                 placeholder="Ex: 1042"
+                 style="height:44px;font-size:14px;"
+                 onkeydown="if(event.key==='Enter') lookupCotacao()">
+        </div>
+      </div>
+      <button class="btn-pf btn-pf-primary" onclick="lookupCotacao()">
+        <i class="fa-solid fa-magnifying-glass"></i> Buscar Cotação
+      </button>
+      <div id="lookup-err" style="display:none;margin-top:12px;background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:11px 14px;font-size:13px;color:#be123c;gap:8px;align-items:center;">
+        <i class="fa-solid fa-triangle-exclamation" style="flex-shrink:0;"></i>
+        <span id="lookup-err-msg">Cotação não encontrada. Verifique os dados informados.</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:20px 0 16px;color:#ccc;font-size:12px;font-weight:600;">
+        <div style="flex:1;height:1px;background:#f0f0f0;"></div> ou <div style="flex:1;height:1px;background:#f0f0f0;"></div>
+      </div>
+      <button class="btn-pf btn-pf-ghost" onclick="abrirHistorico()">
+        <i class="fa-solid fa-clock-rotate-left"></i> Ver minhas cotações anteriores
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ LOADING ══════════════════════════════════════════ -->
+  <div id="state-loading" style="display:none;">
+    <div style="text-align:center;padding:56px 40px;">
+      <div style="width:40px;height:40px;border-radius:50%;border:3px solid #ede9fe;border-top-color:#6633ee;animation:spin .8s linear infinite;margin:0 auto 16px;"></div>
+      <p style="color:#888;font-size:14px;font-weight:500;">Carregando dados da requisição...</p>
+    </div>
+  </div>
+
+  <!-- ═══ ERRO ══════════════════════════════════════════════ -->
+  <div id="state-error" style="display:none;">
+    <div class="pf-card-hdr" style="border-bottom:none;">
+      <div class="pf-card-hdr-icon" style="background:#fff1f2;color:#be123c;">
+        <i class="fa-solid fa-circle-xmark"></i>
+      </div>
+      <div>
+        <div class="pf-card-hdr-title" style="color:#be123c;">Cotação não encontrada</div>
+        <div class="pf-card-hdr-sub">O link pode ter expirado ou os dados são inválidos</div>
+      </div>
+    </div>
+    <div class="pf-card-body" style="padding-top:4px;">
+      <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;padding:16px;font-size:13px;color:#666;margin-bottom:18px;line-height:1.7;">
+        Este link de cotação pode estar <strong>expirado</strong> ou cancelado. Entre em contato com o comprador responsável da Vendemmia para receber um novo link, ou acesse usando seu CNPJ e número da requisição.
+      </div>
+      <button class="btn-pf btn-pf-primary" onclick="setState('state-lookup')">
+        <i class="fa-solid fa-arrow-left"></i> Voltar ao início
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ FORMULÁRIO ═══════════════════════════════════════ -->
+  <div id="state-form" style="display:none;">
+    <div class="pf-card-hdr">
+      <div class="pf-card-hdr-icon" style="background:linear-gradient(135deg,#6633ee,#8b5cf6);color:#fff;box-shadow:0 4px 12px rgba(102,51,238,.28);">
+        <i class="fa-solid fa-file-invoice"></i>
+      </div>
+      <div style="flex:1;">
+        <div class="pf-card-hdr-title" id="form-req-title">Requisição de Compra</div>
+        <div class="pf-card-hdr-sub" id="form-req-meta">—</div>
+      </div>
+    </div>
+    <div class="pf-card-body">
+
+      <!-- Itens -->
+      <div class="req-card" id="req-card">
+        <div class="req-card-hdr">
+          <div class="req-card-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+          <div>
+            <div class="req-card-id" id="req-card-id">Itens Solicitados</div>
+            <div class="req-card-meta" id="req-card-meta">—</div>
+          </div>
+        </div>
+        <div id="req-items-wrap"></div>
+      </div>
+
+      <!-- Identificação -->
+      <div class="f-sec"><i class="fa-solid fa-building"></i> Identificação da Empresa</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;">CNPJ</label>
+          <input type="text" class="form-control" id="f-cnpj" readonly
+                 style="background:#f9f9f9;color:#777;font-size:13px;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;">
+            Razão Social <span style="color:#e11d48;">*</span>
+          </label>
+          <input type="text" class="form-control" id="f-nome"
+                 style="font-size:13px;" placeholder="Carregando..." readonly>
+          <div class="cnpj-status loading" id="cnpj-status">
+            <span style="width:11px;height:11px;border-radius:50%;border:1.5px solid #ccc;border-top-color:#888;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0;"></span>
+            Buscando razão social...
+          </div>
+        </div>
+      </div>
+
+      <!-- Proposta -->
+      <div class="f-sec" style="margin-top:24px;"><i class="fa-solid fa-tag"></i> Proposta Comercial — Preço por Item</div>
+
+      <!-- Tabela de preços por item (preenchida dinamicamente pelo JS) -->
+      <div id="itens-precos-wrap" style="margin-bottom:14px;">
+        <!-- Gerado por renderItensPrecos() -->
+      </div>
+
+      <!-- Banner total -->
+      <div class="price-banner" id="price-banner" style="display:none;">
+        <div class="price-banner-lbl">💰 Valor Total da Proposta</div>
+        <div class="price-banner-row">
+          <div class="price-banner-total" id="pb-total" style="font-size:28px;">R$ 0,00</div>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:4px;" id="pb-detail"></div>
+      </div>
+
+      <!-- Prazo (mantém grid separado) -->
+      <div class="form-group" style="margin-bottom:0;margin-top:14px;">
+        <label class="form-label" style="font-size:12px;font-weight:700;">
+          Prazo de Entrega <span style="color:#e11d48;">*</span>
+        </label>
+        <div style="position:relative;">
+          <input type="number" class="form-control" id="f-prazo"
+                 placeholder="7" min="1" step="1" style="font-size:15px;padding-right:46px;">
+          <span style="position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:12px;color:#bbb;font-weight:600;pointer-events:none;">dias</span>
+        </div>
+        <span style="font-size:11px;color:#bbb;margin-top:3px;display:block;">Dias úteis após emissão da PO</span>
+      </div>
+
+      <!-- Pagamento / Validade -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;">Cond. de Pagamento</label>
+          <select class="form-control" id="f-pagamento" style="font-size:13px;">
+            <option value="30 DDL">30 DDL</option>
+            <option value="28 DDL">28 DDL</option>
+            <option value="45 DDL">45 DDL</option>
+            <option value="60 DDL">60 DDL</option>
+            <option value="À Vista">À Vista</option>
+            <option value="Antecipado">Antecipado</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;">Validade da Proposta</label>
+          <select class="form-control" id="f-validade" style="font-size:13px;">
+            <option value="7">7 dias</option>
+            <option value="15" selected>15 dias</option>
+            <option value="30">30 dias</option>
+            <option value="60">60 dias</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Frete e Imposto -->
+      <div class="f-sec" style="margin-top:24px;"><i class="fa-solid fa-truck"></i> Condições da Entrega</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="tg-card on" id="tg-frete">
+          <input type="checkbox" id="f-frete" checked onclick="syncTgCard(this,'tg-frete')">
+          <div>
+            <div class="tg-card-title"><i class="fa-solid fa-truck-fast" style="color:#6633ee;margin-right:5px;"></i> Frete Incluso</div>
+            <div class="tg-card-sub">Entrega já no preço</div>
+          </div>
+        </div>
+        <div class="tg-card on" id="tg-imposto">
+          <input type="checkbox" id="f-imposto" checked onclick="syncTgCard(this,'tg-imposto')">
+          <div>
+            <div class="tg-card-title"><i class="fa-solid fa-receipt" style="color:#6633ee;margin-right:5px;"></i> Impostos Inclusos</div>
+            <div class="tg-card-sub">Valor com impostos</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Observações -->
+      <div class="form-group" style="margin-top:20px;margin-bottom:0;">
+        <label class="form-label" style="font-size:12px;font-weight:700;">Observações e Condições Especiais</label>
+        <textarea class="form-control" id="f-obs" rows="3" style="resize:vertical;font-size:13px;"
+                  placeholder="Descontos, garantia, especificações técnicas, prazo mínimo de pedido, etc..."></textarea>
+      </div>
+
+      <!-- Upload de documento -->
+      <div class="f-sec" style="margin-top:24px;"><i class="fa-solid fa-paperclip"></i> Documento Anexo (Opcional)</div>
+      <div class="upload-area" id="upload-area" onclick="document.getElementById('f-arquivo').click()">
+        <input type="file" id="f-arquivo"
+               accept=".pdf,.xlsx,.xls,.csv,.txt,.pptx,.ppt,.docx,.doc,.png,.jpg,.jpeg"
+               style="display:none;"
+               onchange="onFileSelected(this)">
+        <div class="upload-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+        <div class="upload-label">Clique para anexar um documento</div>
+        <div class="upload-sub">PDF, Excel, Word, PowerPoint, TXT, Imagens — máx. 10 MB</div>
+        <div class="upload-file-preview">
+          <div class="upload-icon"><i class="fa-solid fa-file-circle-check"></i></div>
+          <div class="upload-file-name" id="upload-file-name">arquivo.pdf</div>
+          <div style="font-size:11.5px;color:#059669;margin-top:3px;" id="upload-file-size"></div>
+          <button onclick="limparArquivo(event)" style="margin-top:8px;background:none;border:1px solid #bbf7d0;border-radius:8px;padding:4px 12px;font-size:11.5px;color:#059669;cursor:pointer;font-weight:600;">
+            <i class="fa-solid fa-xmark"></i> Remover arquivo
+          </button>
+        </div>
+      </div>
+
+      <!-- LGPD -->
+      <div class="lgpd-box">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span>Ao enviar esta proposta, você concorda que os dados serão utilizados exclusivamente para avaliação comercial pela equipe de compras da Vendemmia, em conformidade com a <strong>LGPD (Lei 13.709/2018)</strong>.</span>
+      </div>
+
+      <button class="btn-pf btn-pf-primary" id="btn-submit" onclick="enviar()">
+        <i class="fa-solid fa-paper-plane"></i> Enviar Proposta Comercial
+      </button>
+      <button class="btn-pf btn-pf-ghost" onclick="setState('state-lookup')">
+        <i class="fa-solid fa-arrow-left"></i> Voltar
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ═══ SUCESSO ═══════════════════════════════════════════ -->
+  <div id="state-success" style="display:none;">
+    <div class="pf-card-body">
+      <div class="success-wrap">
+        <div class="success-circle"><i class="fa-solid fa-check"></i></div>
+        <div class="success-title">Proposta Enviada!</div>
+        <p class="success-sub">Sua cotação foi recebida e será analisada pela equipe de compras da Vendemmia.</p>
+        <div class="success-proto">Protocolo: <strong id="success-proto">—</strong></div>
+        <div class="success-details">
+          <div class="success-details-lbl"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i> Resumo da Proposta</div>
+          <div class="success-grid" id="success-grid"></div>
+        </div>
+        <p style="font-size:12px;color:#bbb;line-height:1.65;margin-top:4px;">
+          Em caso de dúvidas, entre em contato com o comprador responsável da Vendemmia que enviou a solicitação.
+        </p>
+        <button class="btn-pf btn-pf-ghost" style="margin-top:6px;" onclick="setState('state-lookup')">
+          <i class="fa-solid fa-house"></i> Início
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /pf-card -->
+</div><!-- /pf-wrap -->
+
+<div class="pf-footer">Powered by <strong style="color:rgba(255,255,255,.35);">SHP — Sistema de Compras</strong> &nbsp;·&nbsp; Vendemmia Group</div>
+
+<!-- ═══ MODAL HISTÓRICO ════════════════════════════════════ -->
+<div id="hist-overlay" class="hist-overlay" style="display:none;" onclick="if(event.target===this)fecharHistorico()">
+  <div class="hist-panel">
+    <div class="hist-panel-hdr">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#1a1a2e;">Minhas Cotações</div>
+        <div style="font-size:12px;color:#888;margin-top:2px;" id="hist-sub">Carregando...</div>
+      </div>
+      <button class="hist-close" onclick="fecharHistorico()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="hist-panel-body" id="hist-body">
+      <!-- conteúdo dinâmico -->
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<div id="modal-overlay" class="modal-overlay"></div>
+<script src="js/utils.js"></script>
+<script>
+/* ── Estado ────────────────────────────────────────────────── */
+const params = new URLSearchParams(location.search);
+let REQ_ID = params.get('id');
+let CNPJ   = params.get('cnpj');
+let _totalItens = 0;
+let _itensCotacao = []; // [{descricao, quantidade}]
+let _razaoSocial = '';
+
+/* ── UI helpers ─────────────────────────────────────────────── */
+function setState(s) {
+  ['state-lookup','state-loading','state-error','state-form','state-success'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (id === s) ? '' : 'none';
+  });
+  const steps = document.getElementById('pf-steps');
+  const heroSub = document.getElementById('pf-hero-sub');
+  const heroH1  = document.querySelector('.pf-hero h1');
+  if (s === 'state-form') {
+    if (steps) steps.style.display = 'flex';
+    setStep(2);
+    if (heroH1) heroH1.innerHTML = 'Preencha sua <em>Proposta</em>';
+    if (heroSub) heroSub.textContent = 'Revise os itens e informe seus melhores preços e condições.';
+  } else if (s === 'state-success') {
+    if (steps) steps.style.display = 'flex';
+    setStep(3);
+    if (heroH1) heroH1.innerHTML = 'Proposta <em>Enviada!</em>';
+    if (heroSub) heroSub.textContent = 'Sua cotação foi registrada com sucesso.';
+  } else {
+    if (steps) steps.style.display = 'none';
+    if (heroH1) heroH1.innerHTML = 'Envie sua <em>Proposta Comercial</em>';
+    if (heroSub) heroSub.textContent = 'Portal exclusivo para fornecedores da Vendemmia enviarem cotações de forma rápida e segura.';
+  }
+}
+
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById(`step-${i}`);
+    if (!el) return;
+    el.className = 'pf-step ' + (i < n ? 'done' : i === n ? 'active' : '');
+    el.querySelector('.pf-step-num').innerHTML = i < n
+      ? '<i class="fa-solid fa-check" style="font-size:9px;"></i>'
+      : i;
+  });
+}
+
+/* ── CNPJ mask ──────────────────────────────────────────────── */
+function maskCNPJ(el) {
+  let v = el.value.replace(/\D/g,'').substring(0,14);
+  if (v.length > 12) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d)/,'$1.$2.$3/$4-$5');
+  else if (v.length > 8) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d+)/,'$1.$2.$3/$4');
+  else if (v.length > 5) v = v.replace(/^(\d{2})(\d{3})(\d+)/,'$1.$2.$3');
+  else if (v.length > 2) v = v.replace(/^(\d{2})(\d+)/,'$1.$2');
+  el.value = v;
+}
+
+/* ── Busca Razão Social via BrasilAPI ───────────────────────── */
+async function buscarRazaoSocial(cnpjClean) {
+  const statusEl = document.getElementById('cnpj-status');
+  const nomeEl   = document.getElementById('f-nome');
+  if (!cnpjClean || cnpjClean.length !== 14) {
+    if (nomeEl)   { nomeEl.readOnly = false; nomeEl.placeholder = 'Nome da sua empresa'; }
+    if (statusEl) statusEl.style.display = 'none';
+    return;
+  }
+  if (statusEl) {
+    statusEl.className = 'cnpj-status loading';
+    statusEl.style.display = 'flex';
+    statusEl.innerHTML = '<span style="width:11px;height:11px;border-radius:50%;border:1.5px solid #ccc;border-top-color:#888;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0;"></span> Buscando razão social...';
+  }
+  if (nomeEl) { nomeEl.readOnly = true; nomeEl.value = ''; nomeEl.placeholder = 'Carregando...'; }
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjClean}`);
+    if (!r.ok) throw new Error('not found');
+    const d = await r.json();
+    const nome = d.razao_social || d.nome_fantasia || '';
+    if (nome) {
+      _razaoSocial = nome;
+      if (nomeEl) { nomeEl.value = nome; nomeEl.readOnly = true; }
+      if (statusEl) { statusEl.className = 'cnpj-status ok'; statusEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> Razão social confirmada via Receita Federal'; }
+    } else throw new Error('no name');
+  } catch {
+    if (nomeEl)   { nomeEl.readOnly = false; nomeEl.value = ''; nomeEl.placeholder = 'Digite o nome da sua empresa'; }
+    if (statusEl) { statusEl.className = 'cnpj-status error'; statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> CNPJ não encontrado — preencha manualmente'; }
+  }
+}
+
+/* ── Lookup ─────────────────────────────────────────────────── */
+async function lookupCotacao() {
+  const cnpjRaw = document.getElementById('lookup-cnpj')?.value?.trim();
+  const reqId   = document.getElementById('lookup-req')?.value?.trim();
+  const errEl   = document.getElementById('lookup-err');
+  if (errEl) errEl.style.display = 'none';
+  if (!cnpjRaw || !reqId) {
+    showLookupErr('Preencha o CNPJ e o número da requisição.'); return;
+  }
+  REQ_ID = reqId;
+  CNPJ   = cnpjRaw.replace(/\D/g,'');
+  await carregarRequisicao();
+}
+
+function showLookupErr(msg) {
+  const el = document.getElementById('lookup-err');
+  const m  = document.getElementById('lookup-err-msg');
+  if (m)  m.textContent = msg;
+  if (el) { el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.gap = '8px'; }
+}
+
+/* ── Carrega requisição ─────────────────────────────────────── */
+async function carregarRequisicao() {
+  if (!REQ_ID) { setState('state-lookup'); return; }
+  setState('state-loading');
+  const cnpjEl = document.getElementById('f-cnpj');
+  if (cnpjEl && CNPJ) cnpjEl.value = CNPJ;
+
+  try {
+    const req = await Api.get(`/api/sourcing/requisicao/${REQ_ID}`);
+
+    document.getElementById('form-req-title').textContent = `Requisição #${req.id}`;
+    document.getElementById('form-req-meta').textContent  =
+      [req.unidade && `Unidade: ${req.unidade}`,
+       req.comprador && `Comprador: ${req.comprador}`,
+       req.data && req.data.split('T')[0]
+      ].filter(Boolean).join('  ·  ');
+
+    document.getElementById('req-card-id').textContent = `Solicitação de Compra #${req.id}`;
+    const metaParts = [
+      req.unidade && `<span style="background:rgba(102,51,238,.12);color:#6633ee;padding:2px 8px;border-radius:6px;font-weight:700;">${req.unidade}</span>`,
+      req.data && `<span style="color:#7c3aed;">📅 ${req.data}</span>`
+    ].filter(Boolean);
+    document.getElementById('req-card-meta').innerHTML = metaParts.join('&nbsp;·&nbsp;') || '—';
+
+    const wrap = document.getElementById('req-items-wrap');
+
+    // ── Contexto / Justificativa ─────────────────────────────
+    if (req.justificativa) {
+      const d = document.createElement('div');
+      d.style.cssText = 'background:rgba(102,51,238,.07);border:1px solid rgba(102,51,238,.18);border-radius:10px;padding:12px 14px;font-size:12.5px;color:#444;margin-bottom:14px;line-height:1.6;';
+      d.innerHTML = `<div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#6633ee;margin-bottom:6px;display:flex;align-items:center;gap:5px;"><i class="fa-solid fa-circle-info"></i> Justificativa / Contexto da Compra</div>${req.justificativa}`;
+      wrap.appendChild(d);
+    }
+
+    // ── Informações adicionais ───────────────────────────────
+    if (req.comprador || req.status) {
+      const info = document.createElement('div');
+      info.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;';
+      if (req.comprador) info.innerHTML += `<div style="background:#f9f6ff;border:1px solid #e0d9f9;border-radius:8px;padding:8px 12px;font-size:12px;"><span style="color:#999;display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Comprador Responsável</span><span style="font-weight:700;color:#1a1a2e;">${req.comprador}</span></div>`;
+      if (req.status) info.innerHTML += `<div style="background:#f9f6ff;border:1px solid #e0d9f9;border-radius:8px;padding:8px 12px;font-size:12px;"><span style="color:#999;display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Status da Requisição</span><span style="font-weight:700;color:#6633ee;">${req.status}</span></div>`;
+      wrap.appendChild(info);
+    }
+
+    // ── Itens solicitados ────────────────────────────────────
+    if (req.itens?.length > 0) {
+      _totalItens = req.itens.reduce((s, i) => s + (i.quantidade || 1), 0);
+      _itensCotacao = req.itens.map(i => ({ descricao: i.descricao, quantidade: i.quantidade, segmento: i.segmento||'' }));
+      const tbl = document.createElement('table');
+      tbl.className = 'req-items-tbl';
+      tbl.innerHTML = `
+        <thead><tr>
+          <th>Qtd.</th><th>Descrição do Item</th><th>Segmento / Categoria</th>
+        </tr></thead>
+        <tbody>${req.itens.map(i=>`<tr>
+          <td><span class="req-qty">${i.quantidade}</span></td>
+          <td style="font-weight:600;">${i.descricao}</td>
+          <td style="font-size:12px;color:#888;">${i.segmento||'—'}</td>
+        </tr>`).join('')}</tbody>`;
+      wrap.appendChild(tbl);
+      // Total de itens
+      const tot = document.createElement('div');
+      tot.style.cssText = 'margin-top:8px;font-size:12px;color:#7c3aed;font-weight:600;text-align:right;';
+      tot.innerHTML = `<i class="fa-solid fa-sigma" style="margin-right:4px;"></i> Total: ${_totalItens} unidade(s) a cotar`;
+      wrap.appendChild(tot);
+    } else {
+      wrap.innerHTML += `<div style="font-size:13px;color:#999;padding:6px 0;">Sem itens detalhados para esta requisição.</div>`;
+    }
+
+    setState('state-form');
+    renderItensPrecos();
+
+    // Busca razão social
+    const cnpjClean = (CNPJ || '').replace(/\D/g,'');
+    buscarRazaoSocial(cnpjClean);
+
+  } catch {
+    setState('state-error');
+  }
+}
+
+/* ── Render itens precos ────────────────────────────────────── */
+function renderItensPrecos() {
+  const wrap = document.getElementById('itens-precos-wrap');
+  if (!wrap) return;
+  if (_itensCotacao.length === 0) {
+    wrap.innerHTML = `<div style="font-size:13px;color:#999;padding:8px 0;">Sem itens detalhados para esta requisição.</div>`;
+    return;
+  }
+  wrap.innerHTML = _itensCotacao.map((it, i) => `
+    <div class="item-price-row">
+      <div>
+        <div class="item-price-label">${it.descricao}</div>
+        ${it.segmento ? `<div style="font-size:11px;color:#aaa;margin-top:2px;">${it.segmento}</div>` : ''}
+      </div>
+      <div class="item-price-qty">${it.quantidade} un.</div>
+      <div>
+        <input type="number" class="item-price-input" id="preco-item-${i}"
+               placeholder="0,00" min="0" step="0.01"
+               oninput="calcularTotal()"
+               data-qty="${it.quantidade}">
+        <div class="item-price-subtotal" id="sub-item-${i}">Subtotal: —</div>
+      </div>
+    </div>`).join('');
+  calcularTotal();
+}
+
+function calcularTotal() {
+  let total = 0;
+  let detalhes = [];
+  _itensCotacao.forEach((it, i) => {
+    const input = document.getElementById(`preco-item-${i}`);
+    const preco = parseFloat(input?.value) || 0;
+    const sub = preco * it.quantidade;
+    total += sub;
+    const subEl = document.getElementById(`sub-item-${i}`);
+    if (subEl) subEl.textContent = preco > 0 ? `Subtotal: ${Fmt.currency(sub)}` : 'Subtotal: —';
+    if (preco > 0) detalhes.push(`${it.descricao}: ${Fmt.currency(preco)} × ${it.quantidade}`);
+  });
+  const banner = document.getElementById('price-banner');
+  const totalEl = document.getElementById('pb-total');
+  const detEl = document.getElementById('pb-detail');
+  if (total > 0) {
+    if (totalEl) totalEl.textContent = Fmt.currency(total);
+    if (detEl) detEl.textContent = detalhes.join('  ·  ');
+    if (banner) banner.style.display = '';
+  } else {
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+/* ── Toggle cards ───────────────────────────────────────────── */
+function syncTgCard(cb, cardId) {
+  const card = document.getElementById(cardId);
+  if (card) card.classList.toggle('on', cb.checked);
+}
+
+/* ── Upload de arquivo ──────────────────────────────────────── */
+function onFileSelected(input) {
+  const area = document.getElementById('upload-area');
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) {
+    Toast.warning('Arquivo muito grande', 'O tamanho máximo é 10 MB.');
+    input.value = ''; return;
+  }
+  area.classList.add('has-file');
+  document.getElementById('upload-file-name').textContent = file.name;
+  document.getElementById('upload-file-size').textContent =
+    file.size > 1024*1024 ? `${(file.size/1024/1024).toFixed(1)} MB` : `${Math.round(file.size/1024)} KB`;
+}
+
+function limparArquivo(e) {
+  e.stopPropagation();
+  document.getElementById('f-arquivo').value = '';
+  document.getElementById('upload-area').classList.remove('has-file');
+}
+
+/* ── Helpers ────────────────────────────────────────────────── */
+function round2(v) { return Math.round(v * 100) / 100; }
+
+/* ── Enviar proposta ────────────────────────────────────────── */
+async function enviar() {
+  const nome    = document.getElementById('f-nome')?.value?.trim();
+  const prazo   = parseInt(document.getElementById('f-prazo')?.value);
+  const pagto   = document.getElementById('f-pagamento')?.value;
+  const valid   = document.getElementById('f-validade')?.value;
+  const obs     = document.getElementById('f-obs')?.value?.trim();
+  const frete   = document.getElementById('f-frete')?.checked ? 1 : 0;
+  const imposto = document.getElementById('f-imposto')?.checked ? 1 : 0;
+  const cnpjV   = (CNPJ || document.getElementById('f-cnpj')?.value || '').replace(/\D/g,'');
+
+  // Coleta preços por item
+  const itensPrecos = _itensCotacao.map((it, i) => ({
+    descricao: it.descricao,
+    quantidade: it.quantidade,
+    preco_unitario: parseFloat(document.getElementById(`preco-item-${i}`)?.value) || 0
+  }));
+  const total = itensPrecos.reduce((s, it) => s + it.quantidade * it.preco_unitario, 0);
+  const algumPreco = itensPrecos.some(it => it.preco_unitario > 0);
+
+  if (!nome)              { Toast.warning('Campo obrigatório','Informe a Razão Social da empresa.'); return; }
+  if (!algumPreco)        { Toast.warning('Campo obrigatório','Informe o preço de pelo menos um item.'); return; }
+  if (!prazo || prazo<=0) { Toast.warning('Campo obrigatório','Informe o prazo de entrega em dias.'); return; }
+  if (!cnpjV)             { Toast.warning('CNPJ não identificado','Volte e informe seu CNPJ.'); return; }
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.innerHTML = `<div class="spin-sm"></div> Enviando...`;
+
+  try {
+    // 1. Enviar cotação
+    await Api.post('/api/cotacao/enviar', {
+      id_requisicao: parseInt(REQ_ID), cnpj_fornecedor: cnpjV,
+      preco_unitario: round2(total), prazo_entrega: prazo,
+      pagamento: pagto, validade_dias: parseInt(valid),
+      observacoes: obs || null, frete_incluso: frete, imposto_incluso: imposto,
+      itens: itensPrecos
+    });
+
+    // 2. Upload de arquivo (se houver)
+    const arqInput = document.getElementById('f-arquivo');
+    if (arqInput?.files[0]) {
+      const fd = new FormData();
+      fd.append('id_requisicao', parseInt(REQ_ID));
+      fd.append('cnpj_fornecedor', cnpjV);
+      fd.append('arquivo', arqInput.files[0]);
+      const resp = await fetch(`${API_BASE}/api/cotacao/upload-doc`, { method:'POST', body: fd });
+      if (!resp.ok) console.warn('Upload do arquivo falhou, mas cotação foi enviada.');
+    }
+
+    // 3. Tela de sucesso
+    const proto = `SHP-${REQ_ID}-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+    document.getElementById('success-proto').textContent = proto;
+    const arqNome = arqInput?.files[0]?.name || null;
+    const itensSummary = itensPrecos.filter(it=>it.preco_unitario>0).map(it=>`${it.descricao}: ${Fmt.currency(it.preco_unitario)}`).join(', ');
+    document.getElementById('success-grid').innerHTML = [
+      { l:'Requisição',   v:`#${REQ_ID}` },
+      { l:'Empresa',      v: nome },
+      { l:'Valor Total',  v: Fmt.currency(total) },
+      { l:'Itens',        v: `${itensPrecos.length} item(ns)` },
+      { l:'Prazo',        v:`${prazo} dias úteis` },
+      { l:'Pagamento',    v: pagto },
+      { l:'Frete',        v: frete ? '✓ Incluso' : 'A negociar' },
+      { l:'Documento',    v: arqNome ? `📎 ${arqNome.substring(0,22)}${arqNome.length>22?'...':''}` : '—' },
+    ].map(r=>`<div><div class="si-label">${r.l}</div><div class="si-value">${r.v}</div></div>`).join('');
+
+    setState('state-success');
+  } catch {
+    Toast.error('Erro ao enviar','Verifique a conexão e tente novamente.');
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Enviar Proposta Comercial`;
+  }
+}
+
+/* ── Histórico ──────────────────────────────────────────────── */
+async function abrirHistorico() {
+  document.getElementById('hist-overlay').style.display = 'flex';
+  document.getElementById('hist-body').innerHTML = `<div style="text-align:center;padding:40px;"><div style="width:32px;height:32px;border-radius:50%;border:3px solid #ede9fe;border-top-color:#6633ee;animation:spin .8s linear infinite;margin:auto;"></div></div>`;
+  document.getElementById('hist-sub').textContent = 'Informe seu CNPJ para ver o histórico';
+
+  // Se já temos o CNPJ (veio via URL ou lookup), busca direto
+  const cnpjAtual = (CNPJ || '').replace(/\D/g,'');
+  if (cnpjAtual) {
+    carregarHistorico(cnpjAtual);
+  } else {
+    document.getElementById('hist-body').innerHTML = `
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px;font-weight:700;color:#555;margin-bottom:5px;display:block;">Seu CNPJ</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="hist-cnpj-input" class="form-control"
+                 placeholder="00.000.000/0001-00" style="height:40px;"
+                 oninput="maskCNPJ(this)" maxlength="18"
+                 onkeydown="if(event.key==='Enter') carregarHistoricoInput()">
+          <button class="btn btn-primary btn-sm" style="height:40px;white-space:nowrap;padding:0 16px;"
+                  onclick="carregarHistoricoInput()">
+            <i class="fa-solid fa-search"></i> Buscar
+          </button>
+        </div>
+      </div>
+      <div id="hist-result"></div>`;
+    document.getElementById('hist-sub').textContent = 'Digite seu CNPJ abaixo';
+  }
+}
+
+function carregarHistoricoInput() {
+  const v = document.getElementById('hist-cnpj-input')?.value?.replace(/\D/g,'');
+  if (!v || v.length < 11) { Toast.warning('CNPJ inválido','Verifique o CNPJ informado.'); return; }
+  carregarHistorico(v, 'hist-result');
+}
+
+async function carregarHistorico(cnpj, containerId) {
+  const container = containerId
+    ? document.getElementById(containerId)
+    : document.getElementById('hist-body');
+  if (!container) return;
+  container.innerHTML = `<div style="text-align:center;padding:30px;"><div style="width:28px;height:28px;border-radius:50%;border:2.5px solid #ede9fe;border-top-color:#6633ee;animation:spin .8s linear infinite;margin:auto;"></div></div>`;
+  try {
+    const rows = await Api.get(`/api/cotacao/historico?cnpj=${encodeURIComponent(cnpj)}`);
+    document.getElementById('hist-sub').textContent =
+      rows.length > 0 ? `${rows.length} cotação(ões) encontrada(s)` : 'Nenhuma cotação encontrada';
+    if (rows.length === 0) {
+      container.innerHTML = `<div style="text-align:center;padding:30px;color:#aaa;font-size:13px;"><i class="fa-solid fa-inbox" style="font-size:28px;display:block;margin-bottom:10px;opacity:.3;"></i>Nenhuma cotação encontrada para este CNPJ.</div>`;
+      return;
+    }
+    container.innerHTML = rows.map(r => `
+      <div class="hist-row" onclick="abrirCotacaoHistorico(${r.id_requisicao},'${cnpj}')">
+        <div class="hist-row-top">
+          <span class="hist-req-id"><i class="fa-solid fa-file-invoice" style="color:#6633ee;margin-right:6px;"></i>${r.titulo}</span>
+          ${r.selecionado
+            ? `<span class="hist-status-ok"><i class="fa-solid fa-trophy"></i> Selecionado</span>`
+            : `<span class="hist-status-pen"><i class="fa-solid fa-clock"></i> Em análise</span>`}
+        </div>
+        <div class="hist-row-meta">
+          <span><i class="fa-solid fa-tag" style="margin-right:4px;"></i>${Fmt.currency(r.preco_unitario)} / un.</span>
+          &nbsp;·&nbsp;
+          <span><i class="fa-solid fa-truck" style="margin-right:4px;"></i>${r.prazo} dias</span>
+          &nbsp;·&nbsp;
+          <span><i class="fa-solid fa-calendar" style="margin-right:4px;"></i>${(r.data_resposta||'').split('T')[0]||r.data_resposta||'—'}</span>
+          ${r.arquivo_nome ? `&nbsp;·&nbsp;<span><i class="fa-solid fa-paperclip" style="margin-right:3px;"></i>${r.arquivo_nome.substring(0,20)}</span>` : ''}
+        </div>
+      </div>`).join('');
+  } catch {
+    container.innerHTML = `<div style="color:#e11d48;font-size:13px;padding:16px;">Erro ao carregar histórico.</div>`;
+  }
+}
+
+function abrirCotacaoHistorico(reqId, cnpj) {
+  fecharHistorico();
+  REQ_ID = reqId;
+  CNPJ   = cnpj;
+  carregarRequisicao();
+}
+
+function fecharHistorico() {
+  document.getElementById('hist-overlay').style.display = 'none';
+}
+
+/* ── Init ───────────────────────────────────────────────────── */
+(function init() {
+  if (REQ_ID) carregarRequisicao();
+  else        setState('state-lookup');
+})();
+</script>
+</body>
+</html>

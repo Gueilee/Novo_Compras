@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>3-Way Match | Vendemmia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --grafite: #414042; --lilas: #422c76; --magenta: #ff2f69; --offwhite: #faf9f5; --verde: #01E18E; --branco: #ffffff; }
+        body { font-family: 'Inter', sans-serif; background: var(--offwhite); margin: 0; padding: 30px; color: var(--grafite); display: flex; justify-content: center; }
+        .secao { background: var(--branco); padding: 35px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border-top: 4px solid var(--lilas); width: 100%; max-width: 650px; }
+        h2 { color: var(--lilas); margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 15px; font-size: 18px; display: flex; align-items: center; gap: 10px;}
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 700; font-size: 12px; margin-bottom: 8px; color: var(--grafite); text-transform: uppercase; }
+        select, input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; font-family: 'Inter'; outline: none; transition: 0.3s; }
+        select:focus, input:focus { border-color: var(--lilas); }
+        .btn-match { background: var(--lilas); color: white; border: none; padding: 16px; width: 100%; border-radius: 8px; font-weight: 700; font-size: 15px; cursor: pointer; transition: 0.3s; margin-top: 10px; font-family: 'Inter'; box-shadow: 0 4px 10px rgba(66,44,118,0.2); }
+        .btn-match:hover { background: var(--grafite); transform: translateY(-2px); }
+        .resultado-box { display: none; padding: 25px; border-radius: 8px; margin-top: 25px; color: white; font-weight: 600; text-align: center; }
+        .detalhes-erro { background: rgba(255,255,255,0.2); padding: 15px; margin-top: 15px; border-radius: 8px; font-size: 13px; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="secao">
+        <h2><i class="fa-solid fa-boxes-packing"></i> Conciliação 3-Way Match</h2>
+        <p style="font-size: 13px; color: #666; margin-bottom: 30px; line-height: 1.5;">Insira os dados da Nota Fiscal física para o sistema cruzar as informações com a Requisição (Intake) e com o Pedido de Compra (PO).</p>
+        <div class="form-group"><label>1. Pedido de Compra Associado</label><select id="selectPO"><option value="">A carregar pedidos...</option></select></div>
+        <div class="form-group"><label>2. Número da Nota Fiscal (DANFE)</label><input type="text" id="numeroNF" placeholder="Ex: NF-001234"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="form-group"><label>3. Quantidade Total (Físico)</label><input type="number" id="qtdRecebida" placeholder="Itens contados"></div>
+            <div class="form-group"><label>4. Valor Total NF (R$)</label><input type="number" id="valorNF" step="0.01" placeholder="0,00"></div>
+        </div>
+        <button class="btn-match" onclick="realizarConciliacao()"><i class="fa-solid fa-bolt"></i> EXECUTAR CONCILIAÇÃO DE PAGAMENTO</button>
+        <div id="resultadoMatch" class="resultado-box">
+            <h3 id="tituloStatus" style="margin: 0 0 10px 0; font-size: 18px;">STATUS</h3>
+            <div id="textoStatus">...</div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = async () => {
+            const resp = await fetch('http://localhost:8000/api/recebimento/pendentes');
+            const pos = await resp.json();
+            document.getElementById('selectPO').innerHTML = '<option value="">-- Selecione --</option>' + pos.map(p => `<option value="${p.id_pedido}">PO #${p.id_pedido} - ${p.fornecedor}</option>`).join('');
+        };
+        async function realizarConciliacao() {
+            const idPO = document.getElementById('selectPO').value;
+            if(!idPO) return alert("Selecione um pedido.");
+            const payload = { numero_nf: document.getElementById('numeroNF').value, qtd_recebida: parseFloat(document.getElementById('qtdRecebida').value || 0), valor_nf: parseFloat(document.getElementById('valorNF').value || 0) };
+            const btn = document.querySelector('.btn-match'); btn.innerHTML = "Analisando...";
+            const resp = await fetch(`http://localhost:8000/api/recebimento/match/${idPO}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const resultado = await resp.json();
+            btn.innerHTML = "<i class='fa-solid fa-bolt'></i> EXECUTAR CONCILIAÇÃO DE PAGAMENTO";
+            const box = document.getElementById('resultadoMatch'); box.style.display = 'block'; box.style.backgroundColor = resultado.cor;
+            document.getElementById('tituloStatus').innerHTML = resultado.status === 'APROVADO' ? '<i class="fa-solid fa-circle-check"></i> ' + resultado.status : '<i class="fa-solid fa-triangle-exclamation"></i> ' + resultado.status;
+            let htmlDetalhes = `<p style="margin:0;">${resultado.mensagem}</p>`;
+            if(resultado.detalhes && resultado.detalhes.length > 0) htmlDetalhes += `<div class="detalhes-erro"><ul>` + resultado.detalhes.map(d => `<li>${d}</li>`).join('') + `</ul></div>`;
+            document.getElementById('textoStatus').innerHTML = htmlDetalhes;
+        }
+    </script>
+</body>
+</html>

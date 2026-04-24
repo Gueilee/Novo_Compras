@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Sourcing | Vendemmia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --grafite: #414042; --lilas: #422c76; --magenta: #ff2f69; --offwhite: #faf9f5; --verde: #01E18E; --branco: #ffffff; }
+        body { font-family: 'Inter', sans-serif; background: var(--offwhite); margin: 0; padding: 30px; color: var(--grafite); }
+        .secao { background: var(--branco); padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-top: 4px solid var(--lilas); }
+        h2 { color: var(--lilas); font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-top: 0; display: flex; align-items: center; gap: 10px; }
+        .grid-pedidos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+        .card-mini { padding: 18px; border: 1px solid #eee; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+        .card-mini:hover { border-color: var(--lilas); box-shadow: 0 4px 10px rgba(66,44,118,0.1); }
+        .card-mini.active { border: 2px solid var(--magenta); background: #fff9fb; }
+        .card-mini b { font-size: 14px; color: var(--lilas); display: block; margin-bottom: 5px;}
+        .card-mini small { font-size: 12px; color: #888; }
+        .layout-duas-colunas { display: grid; grid-template-columns: 1fr 1.2fr; gap: 25px; }
+        .fornecedor-card { border-left: 4px solid var(--verde); background: #f8f8fb; padding: 15px; margin-bottom: 12px; border-radius: 8px; }
+        .fornecedor-card b { font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; padding: 12px; background: #f8f8fb; color: var(--lilas); font-weight: 600; }
+        td { padding: 12px; border-bottom: 1px solid #eee; }
+        button { cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 600; border: none; border-radius: 6px; transition: 0.3s; }
+        .btn-link { background: var(--lilas); color: white; padding: 8px 12px; font-size: 11px; margin-top: 10px; }
+        .btn-link:hover { background: var(--grafite); }
+        .btn-po { background: var(--verde); color: var(--branco); padding: 8px 15px; font-size: 12px; box-shadow: 0 2px 8px rgba(1,225,142,0.3); }
+        .btn-po:hover { background: #00cd81; }
+        .valor-magenta { color: var(--magenta); font-weight: 700; }
+    </style>
+</head>
+<body>
+    <div class="secao">
+        <h2><i class="fa-solid fa-list-check"></i> 1. Selecione um Pedido Aprovado</h2>
+        <div id="listaPedidosAprovados" class="grid-pedidos"></div>
+    </div>
+    <div id="areaTrabalho" style="display: none;" class="layout-duas-colunas">
+        <div class="secao">
+            <h2><i class="fa-solid fa-truck"></i> 2. Fornecedores Homologados</h2>
+            <div id="listaFornecedores"></div>
+        </div>
+        <div class="secao">
+            <h2><i class="fa-solid fa-ranking-star"></i> 3. Mapa Comparativo</h2>
+            <div id="mapaLances"></div>
+        </div>
+    </div>
+
+    <script>
+        let pedidoSelecionado = null;
+        window.onload = carregarPedidos;
+
+        async function carregarPedidos() {
+            const resp = await fetch('http://localhost:8000/api/sourcing/pedidos-aprovados');
+            const pedidos = await resp.json();
+            document.getElementById('listaPedidosAprovados').innerHTML = pedidos.map(p => `<div class="card-mini" onclick="selecionarPedido(${p.id}, this)"><b>Pedido #${p.id}</b><small>${p.solicitante} | ${p.unidade}</small></div>`).join('') || '<p style="font-size:14px;color:#888;">Nenhum pedido aguardando cotação.</p>';
+        }
+
+        function selecionarPedido(id, el) {
+            pedidoSelecionado = id;
+            document.querySelectorAll('.card-mini').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('areaTrabalho').style.display = 'grid';
+            carregarInteligencia("STRETCH"); carregarMapa(id);
+        }
+
+        async function carregarInteligencia(seg) {
+            const resp = await fetch(`http://localhost:8000/fornecedores/${seg}`);
+            const d = await resp.json();
+            document.getElementById('listaFornecedores').innerHTML = d.fornecedores.map(f => `<div class="fornecedor-card"><b>${f.razao_social}</b><br><small style="color:#666">${f.telefone}</small><br><button class="btn-link" onclick="enviarLink('${f.cnpj}', this)"><i class="fa-solid fa-paper-plane"></i> Enviar Convite</button></div>`).join('');
+        }
+
+        async function enviarLink(cnpj, btn) {
+            btn.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> Enviando...";
+            await fetch('http://localhost:8000/api/cotacao/disparar-email', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id_requisicao: pedidoSelecionado, cnpj_fornecedor: cnpj, preco_unitario: 0, prazo_entrega: 0}) });
+            btn.innerHTML = "<i class='fa-solid fa-check'></i> Enviado!"; btn.style.background = "var(--verde)";
+        }
+
+        async function carregarMapa(id) {
+            const resp = await fetch(`http://localhost:8000/api/cotacao/comparativo/${id}`);
+            const lances = await resp.json();
+            if(lances.length === 0) { document.getElementById('mapaLances').innerHTML = "<p style='color:#888; font-size:14px;'>Aguardando lances no Portal...</p>"; return; }
+            let html = '<table><tr><th>Fornecedor</th><th>Preço</th><th>Prazo</th><th>Ação</th></tr>';
+            lances.forEach((l, i) => { html += `<tr style="${i===0?'background:#f0fff4;':''}"><td>${i===0?'🏆 ':''}${l.fornecedor}</td><td class="valor-magenta">R$ ${l.preco.toFixed(2)}</td><td>${l.prazo} d</td><td>${i===0?`<button class="btn-po" onclick="emitirPO(${id},'${l.cnpj}')">Emitir PO</button>`:'--'}</td></tr>`; });
+            document.getElementById('mapaLances').innerHTML = html + '</table>';
+        }
+
+        function emitirPO(id, cnpj) { window.open(`visualizar_po.html?id=${id}&cnpj=${cnpj}`, '_blank'); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Gestor | Compras Vendemmia</title>
+    <link rel="icon" type="image/png" href="/img/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --grafite: #414042; --lilas: #422c76; --magenta: #ff2f69; --offwhite: #faf9f5; --verde: #01E18E; --branco: #ffffff; }
+        body { font-family: 'Inter', sans-serif; background: var(--offwhite); margin: 0; padding: 30px; color: var(--grafite); }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        h1 { color: var(--lilas); margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+        .budget-widget { background: var(--branco); padding: 20px 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-left: 5px solid var(--grafite); min-width: 320px; display: none; }
+        .budget-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 8px; }
+        .budget-valores { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 10px; font-weight: 600; }
+        .progress-bg { background: #f0f0f0; height: 12px; border-radius: 6px; width: 100%; overflow: hidden; }
+        .progress-bar { height: 100%; transition: width 0.5s ease, background-color 0.5s; }
+        .pedido-card { background: var(--branco); padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-left: 4px solid var(--lilas); display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.2s; }
+        .pedido-card:hover { transform: translateY(-2px); }
+        .pedido-info h3 { margin: 0 0 8px 0; color: var(--lilas); font-size: 16px; }
+        .pedido-info p { margin: 0; font-size: 13px; color: #666; }
+        .itens-lista { margin-top: 15px; background: #f8f8fb; padding: 15px; border-radius: 8px; font-size: 13px; border: 1px solid #eee; }
+        .acoes button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: 'Inter'; margin-left: 10px; color: white; transition: 0.2s; font-size: 13px; }
+        .btn-aprovar { background: var(--verde); box-shadow: 0 4px 10px rgba(1, 225, 142, 0.2); }
+        .btn-aprovar:hover { background: #00cd81; }
+        .btn-reprovar { background: var(--offwhite); color: var(--magenta); border: 1px solid var(--magenta); }
+        .btn-reprovar:hover { background: #fff0f4; }
+        .vazio { text-align: center; color: #888; padding: 40px; font-size: 15px; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <h1><i class="fa-solid fa-signature"></i> Aprovação de Requisições</h1>
+        <div class="budget-widget" id="budgetWidget">
+            <div class="budget-title" id="budgetUnidade">Orçamento</div>
+            <div class="budget-valores"><span id="budgetConsumido" style="color:var(--grafite)">R$ 0,00</span><span id="budgetTotal" style="color: #999;">de R$ 0,00</span></div>
+            <div class="progress-bg"><div class="progress-bar" id="budgetBarra" style="width: 0%;"></div></div>
+        </div>
+    </div>
+    <div id="listaPedidos"><p class="vazio">A carregar requisições pendentes...</p></div>
+
+    <script>
+        window.onload = buscarPendencias;
+        async function buscarPendencias() {
+            const resp = await fetch('http://localhost:8000/api/aprovacoes/pendentes');
+            const dados = await resp.json();
+            const container = document.getElementById('listaPedidos');
+            if (!dados.pedidos || dados.pedidos.length === 0) {
+                container.innerHTML = '<p class="vazio">Nenhuma requisição aguardando aprovação.</p>';
+                document.getElementById('budgetWidget').style.display = 'none';
+                return;
+            }
+            carregarOrcamento(dados.pedidos[0].unidade);
+            container.innerHTML = dados.pedidos.map(p => `
+                <div class="pedido-card" onmouseenter="carregarOrcamento('${p.unidade}')">
+                    <div class="pedido-info">
+                        <h3>Pedido #${p.id_pedido} - ${p.unidade}</h3>
+                        <p><b>Solicitante:</b> ${p.solicitante} &nbsp;|&nbsp; <b>Data:</b> ${p.data}</p>
+                        <div class="itens-lista">${p.itens.map(i => `• <b>${i.quantidade}x</b> ${i.descricao} <span style="color:#888">(${i.segmento})</span>`).join('<br>')}</div>
+                    </div>
+                    <div class="acoes">
+                        <button class="btn-reprovar" onclick="processarAprovacao(${p.id_pedido}, 'reprovar')"><i class="fa-solid fa-xmark"></i> Reprovar</button>
+                        <button class="btn-aprovar" onclick="processarAprovacao(${p.id_pedido}, 'aprovar')"><i class="fa-solid fa-check"></i> Aprovar PO</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        async function carregarOrcamento(unidade) {
+            const resp = await fetch(`http://localhost:8000/api/orcamento/${unidade}`);
+            const orc = await resp.json();
+            if(orc.erro) return;
+            document.getElementById('budgetWidget').style.display = 'block';
+            document.getElementById('budgetUnidade').innerText = `Orçamento 2026: ${unidade} (${orc.percentual}%)`;
+            document.getElementById('budgetConsumido').innerText = `R$ ${orc.consumido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('budgetTotal').innerText = `de R$ ${orc.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('budgetBarra').style.width = `${orc.percentual}%`;
+            document.getElementById('budgetBarra').style.backgroundColor = orc.cor_status;
+        }
+        async function processarAprovacao(id, acao) {
+            const justificativa = acao === 'reprovar' ? prompt("Motivo:") : "Aprovado via Painel";
+            if(acao === 'reprovar' && !justificativa) return;
+            await fetch(`http://localhost:8000/api/aprovacoes/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: acao, justificativa: justificativa }) });
+            buscarPendencias();
+        }
+    </script>
+</body>
+</html>

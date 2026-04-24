@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Compras Vendemmia</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── LAYOUT ── */
+    .login-layout {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── LEFT — background image ── */
+    .login-cover {
+      flex: 1;
+      position: relative;
+      display: none; /* hidden on mobile, shown on tablet+ */
+    }
+
+    .login-cover-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    /* Dark overlay so text/logo over the image is readable */
+    .login-cover-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        135deg,
+        rgba(16, 8, 36, 0.72) 0%,
+        rgba(45, 27, 94, 0.55) 50%,
+        rgba(66, 44, 118, 0.40) 100%
+      );
+    }
+
+    /* Tagline on top of the cover image */
+    .login-cover-content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 52px 48px;
+    }
+
+    /* Logo top-left on cover */
+    .cover-logo {
+      position: absolute;
+      top: 36px;
+      left: 48px;
+    }
+    .cover-logo img { height: 40px; filter: brightness(0) invert(1); opacity: 0.9; }
+    .cover-logo-text {
+      font-size: 20px; font-weight: 800; color: #fff;
+      letter-spacing: -0.5px; opacity: 0.9;
+    }
+
+    .cover-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(1,225,142,0.15);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(1,225,142,0.35);
+      border-radius: 30px;
+      padding: 6px 16px;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #01E18E;
+      margin-bottom: 20px;
+      width: fit-content;
+    }
+
+    .cover-badge i { color: #01E18E; }
+
+    .cover-headline {
+      font-size: 42px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.12;
+      letter-spacing: -1px;
+      margin-bottom: 14px;
+      max-width: 420px;
+    }
+
+    .cover-sub {
+      font-size: 15px;
+      color: rgba(255,255,255,0.60);
+      max-width: 360px;
+      line-height: 1.65;
+      margin-bottom: 4px;
+    }
+
+    /* Divider line */
+    .cover-divider {
+      width: 48px; height: 3px;
+      background: linear-gradient(90deg, #01E18E, #422c76);
+      border-radius: 2px;
+      margin: 24px 0;
+    }
+
+    /* Feature pills at the bottom */
+    .cover-features {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .cover-feature-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 12px;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.80);
+      font-weight: 500;
+      transition: background .15s;
+      max-width: 320px;
+    }
+
+    .cover-feature-pill:hover { background: rgba(255,255,255,0.10); }
+
+    .cover-feature-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: rgba(1,225,142,0.15);
+      border: 1px solid rgba(1,225,142,0.25);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .cover-feature-icon i { font-size: 12px; color: #01E18E; }
+
+    /* ── RIGHT — login panel ── */
+    .login-panel {
+      width: 100%;
+      max-width: 480px;
+      min-width: 380px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 48px 48px;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    /* Logo on panel */
+    .panel-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 44px;
+    }
+
+    .panel-logo img {
+      height: 52px;
+      width: auto;
+    }
+
+    .panel-logo-fallback {
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-logo-icon {
+      width: 36px;
+      height: 36px;
+      background: #422c76;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+    }
+
+    .panel-logo-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #414042;
+      letter-spacing: -0.3px;
+    }
+
+    .panel-logo-sep {
+      width: 1px;
+      height: 22px;
+      background: #e5e4ef;
+    }
+
+    .panel-logo-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #888899;
+    }
+
+    /* Heading */
+    .panel-heading {
+      margin-bottom: 32px;
+    }
+
+    .panel-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: #414042;
+      letter-spacing: -0.4px;
+      margin-bottom: 6px;
+    }
+
+    .panel-subtitle {
+      font-size: 14px;
+      color: #888899;
+      line-height: 1.5;
+    }
+
+    /* Form */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #414042;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #aaaabc;
+      font-size: 14px;
+      pointer-events: none;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 13px 14px 13px 42px;
+      border: 1.5px solid #e5e4ef;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      color: #414042;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .form-control:focus {
+      border-color: #422c76;
+      box-shadow: 0 0 0 3px rgba(66,44,118,0.08);
+    }
+
+    .form-control::placeholder { color: #aaaabc; }
+
+    /* Password toggle */
+    .input-eye {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #aaaabc;
+      cursor: pointer;
+      font-size: 15px;
+      padding: 4px;
+      background: none;
+      border: none;
+      transition: color 0.15s;
+    }
+    .input-eye:hover { color: #422c76; }
+
+    /* Remember + forgot */
+    .form-extras {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-wrap input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #422c76;
+      cursor: pointer;
+    }
+
+    .checkbox-label {
+      font-size: 13px;
+      color: #888899;
+    }
+
+    .forgot-link {
+      font-size: 13px;
+      font-weight: 600;
+      color: #422c76;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .forgot-link:hover { color: #ff2f69; }
+
+    /* Submit button */
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: #422c76;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 16px rgba(66,44,118,0.3);
+      letter-spacing: 0.2px;
+      margin-bottom: 20px;
+    }
+
+    .btn-login:hover {
+      background: #5a3f9e;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(66,44,118,0.35);
+    }
+
+    .btn-login:active { transform: translateY(0); }
+
+    .btn-login:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Spinner inside button */
+    .btn-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error banner */
+    .login-error {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255,47,105,0.07);
+      border: 1px solid rgba(255,47,105,0.25);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #cc2054;
+      margin-bottom: 18px;
+    }
+    .login-error i { font-size: 15px; flex-shrink: 0; }
+    .login-error.show { display: flex; }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e5e4ef;
+    }
+    .divider span { font-size: 12px; color: #aaaabc; font-weight: 500; white-space: nowrap; }
+
+    /* SSO hint */
+    .sso-hint {
+      text-align: center;
+      font-size: 13px;
+      color: #888899;
+      line-height: 1.6;
+    }
+    .sso-hint strong { color: #414042; }
+
+    /* Footer */
+    .panel-footer {
+      margin-top: 44px;
+      padding-top: 20px;
+      border-top: 1px solid #f0eef8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .panel-footer-copy {
+      font-size: 11px;
+      color: #aaaabc;
+    }
+
+    .panel-footer-links {
+      display: flex;
+      gap: 14px;
+    }
+
+    .panel-footer-links a {
+      font-size: 11px;
+      color: #aaaabc;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .panel-footer-links a:hover { color: #422c76; }
+
+    /* ── Solicitar Acesso ── */
+    .btn-solicitar {
+      width: 100%;
+      padding: 12px;
+      background: none;
+      border: 1.5px dashed #c8c4e0;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      color: #422c76;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all .15s;
+      margin-bottom: 0;
+    }
+    .btn-solicitar:hover { background: rgba(66,44,118,0.05); border-color: #422c76; }
+
+    .solicitar-header {
+      font-size: 12.5px;
+      color: #666;
+      background: rgba(66,44,118,0.05);
+      border: 1px solid rgba(66,44,118,0.15);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+      margin: 16px 0 14px;
+    }
+
+    .solicitar-success {
+      background: rgba(1,225,142,0.08);
+      border: 1px solid rgba(1,225,142,0.35);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #007a50;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.5;
+    }
+
+    /* ── Responsive ── */
+    @media (min-width: 900px) {
+      .login-cover { display: block; }
+      .login-panel { border-left: 1px solid #f0eef8; }
+    }
+
+    @media (max-width: 480px) {
+      .login-panel { padding: 36px 28px; min-width: unset; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-layout">
+
+  <!-- ══════════ LEFT — Cover Image ══════════ -->
+  <div class="login-cover">
+    <img class="login-cover-img" src="/img/login.png" alt="SHP Background"
+         onerror="this.parentElement.style.background='linear-gradient(135deg,#100824 0%,#2d1b5e 55%,#422c76 100%)'">
+    <div class="login-cover-overlay"></div>
+
+    <div class="login-cover-content">
+      <div class="cover-badge">
+        <i class="fa-solid fa-circle-dot"></i>
+        Sistema de Compras
+      </div>
+      <h1 class="cover-headline">
+        Acompanhamento<br>em Tempo Real
+      </h1>
+      <p class="cover-sub">
+        Gerencie todo o ciclo de compras da sua empresa.
+      </p>
+
+      <div class="cover-divider"></div>
+
+      <div class="cover-features">
+        <div class="cover-feature-pill">
+          <div class="cover-feature-icon"><i class="fa-solid fa-bolt"></i></div>
+          Requisições em 1 clique
+        </div>
+        <div class="cover-feature-pill">
+          <div class="cover-feature-icon"><i class="fa-solid fa-chart-pie"></i></div>
+          Visão de Dados
+        </div>
+        <div class="cover-feature-pill">
+          <div class="cover-feature-icon"><i class="fa-solid fa-building-user"></i></div>
+          Gestão de Fornecedores
+        </div>
+        <div class="cover-feature-pill">
+          <div class="cover-feature-icon"><i class="fa-solid fa-magnifying-glass-dollar"></i></div>
+          Acompanhamento de Orçamento
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ RIGHT — Login Panel ══════════ -->
+  <div class="login-panel">
+
+    <!-- Logo -->
+    <div class="panel-logo">
+      <img src="/img/logo.png" alt="Vendemmia"
+           onerror="this.style.display='none';document.querySelector('.panel-logo-fallback').style.display='flex'">
+      <div class="panel-logo-fallback">
+        <div class="panel-logo-icon">V</div>
+        <span class="panel-logo-name">Vendemmia</span>
+      </div>
+    </div>
+
+    <!-- Heading -->
+    <div class="panel-heading">
+      <h2 class="panel-title">Bem-vindo de volta</h2>
+      <p class="panel-subtitle">Acesse sua conta para continuar.</p>
+    </div>
+
+    <!-- Error banner -->
+    <div class="login-error" id="login-error">
+      <i class="fa-solid fa-circle-xmark"></i>
+      <span id="login-error-msg">Usuário ou senha incorretos. Tente novamente.</span>
+    </div>
+
+    <!-- Form -->
+    <form id="login-form" onsubmit="handleLogin(event)" novalidate>
+
+      <div class="form-group">
+        <label class="form-label">E-mail</label>
+        <div class="input-wrap">
+          <i class="fa-solid fa-envelope input-icon"></i>
+          <input type="email" class="form-control" id="login-email"
+                 placeholder="seu@email.com" autocomplete="email" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Senha</label>
+        <div class="input-wrap">
+          <i class="fa-solid fa-lock input-icon"></i>
+          <input type="password" class="form-control" id="login-senha"
+                 placeholder="••••••••" autocomplete="current-password" required>
+          <button type="button" class="input-eye" id="eye-btn" onclick="toggleSenha()"
+                  title="Mostrar/ocultar senha">
+            <i class="fa-solid fa-eye" id="eye-icon"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-extras">
+        <label class="checkbox-wrap">
+          <input type="checkbox" id="remember-me">
+          <span class="checkbox-label">Lembrar de mim</span>
+        </label>
+        <a href="#" class="forgot-link">Esqueci a senha</a>
+      </div>
+
+      <button type="submit" class="btn-login" id="btn-login">
+        <i class="fa-solid fa-right-to-bracket"></i>
+        Entrar no Sistema
+      </button>
+
+    </form>
+
+    <div class="divider"><span>ou</span></div>
+
+    <!-- Solicitar Acesso toggle -->
+    <button type="button" class="btn-solicitar" id="btn-solicitar-toggle" onclick="toggleSolicitar()">
+      <i class="fa-solid fa-user-plus"></i> Solicitar Acesso ao Sistema
+    </button>
+
+    <!-- Formulário de Solicitação (hidden by default) -->
+    <div id="solicitar-form-wrap" style="display:none;">
+      <div class="solicitar-header">
+        <i class="fa-solid fa-circle-info" style="color:#422c76;"></i>
+        Preencha os dados abaixo. O time de Compras receberá sua solicitação e ativará seu acesso em breve.
+      </div>
+
+      <div id="solicitar-error" class="login-error" style="margin-bottom:14px;"></div>
+      <div id="solicitar-success" class="solicitar-success" style="display:none;"></div>
+
+      <div id="solicitar-fields">
+        <div class="form-group">
+          <label class="form-label">Nome completo</label>
+          <div class="input-wrap">
+            <i class="fa-solid fa-user input-icon"></i>
+            <input type="text" class="form-control" id="sol-nome" placeholder="Seu nome completo">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail corporativo</label>
+          <div class="input-wrap">
+            <i class="fa-solid fa-envelope input-icon"></i>
+            <input type="email" class="form-control" id="sol-email" placeholder="seu@vendemmia.com.br">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gestor Imediato</label>
+          <div class="input-wrap">
+            <i class="fa-solid fa-user-tie input-icon"></i>
+            <input type="text" class="form-control" id="sol-gestor" placeholder="Nome do seu gestor">
+          </div>
+        </div>
+        <button type="button" class="btn-login" id="btn-enviar-sol"
+                style="background:#01E18E;box-shadow:0 4px 16px rgba(1,225,142,0.3);margin-bottom:8px;"
+                onclick="enviarSolicitacao()">
+          <i class="fa-solid fa-paper-plane"></i> Enviar Solicitação
+        </button>
+        <button type="button" onclick="toggleSolicitar()"
+                style="width:100%;background:none;border:none;font-size:13px;color:#888899;cursor:pointer;padding:6px;">
+          Cancelar
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="panel-footer">
+      <span class="panel-footer-copy">© 2026 Vendemmia Group</span>
+      <div class="panel-footer-links">
+        <a href="#">Privacidade</a>
+        <a href="#">Termos de Uso</a>
+        <a href="#">Suporte</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  /* ── Toggle password visibility ── */
+  function toggleSenha() {
+    const input = document.getElementById('login-senha');
+    const icon  = document.getElementById('eye-icon');
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.className = 'fa-solid fa-eye-slash';
+    } else {
+      input.type = 'password';
+      icon.className = 'fa-solid fa-eye';
+    }
+  }
+
+  /* ── Login handler ── */
+  async function handleLogin(e) {
+    e.preventDefault();
+
+    const email = document.getElementById('login-email').value.trim();
+    const senha = document.getElementById('login-senha').value;
+    const btn   = document.getElementById('btn-login');
+    const errEl = document.getElementById('login-error');
+
+    if (!email || !senha) {
+      showError('Preencha e-mail e senha para continuar.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="btn-spinner"></span> Autenticando...`;
+    errEl.classList.remove('show');
+
+    try {
+      await new Promise(r => setTimeout(r, 900));
+
+      // Salva o e-mail do usuário logado para validação no sistema
+      localStorage.setItem('shp_user_email', email);
+
+      btn.innerHTML = `<i class="fa-solid fa-circle-check"></i> Acesso liberado!`;
+      btn.style.background = '#01E18E';
+      setTimeout(() => { window.location.href = 'index.html'; }, 600);
+
+    } catch {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Entrar no Sistema`;
+      showError('Usuário ou senha incorretos. Tente novamente.');
+    }
+  }
+
+  function showError(msg) {
+    const el   = document.getElementById('login-error');
+    const msg2 = document.getElementById('login-error-msg');
+    if (msg2) msg2.textContent = msg;
+    el.classList.add('show');
+    el.style.animation = 'none';
+    el.offsetHeight;
+    el.style.animation = 'shake 0.4s ease';
+  }
+
+  /* ── Solicitar Acesso ── */
+  function toggleSolicitar() {
+    const wrap   = document.getElementById('solicitar-form-wrap');
+    const toggle = document.getElementById('btn-solicitar-toggle');
+    const isOpen = wrap.style.display !== 'none';
+    wrap.style.display = isOpen ? 'none' : 'block';
+    toggle.style.display = isOpen ? 'flex' : 'none';
+    if (!isOpen) document.getElementById('sol-nome')?.focus();
+  }
+
+  async function enviarSolicitacao() {
+    const nome   = document.getElementById('sol-nome').value.trim();
+    const email  = document.getElementById('sol-email').value.trim();
+    const gestor = document.getElementById('sol-gestor').value.trim();
+    const errEl  = document.getElementById('solicitar-error');
+    const sucEl  = document.getElementById('solicitar-success');
+
+    errEl.classList.remove('show');
+
+    if (!nome || !email) {
+      errEl.querySelector ? null : null;
+      errEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i><span>Preencha nome e e-mail.</span>';
+      errEl.classList.add('show'); errEl.style.display = 'flex';
+      return;
+    }
+
+    const btn = document.getElementById('btn-enviar-sol');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner" style="border-top-color:#fff;border-color:rgba(255,255,255,.3)"></span> Enviando...';
+
+    try {
+      const res = await fetch('http://localhost:8000/api/usuarios/solicitar-acesso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, email, gestor_nome: gestor || null })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Erro ao enviar solicitação');
+
+      // Mostra sucesso e esconde o formulário
+      document.getElementById('solicitar-fields').style.display = 'none';
+      sucEl.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#01E18E;font-size:18px;flex-shrink:0;margin-top:1px;"></i>
+        <div><strong>Solicitação enviada com sucesso!</strong><br>
+        O time de Compras receberá sua solicitação e ativará seu acesso em breve.<br>
+        <span style="font-size:11.5px;color:#888;margin-top:4px;display:block;">Aguarde o contato via e-mail: <strong>${email}</strong></span></div>`;
+      sucEl.style.display = 'flex';
+
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitação';
+      errEl.innerHTML = `<i class="fa-solid fa-circle-xmark"></i><span>${err.message}</span>`;
+      errEl.classList.add('show'); errEl.style.display = 'flex';
+    }
+  }
+
+  /* Shake keyframe via JS */
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-5px); }
+      40%      { transform: translateX(5px); }
+      60%      { transform: translateX(-4px); }
+      80%      { transform: translateX(4px); }
+    }
+  `;
+  document.head.appendChild(style);
+
+  /* ── Auto-focus ── */
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('login-email')?.focus();
+  });
+</script>
+
+</body>
+</html>
