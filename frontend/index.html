@@ -302,8 +302,13 @@
 <div id="modal-overlay" class="modal-overlay"></div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════════════════ -->
+<!-- Supabase CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <!-- Utilities (must load first) -->
 <script src="js/utils.js"></script>
+<!-- Supabase data layer (overrides Api from utils.js) -->
+<script src="js/supabase-client.js"></script>
 <script src="js/mapa-cotacao.js"></script>
 <script src="js/po-compra.js"></script>
 

@@ -693,7 +693,9 @@
 
 <div id="toast-container"></div>
 <div id="modal-overlay" class="modal-overlay"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/utils.js"></script>
+<script src="js/supabase-client.js"></script>
 <script>
 /* ── Estado ────────────────────────────────────────────────── */
 const params = new URLSearchParams(location.search);
@@ -1001,15 +1003,12 @@ async function enviar() {
       itens: itensPrecos
     });
 
-    // 2. Upload de arquivo (se houver)
+    // 2. Upload de arquivo via Supabase Storage (se houver)
     const arqInput = document.getElementById('f-arquivo');
     if (arqInput?.files[0]) {
-      const fd = new FormData();
-      fd.append('id_requisicao', parseInt(REQ_ID));
-      fd.append('cnpj_fornecedor', cnpjV);
-      fd.append('arquivo', arqInput.files[0]);
-      const resp = await fetch(`${API_BASE}/api/cotacao/upload-doc`, { method:'POST', body: fd });
-      if (!resp.ok) console.warn('Upload do arquivo falhou, mas cotação foi enviada.');
+      try {
+        await SbUploadCotacaoDoc(parseInt(REQ_ID), cnpjV, arqInput.files[0]);
+      } catch(eu) { console.warn('Upload do arquivo falhou, mas cotação foi enviada.', eu); }
     }
 
     // 3. Tela de sucesso

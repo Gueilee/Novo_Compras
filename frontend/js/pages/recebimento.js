@@ -393,12 +393,7 @@ window.Pages.recebimento = {
     const fileInput = document.getElementById('rec-nf-file');
     if (fileInput?.files?.length > 0) {
       try {
-        const fd = new FormData();
-        fd.append('file', fileInput.files[0]);
-        fd.append('id_pedido', this._pedidoAtual);
-        fd.append('numero_nf', nf);
-        await fetch(API_BASE + '/api/recebimento/upload-nf', { method: 'POST', body: fd });
-        // Refresh history after upload
+        await SbUploadNF(this._pedidoAtual, nf, fileInput.files[0]);
         this._carregarHistoricoNF(this._pedidoAtual);
       } catch { /* não crítico */ }
     }

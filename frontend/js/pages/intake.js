@@ -417,11 +417,7 @@ window.Pages.intake = {
         btn.innerHTML = `<span class="spinner-sm"></span> Enviando anexos (${files.length})...`;
         for (const file of files) {
           try {
-            const fd = new FormData();
-            fd.append('origem', 'requisitante');
-            fd.append('enviado_por', comprador);
-            fd.append('arquivo', file);
-            await fetch(`${API_BASE}/api/requisicoes/${reqId}/upload`, { method: 'POST', body: fd });
+            await SbUploadArquivo(reqId, file, 'requisitante', comprador);
           } catch { /* non-critical */ }
         }
       }
