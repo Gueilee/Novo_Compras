@@ -342,7 +342,8 @@
 <script>
   (async function checkApi() {
     try {
-      await fetch('http://localhost:8000/dashboard-dados');
+      const _apiOrigin = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : window.location.origin;
+      await fetch(_apiOrigin + '/dashboard-dados');
       const el = document.getElementById('api-status');
       if (el) {
         el.innerHTML = '<div class="api-status-dot"></div> API Online';

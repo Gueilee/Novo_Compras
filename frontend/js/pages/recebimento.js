@@ -397,7 +397,7 @@ window.Pages.recebimento = {
         fd.append('file', fileInput.files[0]);
         fd.append('id_pedido', this._pedidoAtual);
         fd.append('numero_nf', nf);
-        await fetch('http://localhost:8000/api/recebimento/upload-nf', { method: 'POST', body: fd });
+        await fetch(API_BASE + '/api/recebimento/upload-nf', { method: 'POST', body: fd });
         // Refresh history after upload
         this._carregarHistoricoNF(this._pedidoAtual);
       } catch { /* não crítico */ }

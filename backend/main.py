@@ -14,18 +14,24 @@ app = FastAPI(title="SaaS Compras Vendemmia - Enterprise", version="2.3")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_PATH = os.path.normpath(os.path.join(BASE_DIR, ".."))
 FRONTEND_PATH = os.path.normpath(os.path.join(BASE_DIR, "..", "frontend"))
-DB_PATH = os.path.join(BASE_DIR, 'vendemmia_compras.db')
+
+# DATA_DIR: em produção aponta para volume persistente (ex: /data no Railway)
+# em desenvolvimento usa a pasta backend/ local
+DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DB_PATH = os.path.join(DATA_DIR, 'vendemmia_compras.db')
 
 # Serve frontend pages
 app.mount("/frontend", StaticFiles(directory=FRONTEND_PATH), name="frontend")
 # Serve project root assets (logo.png, login.png, etc.)
 app.mount("/img", StaticFiles(directory=ROOT_PATH), name="img")
 # Serve uploaded files (requisições, cotações, contas_fixas)
-_uploads_dir = os.path.join(BASE_DIR, "uploads")
+_uploads_dir = os.path.join(DATA_DIR, "uploads")
 os.makedirs(_uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=_uploads_dir), name="uploads")
 # Serve NF uploads (notas fiscais da conciliação)
-_nf_uploads_dir = os.path.join(BASE_DIR, "nf_uploads")
+_nf_uploads_dir = os.path.join(DATA_DIR, "nf_uploads")
 os.makedirs(_nf_uploads_dir, exist_ok=True)
 app.mount("/nf-uploads", StaticFiles(directory=_nf_uploads_dir), name="nf-uploads")
 
@@ -241,7 +247,7 @@ def _init_config_tables():
 
 _init_config_tables()
 
-REQ_UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "requisicoes")
+REQ_UPLOAD_DIR = os.path.join(DATA_DIR, "uploads", "requisicoes")
 os.makedirs(REQ_UPLOAD_DIR, exist_ok=True)
 
 # --- MODELOS DE DADOS ---
@@ -541,7 +547,7 @@ def salvar_lance_fornecedor(lance: LanceFornecedor):
 
     conn.commit(); conn.close(); return {"status": "ok"}
 
-COTACAO_UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "cotacoes")
+COTACAO_UPLOAD_DIR = os.path.join(DATA_DIR, "uploads", "cotacoes")
 os.makedirs(COTACAO_UPLOAD_DIR, exist_ok=True)
 
 @app.post("/api/cotacao/upload-doc")
@@ -1793,7 +1799,7 @@ async def criar_lancamento(
 ):
     arquivo_path = None; arquivo_nome = None
     if arquivo and arquivo.filename:
-        uploads_dir = os.path.join(BASE_DIR, 'uploads', 'contas_fixas')
+        uploads_dir = os.path.join(DATA_DIR, 'uploads', 'contas_fixas')
         os.makedirs(uploads_dir, exist_ok=True)
         safe_name = f"{cid}_{ano}_{mes:02d}_{arquivo.filename}"
         dest = os.path.join(uploads_dir, safe_name)

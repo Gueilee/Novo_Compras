@@ -785,7 +785,8 @@
     btn.innerHTML = '<span class="btn-spinner" style="border-top-color:#fff;border-color:rgba(255,255,255,.3)"></span> Enviando...';
 
     try {
-      const res = await fetch('http://localhost:8000/api/usuarios/solicitar-acesso', {
+      const _apiBase = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : window.location.origin;
+      const res = await fetch(_apiBase + '/api/usuarios/solicitar-acesso', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nome, email, gestor_nome: gestor || null })
