@@ -363,7 +363,7 @@ async function _criarRequisicao(body) {
     const { error: eItens } = await _sb.from('itens_requisicao').insert(itens);
     if (eItens) _err(eItens);
   }
-  return { id: req.id_sharepoint, status: 'ok' };
+  return { id: req.id_sharepoint, id_pedido: req.id_sharepoint, status: 'ok' };
 }
 
 // ── Aprovações ─────────────────────────────────────────────
@@ -491,25 +491,35 @@ async function _selecionarFornecedor(id, body) {
 }
 
 async function _comparativoCotacoes(id) {
+  // No FK between lances_fornecedor.cnpj_fornecedor and fornecedores.cnpj,
+  // so we do a two-step fetch to avoid PostgREST relationship error.
   const { data: lances, error } = await _sb.from('lances_fornecedor')
-    .select('*, fornecedores(razao_social, email, telefone)')
+    .select('*')
     .eq('id_requisicao', id)
     .order('selecionado', { ascending: false })
     .order('preco_unitario', { ascending: true });
   if (error) _err(error);
+
+  const cnpjs = [...new Set((lances || []).map(l => l.cnpj_fornecedor).filter(Boolean))];
+  const { data: forns } = cnpjs.length
+    ? await _sb.from('fornecedores').select('cnpj,razao_social,email,telefone').in('cnpj', cnpjs)
+    : { data: [] };
+  const fornMap = Object.fromEntries((forns || []).map(f => [f.cnpj, f]));
+
   const seen = new Set();
   const result = [];
   for (const l of (lances || [])) {
     if (seen.has(l.cnpj_fornecedor)) continue;
     seen.add(l.cnpj_fornecedor);
     const { data: itens } = await _sb.from('lances_fornecedor_itens').select('*').eq('id_lance', l.id);
+    const forn = fornMap[l.cnpj_fornecedor];
     result.push({
-      fornecedor: l.fornecedores?.razao_social || l.cnpj_fornecedor,
+      fornecedor: forn?.razao_social || l.cnpj_fornecedor,
       preco: l.preco_unitario, prazo: l.prazo_entrega_dias, data: l.data_resposta,
       cnpj: l.cnpj_fornecedor, pagamento: l.pagamento || '30 DDL',
       validade_dias: l.validade_dias || 15, observacoes: l.observacoes,
       frete_incluso: l.frete_incluso, imposto_incluso: l.imposto_incluso,
-      selecionado: !!l.selecionado, email: l.fornecedores?.email, telefone: l.fornecedores?.telefone,
+      selecionado: !!l.selecionado, email: forn?.email, telefone: forn?.telefone,
       itens_precos: itens || []
     });
   }
@@ -577,22 +587,31 @@ async function _nfUploads(id) {
 
 // ── Detalhes Completos ─────────────────────────────────────
 async function _detalhesCompletos(id) {
-  const [{ data: req }, { data: itens }, { data: lances }, { data: arqs }] = await Promise.all([
+  const [{ data: req }, { data: itens }, { data: lancesRaw }, { data: arqs }] = await Promise.all([
     _sb.from('requisicoes').select('*').eq('id_sharepoint', id).single(),
     _sb.from('itens_requisicao').select('*').eq('id_requisicao', id),
-    _sb.from('lances_fornecedor').select('*, fornecedores(razao_social,email,telefone)')
+    _sb.from('lances_fornecedor').select('*')  // No FK join — two-step lookup below
        .eq('id_requisicao', id).order('selecionado', { ascending: false }),
     _sb.from('arquivos_requisicao').select('*').eq('id_requisicao', id).order('enviado_em')
   ]);
   if (!req) throw new Error('Requisição não encontrada');
+
+  // Batch-fetch fornecedor info for all unique CNPJs
+  const cnpjs = [...new Set((lancesRaw || []).map(l => l.cnpj_fornecedor).filter(Boolean))];
+  const { data: forns } = cnpjs.length
+    ? await _sb.from('fornecedores').select('cnpj,razao_social,email,telefone').in('cnpj', cnpjs)
+    : { data: [] };
+  const fornMap = Object.fromEntries((forns || []).map(f => [f.cnpj, f]));
+
   const seen = new Set();
   const cotacoes = [];
-  for (const l of (lances || [])) {
+  for (const l of (lancesRaw || [])) {
     if (seen.has(l.cnpj_fornecedor)) continue;
     seen.add(l.cnpj_fornecedor);
     const { data: litens } = await _sb.from('lances_fornecedor_itens').select('*').eq('id_lance', l.id);
+    const forn = fornMap[l.cnpj_fornecedor];
     cotacoes.push({
-      cnpj: l.cnpj_fornecedor, nome: l.fornecedores?.razao_social || l.cnpj_fornecedor,
+      cnpj: l.cnpj_fornecedor, nome: forn?.razao_social || l.cnpj_fornecedor,
       preco_unitario: l.preco_unitario, prazo: l.prazo_entrega_dias, pagamento: l.pagamento,
       data: l.data_resposta, selecionado: !!l.selecionado, observacoes: l.observacoes,
       frete_incluso: !!l.frete_incluso, imposto_incluso: !!l.imposto_incluso,
@@ -863,7 +882,7 @@ async function _listarRequisicoes(path) {
   const q       = params.get('q') || params.get('busca');
 
   let query = _sb.from('requisicoes')
-    .select('id_sharepoint, unidade, setor, comprador, data_solicitacao, status, fornecedor, valor_fechado', { count: 'exact' })
+    .select('id_sharepoint, unidade, setor, comprador, data_solicitacao, status, fornecedor, valor_fechado, itens_requisicao(descricao,quantidade)', { count: 'exact' })
     .order('id_sharepoint', { ascending: false })
     .range((page - 1) * perPage, page * perPage - 1);
 
@@ -898,29 +917,38 @@ async function _listarRequisicoes(path) {
       fornecedor:            r.fornecedor,
       valor:                 r.valor_fechado,
       valor_fechado:         r.valor_fechado,
-      itens_count:           0,
-      itens_preview:         ''
+      itens_count:           (r.itens_requisicao || []).length,
+      itens_preview:         (r.itens_requisicao || []).slice(0, 2).map(i => `${i.quantidade}x ${i.descricao}`).join(', ')
     }))
   };
 }
 
 async function _requisicoesPorUnidade() {
-  const { data, error } = await _sb.from('requisicoes')
-    .select('unidade, status, valor_fechado, data_solicitacao, id_sharepoint')
-    .order('data_solicitacao', { ascending: false })
-    .limit(10000);
+  const [{ count: grandTotal }, { data, error }] = await Promise.all([
+    _sb.from('requisicoes').select('*', { count: 'exact', head: true }),
+    _sb.from('requisicoes')
+      .select('unidade, status, valor_fechado, data_solicitacao, id_sharepoint, comprador')
+      .order('id_sharepoint', { ascending: false })
+      .limit(10000)
+  ]);
   if (error) _err(error);
   const map = {};
   for (const r of (data || [])) {
     const u = r.unidade || 'Sem Unidade';
     if (!map[u]) map[u] = { unidade: u, total: 0, total_valor: 0, concluidos: 0, em_andamento: 0, reprovados: 0, recentes: [] };
     map[u].total++;
-    if (r.status === 'Concluído') { map[u].concluidos++; map[u].total_valor += r.valor_fechado || 0; }
+    // Sum ALL valor_fechado (POs emitidas), not only Concluído
+    if (r.valor_fechado) map[u].total_valor += r.valor_fechado;
+    if (r.status === 'Concluído') map[u].concluidos++;
     if (['Aguardando Cotação','Em Cotação','Aguardando Conciliação'].includes(r.status)) map[u].em_andamento++;
     if (r.status === 'Reprovado') map[u].reprovados++;
-    if (map[u].recentes.length < 3) map[u].recentes.push(r);
+    // Map id_sharepoint → id so the template's r.id works correctly
+    if (map[u].recentes.length < 3) map[u].recentes.push({
+      id: r.id_sharepoint, comprador: r.comprador, status: r.status
+    });
   }
-  return Object.values(map).sort((a, b) => b.total - a.total);
+  const units = Object.values(map).sort((a, b) => b.total - a.total);
+  return { units, grand_total: grandTotal ?? units.reduce((a, u) => a + u.total, 0) };
 }
 
 async function _getRequisicao(id) {

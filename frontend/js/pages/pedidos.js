@@ -784,11 +784,12 @@ window.Pages.pedidos = {
     el.innerHTML = `<div style="padding:50px;text-align:center;"><div class="spinner"></div></div>`;
 
     try {
-      const data = await Api.get('/api/requisicoes/por-unidade');
+      const resp = await Api.get('/api/requisicoes/por-unidade');
+      const data  = Array.isArray(resp) ? resp : (resp.units || []);
+      const total = resp.grand_total ?? data.reduce((a, u) => a + u.total, 0);
       const sub = document.getElementById('ped-sub');
-      const total = data.reduce((a, u) => a + u.total, 0);
       if (sub) sub.textContent = `${Fmt.number(total)} requisições em ${data.length} unidades`;
-      el.innerHTML = this._htmlUnidades(data);
+      el.innerHTML = this._htmlUnidades(data, total);
     } catch {
       el.innerHTML = `<div class="empty-state">
         <div class="empty-icon"><i class="fa-solid fa-circle-xmark"></i></div>
@@ -796,11 +797,11 @@ window.Pages.pedidos = {
     }
   },
 
-  _htmlUnidades(units) {
+  _htmlUnidades(units, grandTotal) {
     const colors = ['#422c76','#ff2f69','#01E18E','#3B82F6','#F59E0B','#8B5CF6'];
 
     // Global summary cards
-    const totalReq = units.reduce((a, u) => a + u.total, 0);
+    const totalReq = grandTotal ?? units.reduce((a, u) => a + u.total, 0);
     const totalVal = units.reduce((a, u) => a + u.total_valor, 0);
     const totalConc = units.reduce((a, u) => a + u.concluidos, 0);
     const taxaConc = totalReq > 0 ? ((totalConc / totalReq) * 100).toFixed(1) : 0;
