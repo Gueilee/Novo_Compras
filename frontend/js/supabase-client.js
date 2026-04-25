@@ -12,6 +12,7 @@ const _sb = supabase.createClient(_SB_URL, _SB_KEY);
 // ── Helpers ────────────────────────────────────────────────
 const _now = () => new Date().toLocaleString('pt-BR');
 const _normCnpj = c => (c || '').replace(/\D/g, '');
+const _fmtCnpj  = c => (c || '').replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 const _err = e => { throw new Error(e.message || e.msg || JSON.stringify(e)); };
 
 // ── Storage público ────────────────────────────────────────
@@ -277,7 +278,8 @@ async function _listarOrcamentos() {
     _sb.from('orcamentos').select('*').order('unidade'),
     _sb.from('requisicoes')
       .select('unidade, valor_fechado, data_solicitacao')
-      .eq('status', 'Concluído')
+      .not('valor_fechado', 'is', null)
+      .gt('valor_fechado', 0)
       .limit(10000)
   ]);
 
@@ -480,9 +482,12 @@ async function _selecionarFornecedor(id, body) {
   await _sb.from('lances_fornecedor').update({ selecionado: 1 })
     .eq('id_requisicao', id).eq('cnpj_fornecedor', cnpjN);
   const { data: lance } = await _sb.from('lances_fornecedor')
-    .select('preco_unitario, fornecedores(razao_social)')
+    .select('preco_unitario')  // No FK join — lookup separately
     .eq('id_requisicao', id).eq('cnpj_fornecedor', cnpjN).maybeSingle();
-  const nomeForn = lance?.fornecedores?.razao_social || cnpjN;
+  // Lookup fornecedor name by normalizing stored CNPJs for comparison
+  const { data: allForns } = await _sb.from('fornecedores').select('cnpj,razao_social');
+  const fornRec = (allForns || []).find(f => _normCnpj(f.cnpj) === cnpjN);
+  const nomeForn = fornRec?.razao_social || _fmtCnpj(cnpjN);
   await _sb.from('requisicoes').update({
     status: 'Aguardando Conciliação', fornecedor: nomeForn,
     valor_fechado: lance?.preco_unitario || 0
@@ -500,11 +505,10 @@ async function _comparativoCotacoes(id) {
     .order('preco_unitario', { ascending: true });
   if (error) _err(error);
 
-  const cnpjs = [...new Set((lances || []).map(l => l.cnpj_fornecedor).filter(Boolean))];
-  const { data: forns } = cnpjs.length
-    ? await _sb.from('fornecedores').select('cnpj,razao_social,email,telefone').in('cnpj', cnpjs)
-    : { data: [] };
-  const fornMap = Object.fromEntries((forns || []).map(f => [f.cnpj, f]));
+  // fornecedores.cnpj is stored with punctuation; lances use normalized digits-only.
+  // Fetch all (9 rows) and normalize keys for matching.
+  const { data: allForns } = await _sb.from('fornecedores').select('cnpj,razao_social,email,telefone');
+  const fornMap = Object.fromEntries((allForns || []).map(f => [_normCnpj(f.cnpj), f]));
 
   const seen = new Set();
   const result = [];
@@ -514,7 +518,7 @@ async function _comparativoCotacoes(id) {
     const { data: itens } = await _sb.from('lances_fornecedor_itens').select('*').eq('id_lance', l.id);
     const forn = fornMap[l.cnpj_fornecedor];
     result.push({
-      fornecedor: forn?.razao_social || l.cnpj_fornecedor,
+      fornecedor: forn?.razao_social || _fmtCnpj(l.cnpj_fornecedor),
       preco: l.preco_unitario, prazo: l.prazo_entrega_dias, data: l.data_resposta,
       cnpj: l.cnpj_fornecedor, pagamento: l.pagamento || '30 DDL',
       validade_dias: l.validade_dias || 15, observacoes: l.observacoes,
@@ -596,12 +600,9 @@ async function _detalhesCompletos(id) {
   ]);
   if (!req) throw new Error('Requisição não encontrada');
 
-  // Batch-fetch fornecedor info for all unique CNPJs
-  const cnpjs = [...new Set((lancesRaw || []).map(l => l.cnpj_fornecedor).filter(Boolean))];
-  const { data: forns } = cnpjs.length
-    ? await _sb.from('fornecedores').select('cnpj,razao_social,email,telefone').in('cnpj', cnpjs)
-    : { data: [] };
-  const fornMap = Object.fromEntries((forns || []).map(f => [f.cnpj, f]));
+  // fornecedores.cnpj stored with punctuation; normalize keys for matching
+  const { data: allForns } = await _sb.from('fornecedores').select('cnpj,razao_social,email,telefone');
+  const fornMap = Object.fromEntries((allForns || []).map(f => [_normCnpj(f.cnpj), f]));
 
   const seen = new Set();
   const cotacoes = [];
@@ -611,7 +612,7 @@ async function _detalhesCompletos(id) {
     const { data: litens } = await _sb.from('lances_fornecedor_itens').select('*').eq('id_lance', l.id);
     const forn = fornMap[l.cnpj_fornecedor];
     cotacoes.push({
-      cnpj: l.cnpj_fornecedor, nome: forn?.razao_social || l.cnpj_fornecedor,
+      cnpj: l.cnpj_fornecedor, nome: forn?.razao_social || _fmtCnpj(l.cnpj_fornecedor),
       preco_unitario: l.preco_unitario, prazo: l.prazo_entrega_dias, pagamento: l.pagamento,
       data: l.data_resposta, selecionado: !!l.selecionado, observacoes: l.observacoes,
       frete_incluso: !!l.frete_incluso, imposto_incluso: !!l.imposto_incluso,
@@ -874,21 +875,35 @@ async function _filtrosRequisicoes() {
 }
 
 async function _listarRequisicoes(path) {
-  const params  = new URLSearchParams(path.split('?')[1] || '');
-  const page    = Math.max(1, parseInt(params.get('page') || '1'));
-  const perPage = Math.min(100, parseInt(params.get('per_page') || '20'));
-  const status  = params.get('status');
-  const unidade = params.get('unidade');
-  const q       = params.get('q') || params.get('busca');
+  const params    = new URLSearchParams(path.split('?')[1] || '');
+  const page      = Math.max(1, parseInt(params.get('page') || '1'));
+  const perPage   = Math.min(100, parseInt(params.get('per_page') || '20'));
+  const status    = params.get('status');
+  const unidade   = params.get('unidade');
+  const comprador = params.get('comprador');
+  const q         = params.get('q') || params.get('busca');
+  const idReq     = params.get('id_req');
+  const sortBy    = params.get('sort_by')    || 'id';
+  const sortOrd   = params.get('sort_order') || 'desc';
+
+  // Map frontend field names → DB column names
+  const colMap = {
+    id: 'id_sharepoint', valor: 'valor_fechado', comprador: 'comprador',
+    unidade: 'unidade', status: 'status', data: 'data_solicitacao'
+  };
+  const col = colMap[sortBy] || 'id_sharepoint';
 
   let query = _sb.from('requisicoes')
     .select('id_sharepoint, unidade, setor, comprador, data_solicitacao, status, fornecedor, valor_fechado, itens_requisicao(descricao,quantidade)', { count: 'exact' })
-    .order('id_sharepoint', { ascending: false })
+    .order(col, { ascending: sortOrd === 'asc' })
     .range((page - 1) * perPage, page * perPage - 1);
 
   if (status && status !== 'todos') query = query.eq('status', status);
   if (unidade) query = query.eq('unidade', unidade);
-  if (q) {
+  if (comprador) query = query.ilike('comprador', `%${comprador}%`);
+  if (idReq && +idReq > 0) {
+    query = query.eq('id_sharepoint', +idReq);
+  } else if (q) {
     if (/^\d+$/.test(q)) {
       query = query.or(`id_sharepoint.eq.${+q},comprador.ilike.%${q}%,fornecedor.ilike.%${q}%`);
     } else {
