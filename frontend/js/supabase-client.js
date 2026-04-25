@@ -33,7 +33,8 @@ window.SbStorage = {
 // ROTEADOR — mapeia paths FastAPI → queries Supabase
 // ══════════════════════════════════════════════════════════
 async function _route(method, path, body) {
-  const full = `${method} ${path}`;
+  const basePath = path.split('?')[0];
+  const full = `${method} ${basePath}`;
 
   // Dashboard
   if (full === 'GET /dashboard-dados') return _dashboardDados();
@@ -106,6 +107,9 @@ async function _route(method, path, body) {
   // Consulta
   if (method === 'GET' && path.startsWith('/api/consulta/requisicoes')) return _consultaRequisicoes(path);
 
+  // Home activity feed
+  if (full === 'GET /api/home/atividade-recente') return _atividadeRecente();
+
   // Usuários
   if (full === 'POST /api/usuarios/solicitar-acesso') return _solicitarAcesso(body);
   if (full === 'GET /api/usuarios/pendentes-acesso')  return _usuariosPendentes();
@@ -144,20 +148,47 @@ async function _dashboardDados() {
   const emCotacao  = reqs?.filter(r => ['Aguardando Cotação','Em Cotação'].includes(r.status)).length || 0;
   const valorTotal = concluidas.reduce((s, r) => s + (r.valor_fechado || 0), 0);
   const { data: orcs } = await _sb.from('orcamentos').select('unidade, orcamento_anual, consumido, ano').eq('ano', 2026);
-  const { data: forn } = await _sb.from('fornecedores').select('cnpj', { count: 'exact', head: true });
+  const { count: fornCount } = await _sb.from('fornecedores').select('*', { count: 'exact', head: true });
   const porStatus = {};
   reqs?.forEach(r => { porStatus[r.status] = (porStatus[r.status] || 0) + 1; });
   const porUnidade = {};
   reqs?.forEach(r => { if (r.unidade) porUnidade[r.unidade] = (porUnidade[r.unidade] || 0) + 1; });
+  const unidades = [...new Set((reqs || []).map(r => r.unidade).filter(Boolean))].sort();
+  const anos = [...new Set((reqs || []).map(r => {
+    if (!r.data_solicitacao) return null;
+    const p = r.data_solicitacao.split('/');
+    return p.length >= 3 ? p[2] : null;
+  }).filter(Boolean))].sort();
   return {
     total_requisicoes: total, pendente_aprovacao: pendAprov, em_cotacao: emCotacao,
     concluidas: concluidas.length, valor_total_fechado: valorTotal,
-    total_fornecedores: forn?.count || 0,
+    total_fornecedores: fornCount || 0,
     por_status: Object.entries(porStatus).map(([status, count]) => ({ status, count })),
     por_unidade: Object.entries(porUnidade).map(([unidade, count]) => ({ unidade, count })),
     orcamentos: orcs || [],
-    ultimas: (reqs || []).slice(-10).reverse()
+    ultimas: (reqs || []).slice(-10).reverse(),
+    opts: { unidades, anos }
   };
+}
+
+// ── Atividade Recente (Home Feed) ─────────────────────────
+async function _atividadeRecente() {
+  const { data: reqs } = await _sb.from('requisicoes')
+    .select('id_sharepoint, status, unidade, data_solicitacao, comprador')
+    .order('id_sharepoint', { ascending: false })
+    .limit(20);
+  const cores = {
+    'Aguardando Aprovação': '#f59e0b', 'Aprovado': '#01E18E',
+    'Reprovado': '#ff2f69', 'Aguardando Cotação': '#422c76',
+    'Em Cotação': '#422c76', 'Concluído': '#01E18E', 'Bloqueado': '#ff2f69'
+  };
+  return (reqs || []).map(r => ({
+    data: r.data_solicitacao || '',
+    usuario: r.comprador || '',
+    unidade: r.unidade || '',
+    texto: `Req. #${r.id_sharepoint} — ${r.status}`,
+    cor: cores[r.status] || '#888899'
+  }));
 }
 
 // ── Opções Formulário ──────────────────────────────────────
