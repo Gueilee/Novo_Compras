@@ -37,7 +37,7 @@ async function _route(method, path, body) {
   const full = `${method} ${basePath}`;
 
   // Dashboard
-  if (full === 'GET /dashboard-dados') return _dashboardDados();
+  if (full === 'GET /dashboard-dados') return _dashboardDados(path);
 
   // Formulário de Intake
   if (full === 'GET /api/opcoes-formulario') return _opcoesFormulario();
@@ -187,13 +187,24 @@ Object.assign(Api, {
 // ══════════════════════════════════════════════════════════
 
 // ── Dashboard ─────────────────────────────────────────────
-async function _dashboardDados() {
-  const { data: reqs } = await _sb.from('requisicoes')
-    .select('status, valor_fechado, unidade, data_solicitacao, comprador');
+async function _dashboardDados(path = '') {
+  const qp      = new URLSearchParams((path || '').split('?')[1] || '');
+  const fUnid   = qp.get('unidade') || '';
+  const fAno    = qp.get('period')  || '';
+  const fMes    = qp.get('mes')     || '';
 
-  const total    = reqs?.length || 0;
-  const concluidas = reqs?.filter(r => r.status === 'Concluído') || [];
-  const totalGasto = concluidas.reduce((s, r) => s + (r.valor_fechado || 0), 0);
+  let q = _sb.from('requisicoes').select('status, valor_fechado, unidade, data_solicitacao, comprador');
+  if (fUnid) q = q.eq('unidade', fUnid);
+  const { data: allReqs } = await q;
+
+  // Filter by year/month in JS (data_solicitacao = DD/MM/YYYY)
+  let reqs = allReqs || [];
+  if (fAno) reqs = reqs.filter(r => (r.data_solicitacao || '').split('/')[2] === fAno);
+  if (fMes) reqs = reqs.filter(r => (r.data_solicitacao || '').split('/')[1] === fMes);
+
+  const total      = reqs.length;
+  const concluidas = reqs.filter(r => r.status === 'Concluído');
+  const totalGasto = concluidas.reduce((s, r) => s + (Number(r.valor_fechado) || 0), 0);
 
   // Status pipeline — qtd field (required by dashboard.js _renderCharts)
   const statusMap = {};
@@ -811,7 +822,7 @@ async function _listarRequisicoes(path) {
   const perPage = Math.min(100, parseInt(params.get('per_page') || '20'));
   const status  = params.get('status');
   const unidade = params.get('unidade');
-  const q       = params.get('q');
+  const q       = params.get('q') || params.get('busca');
 
   let query = _sb.from('requisicoes')
     .select('id_sharepoint, unidade, setor, comprador, data_solicitacao, status, fornecedor, valor_fechado', { count: 'exact' })
@@ -825,7 +836,28 @@ async function _listarRequisicoes(path) {
   const { data, count, error } = await query;
   if (error) _err(error);
   const total = count || 0;
-  return { total, pages: Math.ceil(total / perPage), items: data || [] };
+
+  return {
+    total,
+    pages: Math.max(1, Math.ceil(total / perPage)),
+    items: (data || []).map(r => ({
+      id:                    r.id_sharepoint,
+      id_pedido:             r.id_sharepoint,
+      id_sharepoint:         r.id_sharepoint,
+      unidade:               r.unidade,
+      setor:                 r.setor,
+      solicitante:           r.comprador,
+      comprador:             r.comprador,
+      comprador_responsavel: null,
+      data:                  r.data_solicitacao,
+      status:                r.status,
+      fornecedor:            r.fornecedor,
+      valor:                 r.valor_fechado,
+      valor_fechado:         r.valor_fechado,
+      itens_count:           0,
+      itens_preview:         ''
+    }))
+  };
 }
 
 async function _requisicoesPorUnidade() {
