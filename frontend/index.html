@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Compras Vendemmia</title>
-  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <link rel="icon" type="image/png" href="img/favicon.png">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,7 +39,7 @@
     <!-- Logo -->
     <div class="sidebar-logo" onclick="App.navigate('home')"
          style="cursor:pointer;" title="Ir para Início">
-      <img src="/img/logo.png" alt="Vendemmia"
+      <img src="img/logo.png" alt="Vendemmia"
            onerror="this.outerHTML='<span style=font-size:16px;font-weight:800;color:var(--brand);letter-spacing:-0.5px>Vendemmia</span>'">
     </div>
 
@@ -346,17 +346,23 @@
 <!-- API status check -->
 <script>
   (async function checkApi() {
+    const el = document.getElementById('api-status');
     try {
-      const _apiOrigin = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : window.location.origin;
-      await fetch(_apiOrigin + '/dashboard-dados');
-      const el = document.getElementById('api-status');
+      const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      if (isLocal) {
+        await fetch('http://localhost:8000/dashboard-dados');
+      } else {
+        const res = await fetch(`${_SB_URL}/rest/v1/requisicoes?select=id_sharepoint&limit=1`, {
+          headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${_SB_KEY}` }
+        });
+        if (!res.ok) throw new Error('Supabase offline');
+      }
       if (el) {
         el.innerHTML = '<div class="api-status-dot"></div> API Online';
         el.style.background = 'var(--success-surface)';
         el.style.color = 'var(--success-deeper)';
       }
     } catch {
-      const el = document.getElementById('api-status');
       if (el) {
         el.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> API Offline';
         el.style.background = 'var(--accent-surface)';

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login | Compras Vendemmia</title>
-  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <link rel="icon" type="image/png" href="img/favicon.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -527,7 +527,7 @@
 
   <!-- ══════════ LEFT — Cover Image ══════════ -->
   <div class="login-cover">
-    <img class="login-cover-img" src="/img/login.png" alt="SHP Background"
+    <img class="login-cover-img" src="img/login.png" alt="SHP Background"
          onerror="this.parentElement.style.background='linear-gradient(135deg,#100824 0%,#2d1b5e 55%,#422c76 100%)'">
     <div class="login-cover-overlay"></div>
 
@@ -571,7 +571,7 @@
 
     <!-- Logo -->
     <div class="panel-logo">
-      <img src="/img/logo.png" alt="Vendemmia"
+      <img src="img/logo.png" alt="Vendemmia"
            onerror="this.style.display='none';document.querySelector('.panel-logo-fallback').style.display='flex'">
       <div class="panel-logo-fallback">
         <div class="panel-logo-icon">V</div>
@@ -785,14 +785,22 @@
     btn.innerHTML = '<span class="btn-spinner" style="border-top-color:#fff;border-color:rgba(255,255,255,.3)"></span> Enviando...';
 
     try {
-      const _apiBase = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : window.location.origin;
-      const res = await fetch(_apiBase + '/api/usuarios/solicitar-acesso', {
+      const _sbUrl = 'https://ayuypxbipvuayyiatbir.supabase.co';
+      const _sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dXlweGJpcHZ1YXl5aWF0YmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDg0MTQsImV4cCI6MjA5MjYyNDQxNH0.a_uCBEuB8oLX94d3n936HX6we9rLV_19hOfLfCpapmM';
+      const res = await fetch(`${_sbUrl}/rest/v1/usuarios`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, email, gestor_nome: gestor || null })
+        headers: {
+          'apikey': _sbKey,
+          'Authorization': `Bearer ${_sbKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ nome, email, gestor_nome: gestor || null, ativo: 0, solicitacao_pendente: 1 })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Erro ao enviar solicitação');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || data.details || 'Erro ao enviar solicitação');
+      }
 
       // Mostra sucesso e esconde o formulário
       document.getElementById('solicitar-fields').style.display = 'none';
