@@ -188,23 +188,29 @@ Object.assign(Api, {
 
 // ── Dashboard ─────────────────────────────────────────────
 async function _dashboardDados(path = '') {
-  const qp      = new URLSearchParams((path || '').split('?')[1] || '');
-  const fUnid   = qp.get('unidade') || '';
-  const fAno    = qp.get('period')  || '';
-  const fMes    = qp.get('mes')     || '';
+  const qp    = new URLSearchParams((path || '').split('?')[1] || '');
+  const fUnid = qp.get('unidade') || '';
+  const fAno  = qp.get('period')  || '';
+  const fMes  = qp.get('mes')     || '';
 
-  let q = _sb.from('requisicoes')
-    .select('status, valor_fechado, unidade, data_solicitacao, comprador')
-    .limit(10000);
-  if (fUnid) q = q.eq('unidade', fUnid);
-  const { data: allReqs } = await q;
+  // Push ALL filters to SQL so count and data are always consistent
+  const applyFilters = (q) => {
+    if (fUnid) q = q.eq('unidade', fUnid);
+    if (fAno)  q = q.like('data_solicitacao', `%/${fAno}`);
+    if (fMes)  q = q.like('data_solicitacao', `__/${String(fMes).padStart(2,'0')}/%`);
+    return q;
+  };
 
-  // Filter by year/month in JS (data_solicitacao = DD/MM/YYYY)
-  let reqs = allReqs || [];
-  if (fAno) reqs = reqs.filter(r => (r.data_solicitacao || '').split('/')[2] === fAno);
-  if (fMes) reqs = reqs.filter(r => (r.data_solicitacao || '').split('/')[1] === fMes);
+  // Parallel: exact count (bypasses PostgREST row cap) + full data rows
+  const [{ count: totalExato }, { data: allReqs }] = await Promise.all([
+    applyFilters(_sb.from('requisicoes').select('*', { count: 'exact', head: true })),
+    applyFilters(_sb.from('requisicoes')
+      .select('status, valor_fechado, unidade, data_solicitacao, comprador')
+      .limit(10000))
+  ]);
 
-  const total      = reqs.length;
+  const reqs     = allReqs || [];
+  const total    = totalExato ?? reqs.length;
   // Investimento Total = soma de TODOS os valores fechados (todas as POs emitidas)
   const totalGasto = reqs.reduce((s, r) => s + (Number(r.valor_fechado) || 0), 0);
 
