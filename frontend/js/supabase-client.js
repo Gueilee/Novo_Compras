@@ -66,6 +66,11 @@ async function _route(method, path, body) {
   if (method === 'GET' && mComp) return _comparativoCotacoes(+mComp[1]);
   if (method === 'GET' && path.startsWith('/api/cotacao/historico')) return _historicoCotacoes(path);
 
+  // Entregas (Confirmação de Recebimento)
+  if (full === 'GET /api/entregas/pendentes') return _entregasPendentes();
+  const mEntConf = basePath.match(/^\/api\/entregas\/confirmar\/(\d+)$/);
+  if (method === 'POST' && mEntConf) return _confirmarRecebimento(+mEntConf[1], body);
+
   // Recebimento / Conciliação
   if (full === 'GET /api/recebimento/pendentes') return _recebimentoPendentes();
   const mDadosPO = basePath.match(/^\/api\/recebimento\/dados-po\/(\d+)$/);
@@ -319,7 +324,8 @@ async function _atividadeRecente() {
   const cores = {
     'Aguardando Aprovação': '#f59e0b', 'Aprovado': '#01E18E',
     'Reprovado': '#ff2f69', 'Aguardando Cotação': '#422c76',
-    'Em Cotação': '#422c76', 'Concluído': '#01E18E', 'Bloqueado': '#ff2f69'
+    'Em Cotação': '#422c76', 'Aguardando Entrega': '#f59e0b',
+    'Recebido': '#01E18E', 'Concluído': '#01E18E', 'Bloqueado': '#ff2f69'
   };
   return (reqs || []).map(r => ({
     data: r.data_solicitacao || '',
@@ -489,7 +495,7 @@ async function _selecionarFornecedor(id, body) {
   const fornRec = (allForns || []).find(f => _normCnpj(f.cnpj) === cnpjN);
   const nomeForn = fornRec?.razao_social || _fmtCnpj(cnpjN);
   await _sb.from('requisicoes').update({
-    status: 'Aguardando Conciliação', fornecedor: nomeForn,
+    status: 'Aguardando Entrega', fornecedor: nomeForn,
     valor_fechado: lance?.preco_unitario || 0
   }).eq('id_sharepoint', id);
   return { status: 'ok', fornecedor: nomeForn };
@@ -547,7 +553,7 @@ async function _historicoCotacoes(path) {
 async function _recebimentoPendentes() {
   const { data, error } = await _sb.from('requisicoes')
     .select('id_sharepoint, fornecedor, status')
-    .eq('status', 'Aguardando Conciliação').order('id_sharepoint', { ascending: false }).limit(50);
+    .eq('status', 'Recebido').order('id_sharepoint', { ascending: false }).limit(50);
   if (error) _err(error);
   const seen = new Set();
   return (data || []).filter(r => { if (seen.has(r.id_sharepoint)) return false; seen.add(r.id_sharepoint); return true; })
@@ -587,6 +593,44 @@ async function _realizarMatch(id, body) {
 async function _nfUploads(id) {
   const { data } = await _sb.from('nf_uploads').select('*').eq('id_pedido', id).order('enviado_em', { ascending: false });
   return (data || []).map(u => ({ ...u, tipo: u.tipo || 'PDF', tamanho_kb: u.tamanho_kb || 0 }));
+}
+
+// ── Entregas pendentes (Aguardando Entrega + Recebido) ─────
+async function _entregasPendentes() {
+  const { data, error } = await _sb.from('requisicoes')
+    .select('id_sharepoint, unidade, comprador, data_solicitacao, status, fornecedor, valor_fechado, itens_requisicao(descricao,quantidade)')
+    .in('status', ['Aguardando Entrega', 'Recebido'])
+    .order('id_sharepoint', { ascending: false })
+    .limit(300);
+  if (error) _err(error);
+  return (data || []).map(r => ({
+    id:            r.id_sharepoint,
+    unidade:       r.unidade,
+    comprador:     r.comprador,
+    data:          r.data_solicitacao,
+    status:        r.status,
+    fornecedor:    r.fornecedor,
+    valor_fechado: r.valor_fechado,
+    itens_count:   (r.itens_requisicao || []).length,
+    itens_preview: (r.itens_requisicao || []).slice(0, 2)
+                     .map(i => `${i.quantidade}x ${i.descricao}`).join(', ')
+  }));
+}
+
+// ── Confirmar recebimento (Aguardando Entrega → Recebido) ──
+async function _confirmarRecebimento(id, body) {
+  const upd = { status: 'Recebido' };
+  if (body.obs) {
+    const { data: req } = await _sb.from('requisicoes')
+      .select('observacoes').eq('id_sharepoint', id).single();
+    const prev = req?.observacoes || '';
+    upd.observacoes = prev
+      ? `${prev}\n[Entrega ${body.data_recebimento || _now()}] ${body.obs}`
+      : `[Entrega ${body.data_recebimento || _now()}] ${body.obs}`;
+  }
+  const { error } = await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
+  if (error) _err(error);
+  return { status: 'ok' };
 }
 
 // ── Detalhes Completos ─────────────────────────────────────
@@ -955,7 +999,7 @@ async function _requisicoesPorUnidade() {
     // Sum ALL valor_fechado (POs emitidas), not only Concluído
     if (r.valor_fechado) map[u].total_valor += r.valor_fechado;
     if (r.status === 'Concluído') map[u].concluidos++;
-    if (['Aguardando Cotação','Em Cotação','Aguardando Conciliação'].includes(r.status)) map[u].em_andamento++;
+    if (['Aguardando Cotação','Em Cotação','Aguardando Entrega','Recebido'].includes(r.status)) map[u].em_andamento++;
     if (r.status === 'Reprovado') map[u].reprovados++;
     // Map id_sharepoint → id so the template's r.id works correctly
     if (map[u].recentes.length < 3) map[u].recentes.push({
@@ -1133,6 +1177,13 @@ async function _catalogoLista(path) {
       e.ultima_requisicao = req.data_solicitacao;
   }
 
+  // Convert DD/MM/YYYY to a sortable YYYYMMDD key
+  const _toSortKey = d => {
+    if (!d) return '00000000';
+    const p = d.split('/');
+    return p.length === 3 ? `${p[2]}${p[1]}${p[0]}` : '00000000';
+  };
+
   let items = Object.values(map).map(e => ({
     descricao: e.descricao,
     segmento: e.segmento,
@@ -1141,7 +1192,13 @@ async function _catalogoLista(path) {
     total_fornecedores: e.fornecedores.size,
     preco_medio: e.preco_count > 0 ? e.preco_sum / e.preco_count : null,
     ultima_requisicao: e.ultima_requisicao
-  })).sort((a, b) => b.total_requisicoes - a.total_requisicoes);
+  })).sort((a, b) => {
+    // Primary: most recently requested first
+    const cmp = _toSortKey(b.ultima_requisicao).localeCompare(_toSortKey(a.ultima_requisicao));
+    if (cmp !== 0) return cmp;
+    // Secondary: most frequently ordered first
+    return b.total_requisicoes - a.total_requisicoes;
+  });
 
   if (busca)   items = items.filter(i => i.descricao.toLowerCase().includes(busca));
   if (segFilt) items = items.filter(i => i.segmento.toLowerCase().includes(segFilt));
