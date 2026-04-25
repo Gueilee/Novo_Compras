@@ -205,8 +205,8 @@ async function _dashboardDados(path = '') {
   if (fMes) reqs = reqs.filter(r => (r.data_solicitacao || '').split('/')[1] === fMes);
 
   const total      = reqs.length;
-  const concluidas = reqs.filter(r => r.status === 'Concluído');
-  const totalGasto = concluidas.reduce((s, r) => s + (Number(r.valor_fechado) || 0), 0);
+  // Investimento Total = soma de TODOS os valores fechados (todas as POs emitidas)
+  const totalGasto = reqs.reduce((s, r) => s + (Number(r.valor_fechado) || 0), 0);
 
   // Status pipeline — qtd field (required by dashboard.js _renderCharts)
   const statusMap = {};
