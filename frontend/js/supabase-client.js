@@ -1119,19 +1119,31 @@ async function _deletarOrcamento(unidade, ano) {
   return { status: 'ok' };
 }
 
-// ── Catálogo ───────────────────────────────────────────────
+// ── Catálogo — helper: dois fetches separados (sem FK join) ──
+// PostgREST só faz join automático se existir FK no schema do Supabase.
+// Para garantir que TODOS os itens apareçam, buscamos itens e requisições
+// em paralelo e juntamos em JavaScript por id_sharepoint.
+async function _catalogoReqMap() {
+  const { data } = await _sb.from('requisicoes')
+    .select('id_sharepoint, status, valor_fechado, data_solicitacao, fornecedor, comprador')
+    .limit(10000);
+  return Object.fromEntries((data || []).map(r => [r.id_sharepoint, r]));
+}
+
 async function _catalogoStats() {
-  const [{ data: itens }, { count: totalReqs }] = await Promise.all([
-    _sb.from('itens_requisicao')
-      .select('descricao, segmento_historico, id_requisicao, requisicoes(status,valor_fechado)')
-      .limit(10000),
-    _sb.from('requisicoes').select('*', { count: 'exact', head: true })
+  const [{ data: itens }, { count: totalReqs }, reqMap] = await Promise.all([
+    _sb.from('itens_requisicao').select('descricao, segmento_historico, id_requisicao').limit(10000),
+    _sb.from('requisicoes').select('*', { count: 'exact', head: true }),
+    _catalogoReqMap()
   ]);
   const descs    = new Set((itens || []).map(i => i.descricao).filter(Boolean));
   const segs     = new Set((itens || []).map(i => i.segmento_historico).filter(Boolean));
   const comPreco = new Set(
     (itens || [])
-      .filter(i => i.requisicoes?.status === 'Concluído' && i.requisicoes?.valor_fechado > 0)
+      .filter(i => {
+        const r = reqMap[i.id_requisicao];
+        return r?.status === 'Concluído' && r?.valor_fechado > 0;
+      })
       .map(i => i.descricao)
   );
   return {
@@ -1149,11 +1161,22 @@ async function _catalogoLista(path) {
   const busca   = (params.get('busca') || '').toLowerCase().trim();
   const segFilt = (params.get('segmento') || '').toLowerCase().trim();
 
-  const { data: itens } = await _sb.from('itens_requisicao')
-    .select('descricao, segmento_historico, id_requisicao, requisicoes(status,valor_fechado,data_solicitacao,fornecedor)')
-    .limit(10000);
+  // Two-step fetch: avoids unreliable PostgREST FK join
+  const [{ data: itens }, reqMap] = await Promise.all([
+    _sb.from('itens_requisicao')
+      .select('descricao, segmento_historico, id_requisicao')
+      .limit(10000),
+    _catalogoReqMap()
+  ]);
 
-  // Agrupa por descricao
+  // DD/MM/YYYY → sortable YYYYMMDD string
+  const _toSortKey = d => {
+    if (!d) return '00000000';
+    const p = d.split('/');
+    return p.length === 3 ? `${p[2]}${p[1]}${p[0]}` : '00000000';
+  };
+
+  // Group by description; track max id_requisicao for tiebreaking
   const map = {};
   for (const i of (itens || [])) {
     if (!i.descricao) continue;
@@ -1162,73 +1185,86 @@ async function _catalogoLista(path) {
       descricao: i.descricao,
       segmento: i.segmento_historico || '—',
       total_requisicoes: 0, total_concluidos: 0,
-      total_fornecedores: 0, preco_sum: 0, preco_count: 0,
-      ultima_requisicao: null, fornecedores: new Set()
+      preco_sum: 0, preco_count: 0,
+      ultima_requisicao: null, ultima_id: 0,
+      fornecedores: new Set()
     };
-    const e = map[key];
+    const e   = map[key];
+    const req = reqMap[i.id_requisicao];
     e.total_requisicoes++;
-    const req = i.requisicoes;
+    if (i.id_requisicao > e.ultima_id) e.ultima_id = i.id_requisicao;
     if (req?.status === 'Concluído') {
       e.total_concluidos++;
       if (req.valor_fechado > 0) { e.preco_sum += req.valor_fechado; e.preco_count++; }
       if (req.fornecedor) e.fornecedores.add(req.fornecedor);
     }
-    if (req?.data_solicitacao && (!e.ultima_requisicao || req.data_solicitacao > e.ultima_requisicao))
-      e.ultima_requisicao = req.data_solicitacao;
+    if (req?.data_solicitacao) {
+      const k = _toSortKey(req.data_solicitacao);
+      if (k > _toSortKey(e.ultima_requisicao)) e.ultima_requisicao = req.data_solicitacao;
+    }
   }
 
-  // Convert DD/MM/YYYY to a sortable YYYYMMDD key
-  const _toSortKey = d => {
-    if (!d) return '00000000';
-    const p = d.split('/');
-    return p.length === 3 ? `${p[2]}${p[1]}${p[0]}` : '00000000';
-  };
-
   let items = Object.values(map).map(e => ({
-    descricao: e.descricao,
-    segmento: e.segmento,
+    descricao:         e.descricao,
+    segmento:          e.segmento,
     total_requisicoes: e.total_requisicoes,
-    total_concluidos: e.total_concluidos,
+    total_concluidos:  e.total_concluidos,
     total_fornecedores: e.fornecedores.size,
-    preco_medio: e.preco_count > 0 ? e.preco_sum / e.preco_count : null,
-    ultima_requisicao: e.ultima_requisicao
+    preco_medio:       e.preco_count > 0 ? e.preco_sum / e.preco_count : null,
+    ultima_requisicao: e.ultima_requisicao,
+    ultima_id:         e.ultima_id
   })).sort((a, b) => {
-    // Primary: most recently requested first
+    // 1st: most recent date
     const cmp = _toSortKey(b.ultima_requisicao).localeCompare(_toSortKey(a.ultima_requisicao));
     if (cmp !== 0) return cmp;
-    // Secondary: most frequently ordered first
+    // 2nd: highest req id (proxy when dates are equal or missing)
+    if (b.ultima_id !== a.ultima_id) return b.ultima_id - a.ultima_id;
+    // 3rd: most frequent
     return b.total_requisicoes - a.total_requisicoes;
   });
 
   if (busca)   items = items.filter(i => i.descricao.toLowerCase().includes(busca));
   if (segFilt) items = items.filter(i => i.segmento.toLowerCase().includes(segFilt));
 
-  const total    = items.length;
-  const pages    = Math.max(1, Math.ceil(total / perPage));
+  const total     = items.length;
+  const pages     = Math.max(1, Math.ceil(total / perPage));
   const segmentos = [...new Set(Object.values(map).map(e => e.segmento).filter(s => s !== '—'))].sort();
   return { total, pages, segmentos, items: items.slice((page - 1) * perPage, page * perPage) };
 }
 
 async function _catalogoDetalhe(path) {
-  const params   = new URLSearchParams(path.split('?')[1] || '');
+  const params    = new URLSearchParams(path.split('?')[1] || '');
   const descricao = params.get('descricao') || '';
   if (!descricao) return { historico: [] };
 
-  const { data } = await _sb.from('itens_requisicao')
-    .select('quantidade, id_requisicao, requisicoes(id_sharepoint,status,data_solicitacao,comprador,fornecedor,valor_fechado)')
+  // Two-step: fetch item rows then look up requisitions by id
+  const { data: rows } = await _sb.from('itens_requisicao')
+    .select('quantidade, id_requisicao')
     .eq('descricao', descricao)
     .order('id_requisicao', { ascending: false })
     .limit(100);
 
-  const historico = (data || []).map(i => ({
-    id:        i.requisicoes?.id_sharepoint,
-    status:    i.requisicoes?.status,
-    data:      i.requisicoes?.data_solicitacao,
-    comprador: i.requisicoes?.comprador,
-    fornecedor: i.requisicoes?.fornecedor,
-    valor:     i.requisicoes?.valor_fechado || null,
-    quantidade: i.quantidade
-  }));
+  const ids = [...new Set((rows || []).map(r => r.id_requisicao).filter(Boolean))];
+  let reqMap = {};
+  if (ids.length) {
+    const { data: reqs } = await _sb.from('requisicoes')
+      .select('id_sharepoint, status, data_solicitacao, comprador, fornecedor, valor_fechado')
+      .in('id_sharepoint', ids);
+    reqMap = Object.fromEntries((reqs || []).map(r => [r.id_sharepoint, r]));
+  }
+
+  const historico = (rows || []).map(i => {
+    const req = reqMap[i.id_requisicao] || {};
+    return {
+      id:         req.id_sharepoint || i.id_requisicao,
+      status:     req.status     || '—',
+      data:       req.data_solicitacao || '—',
+      comprador:  req.comprador  || '—',
+      fornecedor: req.fornecedor || null,
+      valor:      req.valor_fechado || null,
+      quantidade: i.quantidade
+    };
+  });
 
   return { historico };
 }
