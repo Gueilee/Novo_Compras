@@ -47,62 +47,91 @@ async function _route(method, path, body) {
 
   // Aprovações
   if (full === 'GET /api/aprovacoes/pendentes') return _aprovacoesPendentes();
-  const mAprov = path.match(/^\/api\/aprovacoes\/(\d+)$/);
+  const mAprov = basePath.match(/^\/api\/aprovacoes\/(\d+)$/);
   if (method === 'POST' && mAprov) return _aprovarRequisicao(+mAprov[1], body);
 
   // Sourcing
+  if (full === 'GET /api/sourcing/segmentos') return _sourcingSegmentos();
   if (full === 'GET /api/sourcing/pedidos-aprovados') return _pedidosAprovados();
-  const mFornSeg = path.match(/^\/fornecedores\/(.+)$/);
+  const mFornSeg = basePath.match(/^\/fornecedores\/(.+)$/);
   if (method === 'GET' && mFornSeg) return _fornecedoresPorSegmento(decodeURIComponent(mFornSeg[1]));
-  const mReqSrc = path.match(/^\/api\/sourcing\/requisicao\/(\d+)$/);
+  const mReqSrc = basePath.match(/^\/api\/sourcing\/requisicao\/(\d+)$/);
   if (method === 'GET' && mReqSrc) return _requisicaoParaFornecedor(+mReqSrc[1]);
   if (full === 'POST /api/cotacao/enviar') return _salvarCotacao(body);
-  const mSel = path.match(/^\/api\/sourcing\/selecionar\/(\d+)$/);
+  if (full === 'POST /api/cotacao/disparar-email') return { status: 'ok' };
+  const mSel = basePath.match(/^\/api\/sourcing\/selecionar\/(\d+)$/);
   if (method === 'POST' && mSel) return _selecionarFornecedor(+mSel[1], body);
-  const mComp = path.match(/^\/api\/cotacao\/comparativo\/(\d+)$/);
+  const mComp = basePath.match(/^\/api\/cotacao\/comparativo\/(\d+)$/);
   if (method === 'GET' && mComp) return _comparativoCotacoes(+mComp[1]);
   if (method === 'GET' && path.startsWith('/api/cotacao/historico')) return _historicoCotacoes(path);
 
   // Recebimento / Conciliação
   if (full === 'GET /api/recebimento/pendentes') return _recebimentoPendentes();
-  const mDadosPO = path.match(/^\/api\/recebimento\/dados-po\/(\d+)$/);
+  const mDadosPO = basePath.match(/^\/api\/recebimento\/dados-po\/(\d+)$/);
   if (method === 'GET' && mDadosPO) return _dadosPO(+mDadosPO[1]);
-  const mMatch = path.match(/^\/api\/recebimento\/match\/(\d+)$/);
+  const mMatch = basePath.match(/^\/api\/recebimento\/match\/(\d+)$/);
   if (method === 'POST' && mMatch) return _realizarMatch(+mMatch[1], body);
-  const mNfUp = path.match(/^\/api\/recebimento\/nf-uploads\/(\d+)$/);
+  const mNfUp = basePath.match(/^\/api\/recebimento\/nf-uploads\/(\d+)$/);
   if (method === 'GET' && mNfUp) return _nfUploads(+mNfUp[1]);
 
-  // Detalhes completos
-  const mDet = path.match(/^\/api\/requisicoes\/(\d+)\/detalhes-completos$/);
+  // Requisições CRUD (order matters: specific paths before generic /:id)
+  const mDet = basePath.match(/^\/api\/requisicoes\/(\d+)\/detalhes-completos$/);
   if (method === 'GET' && mDet) return _detalhesCompletos(+mDet[1]);
+  if (full === 'GET /api/requisicoes/filtros')      return _filtrosRequisicoes();
+  if (full === 'GET /api/requisicoes/por-unidade')  return _requisicoesPorUnidade();
+  const mReqId = basePath.match(/^\/api\/requisicoes\/(\d+)$/);
+  if (method === 'GET'    && mReqId) return _getRequisicao(+mReqId[1]);
+  if (method === 'PATCH'  && mReqId) return _atualizarRequisicao(+mReqId[1], body);
+  if (method === 'DELETE' && mReqId) return _deletarRequisicao(+mReqId[1]);
+  if (method === 'GET' && path.startsWith('/api/requisicoes')) return _listarRequisicoes(path);
 
   // Arquivos
-  const mArqList = path.match(/^\/api\/arquivos\/(\d+)$/);
+  const mArqList = basePath.match(/^\/api\/arquivos\/(\d+)$/);
   if (method === 'GET' && mArqList) return _arquivosRequisicao(+mArqList[1]);
   if (method === 'DELETE' && mArqList) return _deletarArquivo(+mArqList[1]);
 
-  // Catálogo
+  // Catálogo (specific before generic)
+  if (full === 'GET /api/catalogo/stats') return _catalogoStats();
+  if (method === 'GET' && path.startsWith('/api/catalogo/detalhe')) return _catalogoDetalhe(path);
   if (method === 'GET' && path.startsWith('/api/catalogo/fornecedores')) return _catalogoFornecedores(path);
   if (full === 'POST /api/catalogo/fornecedores') return _criarFornecedor(body);
-  const mFornUp = path.match(/^\/api\/catalogo\/fornecedores\/(.+)$/);
+  const mFornUp = basePath.match(/^\/api\/catalogo\/fornecedores\/(.+)$/);
   if (method === 'PUT'    && mFornUp) return _atualizarFornecedor(decodeURIComponent(mFornUp[1]), body);
   if (method === 'DELETE' && mFornUp) return _deletarFornecedor(decodeURIComponent(mFornUp[1]));
+  if (method === 'GET' && path.startsWith('/api/catalogo')) return _catalogoLista(path);
 
-  // Contratos / Contas Fixas
-  if (full === 'GET /api/contratos') return _listarContratos();
-  if (full === 'POST /api/contratos') return _criarContrato(body);
-  const mContLanc = path.match(/^\/api\/contratos\/(\d+)\/lancamento$/);
+  // Contas Fixas (alias /api/contas-fixas ↔ /api/contratos)
+  if (full === 'GET /api/contas-fixas')  return _listarContratos();
+  if (full === 'POST /api/contas-fixas') return _criarContrato(body);
+  if (full === 'GET /api/contratos')     return _listarContratos();
+  if (full === 'POST /api/contratos')    return _criarContrato(body);
+  const mCFLanc = basePath.match(/^\/api\/contas-fixas\/lancamentos\/(\d+)$/);
+  if (method === 'DELETE' && mCFLanc) return _deletarLancamento(+mCFLanc[1]);
+  const mCFLancs = basePath.match(/^\/api\/contas-fixas\/(\d+)\/lancamentos$/);
+  if (method === 'GET'  && mCFLancs) return _lancamentosContrato(+mCFLancs[1]);
+  if (method === 'POST' && mCFLancs) return _adicionarLancamento(+mCFLancs[1], body);
+  const mCFId = basePath.match(/^\/api\/contas-fixas\/(\d+)$/);
+  if (method === 'PATCH'  && mCFId) return _atualizarContrato(+mCFId[1], body);
+  if (method === 'DELETE' && mCFId) return _deletarContrato(+mCFId[1]);
+  const mContLanc = basePath.match(/^\/api\/contratos\/(\d+)\/lancamento$/);
   if (method === 'POST' && mContLanc) return _adicionarLancamento(+mContLanc[1], body);
-  const mContLancs = path.match(/^\/api\/contratos\/(\d+)\/lancamentos$/);
+  const mContLancs = basePath.match(/^\/api\/contratos\/(\d+)\/lancamentos$/);
   if (method === 'GET' && mContLancs) return _lancamentosContrato(+mContLancs[1]);
-  const mCont = path.match(/^\/api\/contratos\/(\d+)$/);
+  const mCont = basePath.match(/^\/api\/contratos\/(\d+)$/);
   if (method === 'PUT'    && mCont) return _atualizarContrato(+mCont[1], body);
   if (method === 'DELETE' && mCont) return _deletarContrato(+mCont[1]);
 
   // Orçamento
-  const mOrc = path.match(/^\/api\/orcamento\/(.+)$/);
+  if (full === 'GET /api/orcamentos')          return _listarOrcamentos();
+  if (full === 'POST /api/orcamentos/salvar')  return _salvarOrcamento(body);
+  const mOrcDel = basePath.match(/^\/api\/orcamentos\/([^/]+)\/(\d+)$/);
+  if (method === 'DELETE' && mOrcDel) return _deletarOrcamento(decodeURIComponent(mOrcDel[1]), +mOrcDel[2]);
+  const mOrc = basePath.match(/^\/api\/orcamento\/(.+)$/);
   if (method === 'GET' && mOrc) return _orcamentoUnidade(decodeURIComponent(mOrc[1]));
   if (full === 'POST /api/orcamento') return _salvarOrcamento(body);
+
+  // Configurações
+  if (full === 'GET /api/configuracoes/opcoes') return _configOpcoes();
 
   // Consulta
   if (method === 'GET' && path.startsWith('/api/consulta/requisicoes')) return _consultaRequisicoes(path);
@@ -110,16 +139,31 @@ async function _route(method, path, body) {
   // Home activity feed
   if (full === 'GET /api/home/atividade-recente') return _atividadeRecente();
 
-  // Usuários
-  if (full === 'POST /api/usuarios/solicitar-acesso') return _solicitarAcesso(body);
-  if (full === 'GET /api/usuarios/pendentes-acesso')  return _usuariosPendentes();
-  const mAtiv = path.match(/^\/api\/usuarios\/(\d+)\/ativar$/);
-  if (method === 'POST' && mAtiv) return _ativarUsuario(+mAtiv[1]);
+  // Usuários CRUD (specific paths before generic /:id)
+  if (full === 'POST /api/usuarios/solicitar-acesso')    return _solicitarAcesso(body);
+  if (full === 'GET /api/usuarios/pendentes-acesso')     return _usuariosPendentes();
+  if (full === 'POST /api/usuarios/importar-historico')  return { inseridos: 0, ignorados: 0 };
+  if (method === 'GET' && path.startsWith('/api/usuarios/verificar')) return _verificarUsuario(path);
+  if (full === 'GET /api/usuarios')  return _listarUsuarios();
+  if (full === 'POST /api/usuarios') return _criarUsuario(body);
+  const mUsuRejeitar = basePath.match(/^\/api\/usuarios\/(\d+)\/rejeitar$/);
+  if (method === 'PATCH' && mUsuRejeitar) return _rejeitarUsuario(+mUsuRejeitar[1]);
+  const mAtiv = basePath.match(/^\/api\/usuarios\/(\d+)\/ativar$/);
+  if ((method === 'POST' || method === 'PATCH') && mAtiv) return _ativarUsuario(+mAtiv[1]);
+  const mUsuId = basePath.match(/^\/api\/usuarios\/(\d+)$/);
+  if (method === 'PATCH'  && mUsuId) return _atualizarUsuario(+mUsuId[1], body);
+  if (method === 'DELETE' && mUsuId) return _deletarUsuario(+mUsuId[1]);
 
-  // Config compradores
-  if (full === 'GET /api/config/compradores') return _listarCompradores();
-  if (full === 'POST /api/config/compradores') return _salvarComprador(body);
-  const mCompDel = path.match(/^\/api\/config\/compradores\/(\d+)$/);
+  // Compradores CRUD (alias /api/compradores ↔ /api/config/compradores)
+  if (full === 'GET /api/compradores')                    return _listarCompradores();
+  if (full === 'POST /api/compradores')                   return _salvarComprador(body);
+  if (full === 'POST /api/compradores/importar-historico') return { inseridos: 0, ignorados: 0 };
+  if (full === 'GET /api/config/compradores')             return _listarCompradores();
+  if (full === 'POST /api/config/compradores')            return _salvarComprador(body);
+  const mCompPatch = basePath.match(/^\/api\/compradores\/(\d+)$/);
+  if (method === 'PATCH'  && mCompPatch) return _atualizarComprador(+mCompPatch[1], body);
+  if (method === 'DELETE' && mCompPatch) return _deletarComprador(+mCompPatch[1]);
+  const mCompDel = basePath.match(/^\/api\/config\/compradores\/(\d+)$/);
   if (method === 'DELETE' && mCompDel) return _deletarComprador(+mCompDel[1]);
 
   console.warn('[SHP] Rota não mapeada:', method, path);
@@ -144,34 +188,79 @@ Object.assign(Api, {
 
 // ── Dashboard ─────────────────────────────────────────────
 async function _dashboardDados() {
-  const { data: reqs } = await _sb.from('requisicoes').select('status, valor_fechado, unidade, data_solicitacao');
-  const total = reqs?.length || 0;
+  const { data: reqs } = await _sb.from('requisicoes')
+    .select('status, valor_fechado, unidade, data_solicitacao, comprador');
+
+  const total    = reqs?.length || 0;
   const concluidas = reqs?.filter(r => r.status === 'Concluído') || [];
-  const pendAprov  = reqs?.filter(r => r.status === 'Aguardando Aprovação').length || 0;
-  const emCotacao  = reqs?.filter(r => ['Aguardando Cotação','Em Cotação'].includes(r.status)).length || 0;
-  const valorTotal = concluidas.reduce((s, r) => s + (r.valor_fechado || 0), 0);
-  const { data: orcs } = await _sb.from('orcamentos').select('unidade, orcamento_anual, consumido, ano').eq('ano', 2026);
+  const totalGasto = concluidas.reduce((s, r) => s + (r.valor_fechado || 0), 0);
+
+  // Status pipeline — qtd field (required by dashboard.js _renderCharts)
+  const statusMap = {};
+  reqs?.forEach(r => { statusMap[r.status] = (statusMap[r.status] || 0) + 1; });
+  const status = Object.entries(statusMap).map(([s, qtd]) => ({ status: s, qtd }));
+
+  // Por unidade — qtd field (required by dashboard.js _renderCharts)
+  const unidadeMap = {};
+  reqs?.forEach(r => { if (r.unidade) unidadeMap[r.unidade] = (unidadeMap[r.unidade] || 0) + 1; });
+  const unidades = Object.entries(unidadeMap)
+    .map(([unidade, qtd]) => ({ unidade, qtd }))
+    .sort((a, b) => b.qtd - a.qtd);
+
+  // Sazonalidade mensal MM/YYYY (required by dashboard.js _renderCharts)
+  const sazonMap = {};
+  reqs?.forEach(r => {
+    if (!r.data_solicitacao) return;
+    const p = r.data_solicitacao.split('/');
+    if (p.length >= 3) {
+      const chave = `${p[1]}/${p[2]}`; // MM/YYYY from DD/MM/YYYY
+      sazonMap[chave] = (sazonMap[chave] || 0) + 1;
+    }
+  });
+  const sazonalidade = Object.entries(sazonMap)
+    .map(([mes, qtd]) => ({ mes, qtd }))
+    .sort((a, b) => {
+      const [aM, aY] = a.mes.split('/');
+      const [bM, bY] = b.mes.split('/');
+      return aY !== bY ? Number(aY) - Number(bY) : Number(aM) - Number(bM);
+    });
+
+  // Top compradores (required by dashboard.js _renderCharts)
+  const comprMap = {};
+  reqs?.forEach(r => { if (r.comprador) comprMap[r.comprador] = (comprMap[r.comprador] || 0) + 1; });
+  const compradores = Object.entries(comprMap)
+    .map(([nome, qtd]) => ({ nome, qtd }))
+    .sort((a, b) => b.qtd - a.qtd)
+    .slice(0, 10);
+
   const { count: fornCount } = await _sb.from('fornecedores').select('*', { count: 'exact', head: true });
-  const porStatus = {};
-  reqs?.forEach(r => { porStatus[r.status] = (porStatus[r.status] || 0) + 1; });
-  const porUnidade = {};
-  reqs?.forEach(r => { if (r.unidade) porUnidade[r.unidade] = (porUnidade[r.unidade] || 0) + 1; });
-  const unidades = [...new Set((reqs || []).map(r => r.unidade).filter(Boolean))].sort();
-  const anos = [...new Set((reqs || []).map(r => {
+
+  const unidadesOpts = [...new Set((reqs || []).map(r => r.unidade).filter(Boolean))].sort();
+  const anosOpts = [...new Set((reqs || []).map(r => {
     if (!r.data_solicitacao) return null;
     const p = r.data_solicitacao.split('/');
     return p.length >= 3 ? p[2] : null;
   }).filter(Boolean))].sort();
+
   return {
-    total_requisicoes: total, pendente_aprovacao: pendAprov, em_cotacao: emCotacao,
-    concluidas: concluidas.length, valor_total_fechado: valorTotal,
-    total_fornecedores: fornCount || 0,
-    por_status: Object.entries(porStatus).map(([status, count]) => ({ status, count })),
-    por_unidade: Object.entries(porUnidade).map(([unidade, count]) => ({ unidade, count })),
-    orcamentos: orcs || [],
-    ultimas: (reqs || []).slice(-10).reverse(),
-    opts: { unidades, anos }
+    kpis: { total_pedidos: total, total_gasto: totalGasto, total_fornecedores: fornCount || 0 },
+    status,
+    unidades,
+    sazonalidade,
+    compradores,
+    opts: { unidades: unidadesOpts, anos: anosOpts }
   };
+}
+
+// ── Orçamentos (listagem completa para _renderBudgets e configuracoes) ────
+async function _listarOrcamentos() {
+  const { data } = await _sb.from('orcamentos').select('*').order('unidade');
+  const orcamentos = (data || []).map(o => ({
+    ...o,
+    percentual: o.orcamento_anual > 0 ? (o.consumido / o.orcamento_anual) * 100 : 0
+  }));
+  const unidades = [...new Set(orcamentos.map(o => o.unidade).filter(Boolean))].sort();
+  return { orcamentos, unidades };
 }
 
 // ── Atividade Recente (Home Feed) ─────────────────────────
@@ -541,11 +630,17 @@ async function _deletarFornecedor(cnpj) {
 
 // ── Contratos / Contas Fixas ───────────────────────────────
 async function _listarContratos() {
+  const anoRef = new Date().getFullYear();
   const { data, error } = await _sb.from('contas_fixas')
     .select('*, lancamentos_cf(*)')
     .order('criado_em', { ascending: false });
   if (error) _err(error);
-  return data || [];
+  return (data || []).map(c => {
+    const lancsAno = (c.lancamentos_cf || []).filter(l => l.ano === anoRef);
+    const pago_ano = lancsAno.reduce((s, l) => s + (l.valor || 0), 0);
+    const pct_ano  = c.valor_anual > 0 ? (pago_ano / c.valor_anual) * 100 : 0;
+    return { ...c, pago_ano, pct_ano };
+  });
 }
 
 async function _criarContrato(body) {
@@ -699,6 +794,277 @@ window.SbUploadNF = async function(idPedido, numeroNf, file) {
   });
   return publicUrl;
 };
+
+// ── Requisições CRUD ───────────────────────────────────────
+async function _filtrosRequisicoes() {
+  const { data } = await _sb.from('requisicoes')
+    .select('unidade, status, comprador').limit(2000);
+  const unidades   = [...new Set((data || []).map(r => r.unidade).filter(Boolean))].sort();
+  const statuses   = [...new Set((data || []).map(r => r.status).filter(Boolean))].sort();
+  const compradores = [...new Set((data || []).map(r => r.comprador).filter(Boolean))].sort();
+  return { unidades, statuses, compradores };
+}
+
+async function _listarRequisicoes(path) {
+  const params  = new URLSearchParams(path.split('?')[1] || '');
+  const page    = Math.max(1, parseInt(params.get('page') || '1'));
+  const perPage = Math.min(100, parseInt(params.get('per_page') || '20'));
+  const status  = params.get('status');
+  const unidade = params.get('unidade');
+  const q       = params.get('q');
+
+  let query = _sb.from('requisicoes')
+    .select('id_sharepoint, unidade, setor, comprador, data_solicitacao, status, fornecedor, valor_fechado', { count: 'exact' })
+    .order('id_sharepoint', { ascending: false })
+    .range((page - 1) * perPage, page * perPage - 1);
+
+  if (status && status !== 'todos') query = query.eq('status', status);
+  if (unidade) query = query.eq('unidade', unidade);
+  if (q) query = query.or(`comprador.ilike.%${q}%,fornecedor.ilike.%${q}%,unidade.ilike.%${q}%`);
+
+  const { data, count, error } = await query;
+  if (error) _err(error);
+  const total = count || 0;
+  return { total, pages: Math.ceil(total / perPage), items: data || [] };
+}
+
+async function _requisicoesPorUnidade() {
+  const { data, error } = await _sb.from('requisicoes')
+    .select('unidade, status, valor_fechado, data_solicitacao, id_sharepoint')
+    .order('data_solicitacao', { ascending: false });
+  if (error) _err(error);
+  const map = {};
+  for (const r of (data || [])) {
+    const u = r.unidade || 'Sem Unidade';
+    if (!map[u]) map[u] = { unidade: u, total: 0, total_valor: 0, concluidos: 0, em_andamento: 0, reprovados: 0, recentes: [] };
+    map[u].total++;
+    if (r.status === 'Concluído') { map[u].concluidos++; map[u].total_valor += r.valor_fechado || 0; }
+    if (['Aguardando Cotação','Em Cotação','Aguardando Conciliação'].includes(r.status)) map[u].em_andamento++;
+    if (r.status === 'Reprovado') map[u].reprovados++;
+    if (map[u].recentes.length < 3) map[u].recentes.push(r);
+  }
+  return Object.values(map).sort((a, b) => b.total - a.total);
+}
+
+async function _getRequisicao(id) {
+  const { data: req, error } = await _sb.from('requisicoes')
+    .select('*, itens_requisicao(*)').eq('id_sharepoint', id).single();
+  if (error) _err(error);
+  return {
+    id: req.id_sharepoint, unidade: req.unidade, comprador: req.comprador,
+    setor: req.setor, data: req.data_solicitacao, status: req.status,
+    justificativa: req.justificativa, observacoes: req.observacoes,
+    fornecedor: req.fornecedor, valor_fechado: req.valor_fechado,
+    itens: (req.itens_requisicao || []).map(i => ({
+      descricao: i.descricao, quantidade: i.quantidade, segmento: i.segmento_historico
+    }))
+  };
+}
+
+async function _atualizarRequisicao(id, body) {
+  const { error } = await _sb.from('requisicoes').update(body).eq('id_sharepoint', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+async function _deletarRequisicao(id) {
+  await Promise.all([
+    _sb.from('itens_requisicao').delete().eq('id_requisicao', id),
+    _sb.from('lances_fornecedor').delete().eq('id_requisicao', id),
+    _sb.from('arquivos_requisicao').delete().eq('id_requisicao', id)
+  ]);
+  await _sb.from('requisicoes').delete().eq('id_sharepoint', id);
+  return { status: 'ok' };
+}
+
+// ── Configurações ──────────────────────────────────────────
+async function _configOpcoes() {
+  const [{ data: orcs }, { data: cats }, { data: users }] = await Promise.all([
+    _sb.from('orcamentos').select('unidade').order('unidade'),
+    _sb.from('categorias').select('segmento').order('segmento'),
+    _sb.from('usuarios').select('nome').eq('ativo', 1).order('nome')
+  ]);
+  const unidades  = [...new Set((orcs || []).map(o => o.unidade).filter(Boolean))].sort();
+  const categorias = (cats || []).map(c => c.segmento).filter(Boolean);
+  const gestores_sugestoes = (users || []).map(u => u.nome).filter(Boolean);
+  return { unidades, categorias, gestores_sugestoes };
+}
+
+// ── Usuários CRUD ──────────────────────────────────────────
+async function _verificarUsuario(path) {
+  const params = new URLSearchParams(path.split('?')[1] || '');
+  const email  = params.get('email') || '';
+  if (!email) return { ativo: 0 };
+  const { data } = await _sb.from('usuarios').select('ativo').ilike('email', email).maybeSingle();
+  return { ativo: data?.ativo ?? 0 };
+}
+
+async function _listarUsuarios() {
+  const { data, error } = await _sb.from('usuarios')
+    .select('*').order('nome');
+  if (error) _err(error);
+  return data || [];
+}
+
+async function _criarUsuario(body) {
+  const { data, error } = await _sb.from('usuarios').insert({
+    nome: body.nome, email: body.email, unidade: body.unidade || null,
+    cargo: body.cargo || null, gestor_nome: body.gestor_nome || null,
+    ativo: body.ativo ?? 1, solicitacao_pendente: 0
+  }).select().single();
+  if (error) _err(error);
+  return data;
+}
+
+async function _atualizarUsuario(id, body) {
+  const upd = {};
+  if (body.nome        !== undefined) upd.nome        = body.nome;
+  if (body.email       !== undefined) upd.email       = body.email;
+  if (body.unidade     !== undefined) upd.unidade     = body.unidade;
+  if (body.cargo       !== undefined) upd.cargo       = body.cargo;
+  if (body.gestor_nome !== undefined) upd.gestor_nome = body.gestor_nome;
+  if (body.ativo       !== undefined) upd.ativo       = body.ativo;
+  const { error } = await _sb.from('usuarios').update(upd).eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+async function _deletarUsuario(id) {
+  await _sb.from('usuarios').delete().eq('id', id);
+  return { status: 'ok' };
+}
+
+async function _rejeitarUsuario(id) {
+  await _sb.from('usuarios').update({ ativo: 0, solicitacao_pendente: 0 }).eq('id', id);
+  return { status: 'ok' };
+}
+
+// ── Compradores CRUD ───────────────────────────────────────
+async function _atualizarComprador(id, body) {
+  const { error } = await _sb.from('compradores_responsabilidade').update({
+    comprador: body.comprador, email: body.email, unidade: body.unidade,
+    categoria: body.categoria, prioridade: body.prioridade, ativo: body.ativo
+  }).eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+// ── Orçamento — excluir ────────────────────────────────────
+async function _deletarOrcamento(unidade, ano) {
+  await _sb.from('orcamentos').delete().eq('unidade', unidade).eq('ano', ano);
+  return { status: 'ok' };
+}
+
+// ── Catálogo ───────────────────────────────────────────────
+async function _catalogoStats() {
+  const [{ data: itens }, { count: totalReqs }] = await Promise.all([
+    _sb.from('itens_requisicao')
+      .select('descricao, segmento_historico, id_requisicao, requisicoes(status,valor_fechado)'),
+    _sb.from('requisicoes').select('*', { count: 'exact', head: true })
+  ]);
+  const descs    = new Set((itens || []).map(i => i.descricao).filter(Boolean));
+  const segs     = new Set((itens || []).map(i => i.segmento_historico).filter(Boolean));
+  const comPreco = new Set(
+    (itens || [])
+      .filter(i => i.requisicoes?.status === 'Concluído' && i.requisicoes?.valor_fechado > 0)
+      .map(i => i.descricao)
+  );
+  return {
+    total_itens: descs.size,
+    total_segmentos: segs.size,
+    com_preco: comPreco.size,
+    total_requisicoes: totalReqs || 0
+  };
+}
+
+async function _catalogoLista(path) {
+  const params  = new URLSearchParams(path.split('?')[1] || '');
+  const page    = Math.max(1, parseInt(params.get('page') || '1'));
+  const perPage = Math.min(100, parseInt(params.get('per_page') || '20'));
+  const busca   = (params.get('busca') || '').toLowerCase().trim();
+  const segFilt = (params.get('segmento') || '').toLowerCase().trim();
+
+  const { data: itens } = await _sb.from('itens_requisicao')
+    .select('descricao, segmento_historico, id_requisicao, requisicoes(status,valor_fechado,data_solicitacao,fornecedor)');
+
+  // Agrupa por descricao
+  const map = {};
+  for (const i of (itens || [])) {
+    if (!i.descricao) continue;
+    const key = i.descricao;
+    if (!map[key]) map[key] = {
+      descricao: i.descricao,
+      segmento: i.segmento_historico || '—',
+      total_requisicoes: 0, total_concluidos: 0,
+      total_fornecedores: 0, preco_sum: 0, preco_count: 0,
+      ultima_requisicao: null, fornecedores: new Set()
+    };
+    const e = map[key];
+    e.total_requisicoes++;
+    const req = i.requisicoes;
+    if (req?.status === 'Concluído') {
+      e.total_concluidos++;
+      if (req.valor_fechado > 0) { e.preco_sum += req.valor_fechado; e.preco_count++; }
+      if (req.fornecedor) e.fornecedores.add(req.fornecedor);
+    }
+    if (req?.data_solicitacao && (!e.ultima_requisicao || req.data_solicitacao > e.ultima_requisicao))
+      e.ultima_requisicao = req.data_solicitacao;
+  }
+
+  let items = Object.values(map).map(e => ({
+    descricao: e.descricao,
+    segmento: e.segmento,
+    total_requisicoes: e.total_requisicoes,
+    total_concluidos: e.total_concluidos,
+    total_fornecedores: e.fornecedores.size,
+    preco_medio: e.preco_count > 0 ? e.preco_sum / e.preco_count : null,
+    ultima_requisicao: e.ultima_requisicao
+  })).sort((a, b) => b.total_requisicoes - a.total_requisicoes);
+
+  if (busca)   items = items.filter(i => i.descricao.toLowerCase().includes(busca));
+  if (segFilt) items = items.filter(i => i.segmento.toLowerCase().includes(segFilt));
+
+  const total    = items.length;
+  const pages    = Math.max(1, Math.ceil(total / perPage));
+  const segmentos = [...new Set(Object.values(map).map(e => e.segmento).filter(s => s !== '—'))].sort();
+  return { total, pages, segmentos, items: items.slice((page - 1) * perPage, page * perPage) };
+}
+
+async function _catalogoDetalhe(path) {
+  const params   = new URLSearchParams(path.split('?')[1] || '');
+  const descricao = params.get('descricao') || '';
+  if (!descricao) return { historico: [] };
+
+  const { data } = await _sb.from('itens_requisicao')
+    .select('quantidade, id_requisicao, requisicoes(id_sharepoint,status,data_solicitacao,comprador,fornecedor,valor_fechado)')
+    .eq('descricao', descricao)
+    .order('id_requisicao', { ascending: false })
+    .limit(100);
+
+  const historico = (data || []).map(i => ({
+    id:        i.requisicoes?.id_sharepoint,
+    status:    i.requisicoes?.status,
+    data:      i.requisicoes?.data_solicitacao,
+    comprador: i.requisicoes?.comprador,
+    fornecedor: i.requisicoes?.fornecedor,
+    valor:     i.requisicoes?.valor_fechado || null,
+    quantidade: i.quantidade
+  }));
+
+  return { historico };
+}
+
+// ── Sourcing — segmentos ───────────────────────────────────
+async function _sourcingSegmentos() {
+  const { data } = await _sb.from('categorias').select('segmento').order('segmento');
+  return (data || []).map(c => c.segmento).filter(Boolean);
+}
+
+// ── Contas Fixas — excluir lançamento ─────────────────────
+async function _deletarLancamento(id) {
+  await _sb.from('lancamentos_cf').delete().eq('id', id);
+  return { status: 'ok' };
+}
 
 // ── Upload de documento de cotação ────────────────────────
 window.SbUploadCotacaoDoc = async function(idRequisicao, cnpj, file) {
