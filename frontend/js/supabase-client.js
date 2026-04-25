@@ -127,13 +127,16 @@ async function _route(method, path, body) {
 }
 
 // ── Api global (sobrescreve utils.js) ─────────────────────
-window.Api = {
+// IMPORTANTE: usa Object.assign para mutar o objeto const Api de utils.js.
+// window.Api = {} cria uma propriedade no window que NUNCA é vista porque
+// const Api (declarativo) tem prioridade no escopo global sobre window props.
+Object.assign(Api, {
   async get(path)         { return _route('GET',    path, null); },
   async post(path, body)  { return _route('POST',   path, body); },
   async patch(path, body) { return _route('PATCH',  path, body); },
   async put(path, body)   { return _route('PUT',    path, body); },
   async delete(path)      { return _route('DELETE', path, null); },
-};
+});
 
 // ══════════════════════════════════════════════════════════
 // IMPLEMENTAÇÕES
