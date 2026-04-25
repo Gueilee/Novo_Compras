@@ -839,20 +839,22 @@ window.Pages.contratos = {
     btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
 
     try {
-      const fd = new FormData();
-      fd.append('mes',       mes);
-      fd.append('ano',       ano);
-      fd.append('valor',     valor);
-      fd.append('tipo_doc',  document.getElementById('cf-ltipo').value);
-      fd.append('numero_doc',document.getElementById('cf-lndoc').value.trim());
-      fd.append('obs',       document.getElementById('cf-lobs').value.trim());
-      const arqInput = document.getElementById('cf-larq');
-      if (arqInput.files[0]) fd.append('arquivo', arqInput.files[0]);
+      const tipo_doc  = document.getElementById('cf-ltipo').value;
+      const numero_doc = document.getElementById('cf-lndoc').value.trim();
+      const obs       = document.getElementById('cf-lobs').value.trim();
+      const arqInput  = document.getElementById('cf-larq');
+      let arquivo_path = null, arquivo_nome = null;
 
-      const r = await fetch(`${API_BASE}/api/contas-fixas/${id}/lancamentos`, {
-        method: 'POST', body: fd
+      if (arqInput.files[0]) {
+        const file = arqInput.files[0];
+        const filePath = `contas_fixas/${id}_${ano}_${String(mes).padStart(2,'0')}_${file.name}`;
+        arquivo_path = await SbStorage.upload('uploads', filePath, file);
+        arquivo_nome = file.name;
+      }
+
+      await Api.post(`/api/contas-fixas/${id}/lancamentos`, {
+        mes, ano, valor, tipo_doc, numero_doc, obs, arquivo_path, arquivo_nome
       });
-      if (!r.ok) { const j = await r.json().catch(()=>{}); throw new Error(j?.detail||`HTTP ${r.status}`); }
 
       Toast.success('Lançamento registrado', `${CF_MESES[mes-1]} ${ano} — ${Fmt.currency(valor)}`);
       document.getElementById('cf-lanc-form-wrap')?.remove();

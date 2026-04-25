@@ -193,7 +193,9 @@ async function _dashboardDados(path = '') {
   const fAno    = qp.get('period')  || '';
   const fMes    = qp.get('mes')     || '';
 
-  let q = _sb.from('requisicoes').select('status, valor_fechado, unidade, data_solicitacao, comprador');
+  let q = _sb.from('requisicoes')
+    .select('status, valor_fechado, unidade, data_solicitacao, comprador')
+    .limit(10000);
   if (fUnid) q = q.eq('unidade', fUnid);
   const { data: allReqs } = await q;
 
@@ -263,13 +265,39 @@ async function _dashboardDados(path = '') {
   };
 }
 
-// ── Orçamentos (listagem completa para _renderBudgets e configuracoes) ────
+// ── Orçamentos (listagem completa — consumido calculado de requisições) ────
 async function _listarOrcamentos() {
-  const { data } = await _sb.from('orcamentos').select('*').order('unidade');
-  const orcamentos = (data || []).map(o => ({
-    ...o,
-    percentual: o.orcamento_anual > 0 ? (o.consumido / o.orcamento_anual) * 100 : 0
-  }));
+  const [{ data: orcs }, { data: reqs }] = await Promise.all([
+    _sb.from('orcamentos').select('*').order('unidade'),
+    _sb.from('requisicoes')
+      .select('unidade, valor_fechado, data_solicitacao')
+      .eq('status', 'Concluído')
+      .limit(10000)
+  ]);
+
+  // Build spending map: unidade → { year → total }
+  const spendMap = {};
+  for (const r of (reqs || [])) {
+    const ano = (r.data_solicitacao || '').split('/')[2] || '';
+    const key = `${r.unidade}|${ano}`;
+    spendMap[key] = (spendMap[key] || 0) + (Number(r.valor_fechado) || 0);
+  }
+  // Also accumulate all-time per unidade (for budgets when year doesn't match history)
+  const spendAll = {};
+  for (const r of (reqs || [])) {
+    spendAll[r.unidade] = (spendAll[r.unidade] || 0) + (Number(r.valor_fechado) || 0);
+  }
+
+  const orcamentos = (orcs || []).map(o => {
+    const consumidoAno = spendMap[`${o.unidade}|${o.ano}`] || 0;
+    // If no spending in the budget year, show all-time total so dashboard is useful
+    const consumido = consumidoAno > 0 ? consumidoAno : (spendAll[o.unidade] || 0);
+    return {
+      ...o,
+      consumido,
+      percentual: o.orcamento_anual > 0 ? (consumido / o.orcamento_anual) * 100 : 0
+    };
+  });
   const unidades = [...new Set(orcamentos.map(o => o.unidade).filter(Boolean))].sort();
   return { orcamentos, unidades };
 }
@@ -571,7 +599,11 @@ async function _detalhesCompletos(id) {
     setor: req.setor, data: req.data_solicitacao, status: req.status,
     justificativa: req.justificativa, fornecedor: req.fornecedor, valor_fechado: req.valor_fechado,
     observacoes: req.observacoes, comprador_responsavel: req.comprador,
-    itens: itens || [], cotacoes, arquivos: arqs || [],
+    itens: (itens || []).map(i => ({
+      id: i.id, descricao: i.descricao, quantidade: i.quantidade,
+      segmento: i.segmento_historico, unidade: i.unidade_medida || ''
+    })),
+    cotacoes, arquivos: arqs || [],
     total_itens: (itens || []).reduce((s, i) => s + (i.quantidade || 0), 0),
     total_cotacoes: cotacoes.length,
     melhor_preco: cotacoes.length ? Math.min(...cotacoes.map(c => c.preco_unitario || Infinity)) : null
@@ -831,7 +863,13 @@ async function _listarRequisicoes(path) {
 
   if (status && status !== 'todos') query = query.eq('status', status);
   if (unidade) query = query.eq('unidade', unidade);
-  if (q) query = query.or(`comprador.ilike.%${q}%,fornecedor.ilike.%${q}%,unidade.ilike.%${q}%`);
+  if (q) {
+    if (/^\d+$/.test(q)) {
+      query = query.or(`id_sharepoint.eq.${+q},comprador.ilike.%${q}%,fornecedor.ilike.%${q}%`);
+    } else {
+      query = query.or(`comprador.ilike.%${q}%,fornecedor.ilike.%${q}%,unidade.ilike.%${q}%`);
+    }
+  }
 
   const { data, count, error } = await query;
   if (error) _err(error);
@@ -863,7 +901,8 @@ async function _listarRequisicoes(path) {
 async function _requisicoesPorUnidade() {
   const { data, error } = await _sb.from('requisicoes')
     .select('unidade, status, valor_fechado, data_solicitacao, id_sharepoint')
-    .order('data_solicitacao', { ascending: false });
+    .order('data_solicitacao', { ascending: false })
+    .limit(10000);
   if (error) _err(error);
   const map = {};
   for (const r of (data || [])) {
@@ -991,7 +1030,8 @@ async function _deletarOrcamento(unidade, ano) {
 async function _catalogoStats() {
   const [{ data: itens }, { count: totalReqs }] = await Promise.all([
     _sb.from('itens_requisicao')
-      .select('descricao, segmento_historico, id_requisicao, requisicoes(status,valor_fechado)'),
+      .select('descricao, segmento_historico, id_requisicao, requisicoes(status,valor_fechado)')
+      .limit(10000),
     _sb.from('requisicoes').select('*', { count: 'exact', head: true })
   ]);
   const descs    = new Set((itens || []).map(i => i.descricao).filter(Boolean));
@@ -1017,7 +1057,8 @@ async function _catalogoLista(path) {
   const segFilt = (params.get('segmento') || '').toLowerCase().trim();
 
   const { data: itens } = await _sb.from('itens_requisicao')
-    .select('descricao, segmento_historico, id_requisicao, requisicoes(status,valor_fechado,data_solicitacao,fornecedor)');
+    .select('descricao, segmento_historico, id_requisicao, requisicoes(status,valor_fechado,data_solicitacao,fornecedor)')
+    .limit(10000);
 
   // Agrupa por descricao
   const map = {};
@@ -1094,6 +1135,11 @@ async function _sourcingSegmentos() {
 
 // ── Contas Fixas — excluir lançamento ─────────────────────
 async function _deletarLancamento(id) {
+  const { data: lanc } = await _sb.from('lancamentos_cf').select('arquivo_path').eq('id', id).maybeSingle();
+  if (lanc?.arquivo_path) {
+    const filePath = lanc.arquivo_path.replace(/^.*\/object\/public\/uploads\//, '');
+    await SbStorage.remove('uploads', filePath).catch(() => {});
+  }
   await _sb.from('lancamentos_cf').delete().eq('id', id);
   return { status: 'ok' };
 }

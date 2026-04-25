@@ -813,12 +813,8 @@ window.Pages.consulta = {
     const zone = document.getElementById(`cq-uz-${reqId}`);
     if (zone) { zone.style.opacity = '.5'; zone.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="font-size:20px;margin-bottom:6px;display:block;"></i> Enviando...`; }
     try {
-      const fd = new FormData();
-      fd.append('origem', 'comprador');
-      fd.append('enviado_por', localStorage.getItem('shp_user_email') || 'comprador');
-      fd.append('arquivo', file);
-      const r = await fetch(`${API_BASE}/api/requisicoes/${reqId}/upload`, { method: 'POST', body: fd });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const user = localStorage.getItem('shp_user_email') || 'comprador';
+      await SbUploadArquivo(reqId, file, 'comprador', user);
       Toast.success('Arquivo enviado', file.name);
       const data = await Api.get(`/api/requisicoes/${reqId}/detalhes-completos`);
       this._reqAtual = data;

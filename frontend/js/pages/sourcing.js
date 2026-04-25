@@ -344,7 +344,8 @@ window.Pages.sourcing = {
     } catch { /* não bloqueia */ }
 
     // Monta a URL do portal
-    const portalUrl = `${API_BASE}/frontend/fornecedor.html?id=${this._pedidoSelecionado}&cnpj=${encodeURIComponent(cnpj)}`;
+    const base = window.location.href.replace(/\/[^/]*(\?.*)?$/, '/');
+    const portalUrl = `${base}fornecedor.html?id=${this._pedidoSelecionado}&cnpj=${encodeURIComponent(cnpj)}`;
 
     // Atualiza botão
     const cnpjClean = cnpj.replace(/\W/g, '');
