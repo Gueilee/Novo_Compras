@@ -315,11 +315,11 @@ async function _listarOrcamentos() {
   return { orcamentos, unidades };
 }
 
-// ── Atividade Recente (Home Feed) ─────────────────────────
+// ── Atividade Recente (Home Feed) — lê do activity_log ────
 async function _atividadeRecente() {
-  const { data: reqs } = await _sb.from('requisicoes')
-    .select('id_sharepoint, status, unidade, updated_at, data_solicitacao, comprador')
-    .order('updated_at', { ascending: false, nullsFirst: false })
+  const { data: logs } = await _sb.from('activity_log')
+    .select('id_requisicao, evento, tipo, comprador, unidade, created_at')
+    .order('created_at', { ascending: false })
     .limit(20);
   const cores = {
     'Aguardando Aprovação': '#f59e0b', 'Aprovado': '#01E18E',
@@ -327,13 +327,30 @@ async function _atividadeRecente() {
     'Em Cotação': '#422c76', 'Aguardando Entrega': '#f59e0b',
     'Recebido': '#01E18E', 'Concluído': '#01E18E', 'Bloqueado': '#ff2f69'
   };
-  return (reqs || []).map(r => ({
-    data: r.updated_at || r.data_solicitacao || '',
-    usuario: r.comprador || '',
-    unidade: r.unidade || '',
-    texto: `Req. #${r.id_sharepoint} — ${r.status}`,
-    cor: cores[r.status] || '#888899'
+  return (logs || []).map(l => ({
+    data:    l.created_at || '',
+    usuario: l.comprador  || '',
+    unidade: l.unidade    || '',
+    texto:   l.evento,
+    cor:     cores[l.tipo] || '#888899'
   }));
+}
+
+// Grava um evento no activity_log (fire-and-forget nas chamadas)
+async function _logAtividade(id_req, tipo, comprador, unidade) {
+  await _sb.from('activity_log').insert({
+    id_requisicao: id_req,
+    evento:    `Req. #${id_req} — ${tipo}`,
+    tipo,
+    comprador: comprador || '',
+    unidade:   unidade   || ''
+  });
+}
+// Variante que busca comprador/unidade da req antes de logar
+async function _logBuscaReq(id_req, tipo) {
+  const { data: r } = await _sb.from('requisicoes')
+    .select('comprador, unidade').eq('id_sharepoint', id_req).single();
+  return _logAtividade(id_req, tipo, r?.comprador, r?.unidade);
 }
 
 // ── Opções Formulário ──────────────────────────────────────
@@ -371,6 +388,7 @@ async function _criarRequisicao(body) {
     const { error: eItens } = await _sb.from('itens_requisicao').insert(itens);
     if (eItens) _err(eItens);
   }
+  _logAtividade(req.id_sharepoint, 'Aguardando Aprovação', body.comprador, body.unidade).catch(() => {});
   return { id: req.id_sharepoint, id_pedido: req.id_sharepoint, status: 'ok' };
 }
 
@@ -397,6 +415,7 @@ async function _aprovarRequisicao(id, body) {
   if (body.justificativa) upd.observacoes = body.justificativa;
   const { error } = await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
   if (error) _err(error);
+  _logBuscaReq(id, novoStatus).catch(() => {});
   return { status: 'ok' };
 }
 
@@ -470,6 +489,7 @@ async function _salvarCotacao(body) {
     // Avança status se ainda em 'Aguardando Cotação'
     await _sb.from('requisicoes').update({ status: 'Em Cotação', updated_at: new Date().toISOString() })
       .eq('id_sharepoint', body.id_requisicao).eq('status', 'Aguardando Cotação');
+    _logBuscaReq(body.id_requisicao, 'Em Cotação').catch(() => {});
   }
   // Salva itens se vieram
   if (body.itens?.length) {
@@ -499,6 +519,7 @@ async function _selecionarFornecedor(id, body) {
     valor_fechado: lance?.preco_unitario || 0,
     updated_at: new Date().toISOString()
   }).eq('id_sharepoint', id);
+  _logBuscaReq(id, 'Aguardando Entrega').catch(() => {});
   return { status: 'ok', fornecedor: nomeForn };
 }
 
@@ -583,6 +604,7 @@ async function _realizarMatch(id, body) {
   const aprovado = divergencias.length === 0;
   if (aprovado) {
     await _sb.from('requisicoes').update({ status: 'Concluído', valor_fechado: body.valor_nf, updated_at: new Date().toISOString() }).eq('id_sharepoint', id);
+    _logBuscaReq(id, 'Concluído').catch(() => {});
   }
   return {
     status: aprovado ? 'APROVADO' : 'BLOQUEADO',
@@ -631,6 +653,7 @@ async function _confirmarRecebimento(id, body) {
   }
   const { error } = await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
   if (error) _err(error);
+  _logBuscaReq(id, 'Recebido').catch(() => {});
   return { status: 'ok' };
 }
 
