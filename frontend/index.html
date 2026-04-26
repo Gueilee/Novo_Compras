@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Compras Vendemmia</title>
+  <!-- Guard: redireciona para login se não autenticado -->
+  <script>
+    if (!localStorage.getItem('shp_user_email')) {
+      window.location.replace('login.html');
+    }
+  </script>
   <link rel="icon" type="image/png" href="img/favicon.png">
 
   <!-- Fonts -->
@@ -345,7 +351,7 @@
       confirmClass: 'btn-danger',
       cancelText: 'Cancelar',
     });
-    if (ok) window.location.href = 'login.html';
+    if (ok) { localStorage.removeItem('shp_user_email'); window.location.href = 'login.html'; }
   }
 </script>
 

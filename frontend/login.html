@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login | Compras Vendemmia</title>
+  <!-- Guard: skip login if already authenticated -->
+  <script>
+    if (localStorage.getItem('shp_user_email')) {
+      window.location.replace('index.html');
+    }
+  </script>
   <link rel="icon" type="image/png" href="img/favicon.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
