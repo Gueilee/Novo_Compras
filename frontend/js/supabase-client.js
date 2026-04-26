@@ -1121,36 +1121,31 @@ async function _deletarOrcamento(unidade, ano) {
 
 // ── Catálogo — helper: dois fetches separados (sem FK join) ──
 // PostgREST só faz join automático se existir FK no schema do Supabase.
-// Para garantir que TODOS os itens apareçam, buscamos itens e requisições
-// em paralelo e juntamos em JavaScript por id_sharepoint.
-async function _catalogoReqMap() {
-  const { data } = await _sb.from('requisicoes')
-    .select('id_sharepoint, status, valor_fechado, data_solicitacao, fornecedor, comprador')
-    .limit(10000);
-  return Object.fromEntries((data || []).map(r => [r.id_sharepoint, r]));
-}
+// Catálogo agora usa a view v_catalogo_itens (agregação server-side).
+// Isso resolve o limite de 1000 linhas do PostgREST: a view retorna ~1 linha
+// por item único (já agrupado), e a busca/paginação acontece no servidor.
 
 async function _catalogoStats() {
-  const [{ data: itens }, { count: totalReqs }, reqMap] = await Promise.all([
-    _sb.from('itens_requisicao').select('descricao, segmento_historico, id_requisicao').limit(10000),
+  const [
+    { count: totalItens },
+    { count: totalReqs },
+    { count: comPreco }
+  ] = await Promise.all([
+    _sb.from('v_catalogo_itens').select('*', { count: 'exact', head: true }),
     _sb.from('requisicoes').select('*', { count: 'exact', head: true }),
-    _catalogoReqMap()
+    _sb.from('v_catalogo_itens').select('*', { count: 'exact', head: true }).gt('preco_medio', 0)
   ]);
-  const descs    = new Set((itens || []).map(i => i.descricao).filter(Boolean));
-  const segs     = new Set((itens || []).map(i => i.segmento_historico).filter(Boolean));
-  const comPreco = new Set(
-    (itens || [])
-      .filter(i => {
-        const r = reqMap[i.id_requisicao];
-        return r?.status === 'Concluído' && r?.valor_fechado > 0;
-      })
-      .map(i => i.descricao)
-  );
+  const { data: segRows } = await _sb.from('v_catalogo_itens')
+    .select('segmento')
+    .not('segmento', 'is', null)
+    .neq('segmento', '—')
+    .limit(1000);
+  const totalSegmentos = new Set((segRows || []).map(r => r.segmento)).size;
   return {
-    total_itens: descs.size,
-    total_segmentos: segs.size,
-    com_preco: comPreco.size,
-    total_requisicoes: totalReqs || 0
+    total_itens:      totalItens  || 0,
+    total_segmentos:  totalSegmentos,
+    com_preco:        comPreco    || 0,
+    total_requisicoes: totalReqs  || 0
   };
 }
 
@@ -1158,78 +1153,49 @@ async function _catalogoLista(path) {
   const params  = new URLSearchParams(path.split('?')[1] || '');
   const page    = Math.max(1, parseInt(params.get('page') || '1'));
   const perPage = Math.min(100, parseInt(params.get('per_page') || '20'));
-  const busca   = (params.get('busca') || '').toLowerCase().trim();
-  const segFilt = (params.get('segmento') || '').toLowerCase().trim();
+  const busca   = (params.get('busca') || '').trim();
+  const segFilt = (params.get('segmento') || '').trim();
+  const offset  = (page - 1) * perPage;
 
-  // Two-step fetch: avoids unreliable PostgREST FK join
-  const [{ data: itens }, reqMap] = await Promise.all([
-    _sb.from('itens_requisicao')
-      .select('descricao, segmento_historico, id_requisicao')
-      .limit(10000),
-    _catalogoReqMap()
+  // Build server-side query on the view — search, filter, sort and paginate in Postgres
+  let q = _sb.from('v_catalogo_itens')
+    .select('*', { count: 'exact' })
+    .order('ultima_id', { ascending: false })
+    .range(offset, offset + perPage - 1);
+  if (busca)   q = q.ilike('descricao', `%${busca}%`);
+  if (segFilt) q = q.eq('segmento', segFilt);
+
+  // Segmentos for the dropdown (separate small query, no filter)
+  const [{ data: rows, count, error }, { data: segRows }] = await Promise.all([
+    q,
+    _sb.from('v_catalogo_itens')
+      .select('segmento')
+      .not('segmento', 'is', null)
+      .neq('segmento', '—')
+      .order('segmento')
+      .limit(500)
   ]);
+  if (error) _err(error);
 
-  // DD/MM/YYYY → sortable YYYYMMDD string
-  const _toSortKey = d => {
-    if (!d) return '00000000';
-    const p = d.split('/');
-    return p.length === 3 ? `${p[2]}${p[1]}${p[0]}` : '00000000';
+  const segmentos = [...new Set((segRows || []).map(r => r.segmento).filter(Boolean))].sort();
+  const total  = count || 0;
+  const pages  = Math.max(1, Math.ceil(total / perPage));
+
+  return {
+    total,
+    pages,
+    segmentos,
+    items: (rows || []).map(i => ({
+      descricao:          i.descricao,
+      segmento:           i.segmento   || '—',
+      total_requisicoes:  i.total_requisicoes,
+      total_concluidos:   i.total_concluidos,
+      total_fornecedores: i.total_fornecedores,
+      preco_medio:        i.preco_medio ? parseFloat(i.preco_medio) : null,
+      ultima_requisicao:  i.ultima_requisicao,
+      ultima_id:          i.ultima_id
+    }))
   };
-
-  // Group by description; track max id_requisicao for tiebreaking
-  const map = {};
-  for (const i of (itens || [])) {
-    if (!i.descricao) continue;
-    const key = i.descricao;
-    if (!map[key]) map[key] = {
-      descricao: i.descricao,
-      segmento: i.segmento_historico || '—',
-      total_requisicoes: 0, total_concluidos: 0,
-      preco_sum: 0, preco_count: 0,
-      ultima_requisicao: null, ultima_id: 0,
-      fornecedores: new Set()
-    };
-    const e   = map[key];
-    const req = reqMap[i.id_requisicao];
-    e.total_requisicoes++;
-    if (i.id_requisicao > e.ultima_id) e.ultima_id = i.id_requisicao;
-    if (req?.status === 'Concluído') {
-      e.total_concluidos++;
-      if (req.valor_fechado > 0) { e.preco_sum += req.valor_fechado; e.preco_count++; }
-      if (req.fornecedor) e.fornecedores.add(req.fornecedor);
-    }
-    if (req?.data_solicitacao) {
-      const k = _toSortKey(req.data_solicitacao);
-      if (k > _toSortKey(e.ultima_requisicao)) e.ultima_requisicao = req.data_solicitacao;
-    }
-  }
-
-  let items = Object.values(map).map(e => ({
-    descricao:         e.descricao,
-    segmento:          e.segmento,
-    total_requisicoes: e.total_requisicoes,
-    total_concluidos:  e.total_concluidos,
-    total_fornecedores: e.fornecedores.size,
-    preco_medio:       e.preco_count > 0 ? e.preco_sum / e.preco_count : null,
-    ultima_requisicao: e.ultima_requisicao,
-    ultima_id:         e.ultima_id
-  })).sort((a, b) => {
-    // 1st: most recent date
-    const cmp = _toSortKey(b.ultima_requisicao).localeCompare(_toSortKey(a.ultima_requisicao));
-    if (cmp !== 0) return cmp;
-    // 2nd: highest req id (proxy when dates are equal or missing)
-    if (b.ultima_id !== a.ultima_id) return b.ultima_id - a.ultima_id;
-    // 3rd: most frequent
-    return b.total_requisicoes - a.total_requisicoes;
-  });
-
-  if (busca)   items = items.filter(i => i.descricao.toLowerCase().includes(busca));
-  if (segFilt) items = items.filter(i => i.segmento.toLowerCase().includes(segFilt));
-
-  const total     = items.length;
-  const pages     = Math.max(1, Math.ceil(total / perPage));
-  const segmentos = [...new Set(Object.values(map).map(e => e.segmento).filter(s => s !== '—'))].sort();
-  return { total, pages, segmentos, items: items.slice((page - 1) * perPage, page * perPage) };
 }
 
 async function _catalogoDetalhe(path) {
