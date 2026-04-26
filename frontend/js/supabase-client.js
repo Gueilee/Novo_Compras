@@ -318,8 +318,8 @@ async function _listarOrcamentos() {
 // ── Atividade Recente (Home Feed) ─────────────────────────
 async function _atividadeRecente() {
   const { data: reqs } = await _sb.from('requisicoes')
-    .select('id_sharepoint, status, unidade, data_solicitacao, comprador')
-    .order('id_sharepoint', { ascending: false })
+    .select('id_sharepoint, status, unidade, updated_at, data_solicitacao, comprador')
+    .order('updated_at', { ascending: false, nullsFirst: false })
     .limit(20);
   const cores = {
     'Aguardando Aprovação': '#f59e0b', 'Aprovado': '#01E18E',
@@ -328,7 +328,7 @@ async function _atividadeRecente() {
     'Recebido': '#01E18E', 'Concluído': '#01E18E', 'Bloqueado': '#ff2f69'
   };
   return (reqs || []).map(r => ({
-    data: r.data_solicitacao || '',
+    data: r.updated_at || r.data_solicitacao || '',
     usuario: r.comprador || '',
     unidade: r.unidade || '',
     texto: `Req. #${r.id_sharepoint} — ${r.status}`,
@@ -393,7 +393,7 @@ async function _aprovacoesPendentes() {
 
 async function _aprovarRequisicao(id, body) {
   const novoStatus = body.acao === 'aprovar' ? 'Aguardando Cotação' : 'Reprovado';
-  const upd = { status: novoStatus };
+  const upd = { status: novoStatus, updated_at: new Date().toISOString() };
   if (body.justificativa) upd.observacoes = body.justificativa;
   const { error } = await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
   if (error) _err(error);
@@ -468,7 +468,7 @@ async function _salvarCotacao(body) {
     if (error) _err(error);
     lanceId = novo.id;
     // Avança status se ainda em 'Aguardando Cotação'
-    await _sb.from('requisicoes').update({ status: 'Em Cotação' })
+    await _sb.from('requisicoes').update({ status: 'Em Cotação', updated_at: new Date().toISOString() })
       .eq('id_sharepoint', body.id_requisicao).eq('status', 'Aguardando Cotação');
   }
   // Salva itens se vieram
@@ -496,7 +496,8 @@ async function _selecionarFornecedor(id, body) {
   const nomeForn = fornRec?.razao_social || _fmtCnpj(cnpjN);
   await _sb.from('requisicoes').update({
     status: 'Aguardando Entrega', fornecedor: nomeForn,
-    valor_fechado: lance?.preco_unitario || 0
+    valor_fechado: lance?.preco_unitario || 0,
+    updated_at: new Date().toISOString()
   }).eq('id_sharepoint', id);
   return { status: 'ok', fornecedor: nomeForn };
 }
@@ -581,7 +582,7 @@ async function _realizarMatch(id, body) {
     divergencias.push(`Valor divergente: NF R$ ${body.valor_nf.toFixed(2)} vs PO R$ ${po.valor_esperado.toFixed(2)}`);
   const aprovado = divergencias.length === 0;
   if (aprovado) {
-    await _sb.from('requisicoes').update({ status: 'Concluído', valor_fechado: body.valor_nf }).eq('id_sharepoint', id);
+    await _sb.from('requisicoes').update({ status: 'Concluído', valor_fechado: body.valor_nf, updated_at: new Date().toISOString() }).eq('id_sharepoint', id);
   }
   return {
     status: aprovado ? 'APROVADO' : 'BLOQUEADO',
@@ -619,7 +620,7 @@ async function _entregasPendentes() {
 
 // ── Confirmar recebimento (Aguardando Entrega → Recebido) ──
 async function _confirmarRecebimento(id, body) {
-  const upd = { status: 'Recebido' };
+  const upd = { status: 'Recebido', updated_at: new Date().toISOString() };
   if (body.obs) {
     const { data: req } = await _sb.from('requisicoes')
       .select('observacoes').eq('id_sharepoint', id).single();
