@@ -359,7 +359,7 @@ window.Pages.contratos = {
               <div style="flex:1;background:var(--border-subtle);border-radius:4px;height:6px;overflow:hidden;">
                 <div class="progress-fill ${pClass}" style="width:${Math.min(pct,100)}%;height:100%;border-radius:4px;"></div>
               </div>
-              <span style="font-size:12px;font-weight:700;color:${pColor};white-space:nowrap;">${pct}%</span>
+              <span style="font-size:12px;font-weight:700;color:${pColor};white-space:nowrap;">${pct.toFixed(2)}%</span>
             </div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${Fmt.currency(c.pago_ano||0)} pago</div>
           </td>
