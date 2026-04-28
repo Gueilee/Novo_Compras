@@ -352,7 +352,6 @@ window.Pages.contratos = {
           <td style="font-size:13px;">${c.fornecedor || '<span style="color:var(--text-subtle)">—</span>'}</td>
           <td>${c.categoria ? `<span class="badge badge-gray">${c.categoria}</span>` : '<span style="color:var(--text-subtle)">—</span>'}</td>
           <td>${c.unidade ? `<span class="badge badge-gray">${c.unidade}</span>` : '<span style="color:var(--text-subtle)">—</span>'}</td>
-          <td style="font-size:13px;font-weight:600;">${Fmt.currency(c.valor_mensal||0)}<div style="font-size:11px;color:var(--text-muted);">/ mês</div></td>
           <td style="font-size:13px;font-weight:600;">${Fmt.currency(c.valor_anual||0)}</td>
           <td>
             <div style="display:flex;align-items:center;gap:8px;min-width:160px;">
@@ -390,7 +389,6 @@ window.Pages.contratos = {
             <th>Fornecedor / Prestador</th>
             <th>Categoria</th>
             <th>Unidade</th>
-            <th>Valor Mensal</th>
             <th>Valor Anual</th>
             <th style="min-width:200px;">Utilização ${this._anoRef}</th>
             <th>Status</th>
