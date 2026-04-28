@@ -606,10 +606,23 @@ window.Pages.contratos = {
     } catch { Toast.error('Erro ao excluir'); }
   },
 
+  /* Retorna quantos meses do ano de referência já passaram (YTD) */
+  _ytdMeses() {
+    const now     = new Date();
+    const anoAtual = now.getFullYear();
+    const mesAtual = now.getMonth() + 1;
+    if (this._anoRef < anoAtual) return 12;
+    if (this._anoRef > anoAtual) return 0;
+    return mesAtual;
+  },
+
   /* ── Painel de Detalhes / Lançamentos ───────────────────── */
   async _abrirDetalhes(id) {
     const c = this._contas.find(x => x.id === id);
     if (!c) return;
+
+    const mesRef   = this._ytdMeses();
+    const planoYTD = mesRef > 0 ? (c.valor_anual || 0) / 12 * mesRef : 0;
 
     const root = document.createElement('div');
     root.id = 'cf-det-root';
@@ -627,15 +640,27 @@ window.Pages.contratos = {
           </div>
           <div class="cfg-drw-body" style="padding:0;">
 
-            <!-- Resumo anual -->
+            <!-- Resumo anual — 4 KPIs -->
             <div style="padding:16px 22px;background:var(--brand-surface);border-bottom:1px solid var(--border-subtle);">
-              <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:10px;">
-                <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Valor Anual</div>
-                  <div style="font-size:18px;font-weight:800;color:var(--text);">${Fmt.currency(c.valor_anual||0)}</div></div>
-                <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Pago ${this._anoRef}</div>
-                  <div style="font-size:18px;font-weight:800;color:var(--success-deeper,#007a50);">${Fmt.currency(c.pago_ano||0)}</div></div>
-                <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Saldo</div>
-                  <div style="font-size:18px;font-weight:800;color:${(c.saldo_ano||0)<0?'var(--accent)':'var(--text)'};">${Fmt.currency(c.saldo_ano||0)}</div></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:10px;">
+                <div>
+                  <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:.06em;">Valor Anual</div>
+                  <div style="font-size:17px;font-weight:800;color:var(--text);">${Fmt.currency(c.valor_anual||0)}</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:.06em;">Plano YTD</div>
+                  <div style="font-size:17px;font-weight:800;color:var(--text);">${Fmt.currency(planoYTD)}</div>
+                  <div style="font-size:10.5px;color:var(--text-subtle);margin-top:2px;">${mesRef} ${mesRef===1?'mês':'meses'} orçados</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:.06em;">Real YTD</div>
+                  <div id="cf-det-real-ytd" style="font-size:17px;font-weight:800;color:var(--success-deeper,#007a50);">—</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:.06em;">% Saving</div>
+                  <div id="cf-det-saving" style="font-size:17px;font-weight:800;color:var(--text);">—</div>
+                  <div id="cf-det-saving-sub" style="font-size:10.5px;margin-top:2px;"></div>
+                </div>
               </div>
               <div style="background:var(--border-subtle);border-radius:6px;height:8px;overflow:hidden;">
                 <div class="progress-fill ${c.pct_ano>90?'danger':c.pct_ano>70?'caution':'safe'}"
@@ -691,6 +716,36 @@ window.Pages.contratos = {
   async _carregarLancamentos(id) {
     try {
       const lancamentos = await Api.get(`/api/contas-fixas/${id}/lancamentos?ano=${this._anoRef}`);
+
+      // ── YTD: Real YTD e % Saving ────────────────────────────────
+      const mesRef  = Pages.contratos._ytdMeses();
+      const conta   = Pages.contratos._contas.find(x => x.id === id);
+      const realYTD = lancamentos
+        .filter(l => l.mes <= mesRef)
+        .reduce((s, l) => s + l.valor, 0);
+      const planoYTD = mesRef > 0 ? (conta?.valor_anual || 0) / 12 * mesRef : 0;
+      const saving   = planoYTD > 0 ? (planoYTD - realYTD) / planoYTD * 100 : 0;
+      const savingColor = saving >= 0 ? 'var(--success-deeper,#007a50)' : 'var(--accent)';
+
+      const realYTDEl = document.getElementById('cf-det-real-ytd');
+      if (realYTDEl) { realYTDEl.textContent = Fmt.currency(realYTD); }
+
+      const savingEl = document.getElementById('cf-det-saving');
+      if (savingEl) {
+        savingEl.textContent = `${saving >= 0 ? '+' : ''}${saving.toFixed(1)}%`;
+        savingEl.style.color = savingColor;
+      }
+
+      const savingSubEl = document.getElementById('cf-det-saving-sub');
+      if (savingSubEl) {
+        const diff = Math.abs(planoYTD - realYTD);
+        savingSubEl.textContent = saving >= 0
+          ? `${Fmt.currency(diff)} economizado`
+          : `${Fmt.currency(diff)} acima do plano`;
+        savingSubEl.style.color = savingColor;
+      }
+      // ────────────────────────────────────────────────────────────
+
       // Preenche pills mensais
       CF_MESES.forEach((_, i) => {
         const mes = i + 1;
