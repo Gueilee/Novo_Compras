@@ -113,6 +113,7 @@ async function _route(method, path, body) {
   if (full === 'POST /api/contratos')    return _criarContrato(body);
   const mCFLanc = basePath.match(/^\/api\/contas-fixas\/lancamentos\/(\d+)$/);
   if (method === 'DELETE' && mCFLanc) return _deletarLancamento(+mCFLanc[1]);
+  if (method === 'PATCH'  && mCFLanc) return _atualizarLancamento(+mCFLanc[1], body);
   const mCFLancs = basePath.match(/^\/api\/contas-fixas\/(\d+)\/lancamentos$/);
   if (method === 'GET'  && mCFLancs) return _lancamentosContrato(+mCFLancs[1]);
   if (method === 'POST' && mCFLancs) return _adicionarLancamento(+mCFLancs[1], body);
@@ -785,7 +786,8 @@ async function _criarContrato(body) {
     nome: body.nome, fornecedor: body.fornecedor, categoria: body.categoria,
     unidade: body.unidade, valor_anual: body.valor_anual, valor_mensal: body.valor_mensal,
     data_inicio: body.data_inicio, data_fim: body.data_fim,
-    status: body.status || 'ativo', descricao: body.descricao
+    status: body.status || 'ativo', descricao: body.descricao,
+    orcado_mensais: body.orcado_mensais || {}
   }).select().single();
   if (error) _err(error);
   return data;
@@ -821,6 +823,21 @@ async function _adicionarLancamento(id_conta, body) {
 async function _lancamentosContrato(id) {
   const { data } = await _sb.from('lancamentos_cf').select('*').eq('id_conta', id).order('ano').order('mes');
   return data || [];
+}
+
+async function _atualizarLancamento(id, body) {
+  const fields = {};
+  if (body.valor      !== undefined) fields.valor       = body.valor;
+  if (body.mes        !== undefined) fields.mes         = body.mes;
+  if (body.ano        !== undefined) fields.ano         = body.ano;
+  if (body.tipo_doc   !== undefined) fields.tipo_doc    = body.tipo_doc;
+  if (body.numero_doc !== undefined) fields.numero_doc  = body.numero_doc;
+  if (body.obs        !== undefined) fields.obs         = body.obs;
+  if (body.arquivo_path !== undefined) fields.arquivo_path = body.arquivo_path;
+  if (body.arquivo_nome !== undefined) fields.arquivo_nome = body.arquivo_nome;
+  const { error } = await _sb.from('lancamentos_cf').update(fields).eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
 }
 
 // ── Orçamento ──────────────────────────────────────────────

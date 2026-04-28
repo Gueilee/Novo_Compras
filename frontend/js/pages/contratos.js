@@ -506,7 +506,7 @@ window.Pages.contratos = {
             </div>
             <div class="form-grid form-grid-2">
               <div class="form-group">
-                <label class="form-label">Valor Mensal (R$)</label>
+                <label class="form-label">Valor Mensal Referência (R$)</label>
                 <input id="cf-vmensal" class="form-control" type="number" min="0" step="0.01"
                        placeholder="0,00" value="${c?.valor_mensal||''}"
                        oninput="document.getElementById('cf-vanual').value=(+this.value*12).toFixed(2)">
@@ -515,6 +515,23 @@ window.Pages.contratos = {
                 <label class="form-label">Valor Anual (R$)</label>
                 <input id="cf-vanual" class="form-control" type="number" min="0" step="0.01"
                        placeholder="0,00" value="${c?.valor_anual||''}">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Orçamento Mensal — Plano YTD (R$)</label>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px;">
+                ${CF_MESES.map((m,i) => `
+                  <div>
+                    <label style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:3px;">${m}</label>
+                    <input id="cf-orcado-${i+1}" class="form-control" type="number" min="0" step="0.01"
+                           placeholder="0,00" style="padding:5px 8px;font-size:12px;"
+                           value="${c?.orcado_mensais?.[i+1] || c?.orcado_mensais?.[String(i+1)] || ''}">
+                  </div>`).join('')}
+              </div>
+              <div style="font-size:11px;color:var(--text-subtle);margin-top:5px;">
+                <i class="fa-solid fa-circle-info" style="margin-right:4px;"></i>
+                Preencha o valor orçado de cada mês para calcular o Plano YTD corretamente.
               </div>
             </div>
             <div class="form-grid form-grid-2">
@@ -563,17 +580,23 @@ window.Pages.contratos = {
     document.getElementById('cf-save').addEventListener('click', async () => {
       const nome = document.getElementById('cf-nome').value.trim();
       if (!nome) { Toast.warning('Campo obrigatório','Informe o nome da conta.'); return; }
+      const orcado_mensais = {};
+      for (let m = 1; m <= 12; m++) {
+        const v = parseFloat(document.getElementById(`cf-orcado-${m}`)?.value);
+        if (!isNaN(v) && v > 0) orcado_mensais[m] = v;
+      }
       const payload = {
         nome,
-        fornecedor:   document.getElementById('cf-forn').value.trim() || null,
-        categoria:    document.getElementById('cf-cat').value || null,
-        unidade:      document.getElementById('cf-unid').value || null,
-        valor_mensal: parseFloat(document.getElementById('cf-vmensal').value) || 0,
-        valor_anual:  parseFloat(document.getElementById('cf-vanual').value)  || 0,
-        data_inicio:  document.getElementById('cf-inicio').value || null,
-        data_fim:     document.getElementById('cf-fim').value    || null,
-        descricao:    document.getElementById('cf-desc').value.trim() || null,
-        status:       document.getElementById('cf-ativo').checked ? 'ativo' : 'encerrado',
+        fornecedor:    document.getElementById('cf-forn').value.trim() || null,
+        categoria:     document.getElementById('cf-cat').value || null,
+        unidade:       document.getElementById('cf-unid').value || null,
+        valor_mensal:  parseFloat(document.getElementById('cf-vmensal').value) || 0,
+        valor_anual:   parseFloat(document.getElementById('cf-vanual').value)  || 0,
+        data_inicio:   document.getElementById('cf-inicio').value || null,
+        data_fim:      document.getElementById('cf-fim').value    || null,
+        descricao:     document.getElementById('cf-desc').value.trim() || null,
+        status:        document.getElementById('cf-ativo').checked ? 'ativo' : 'encerrado',
+        orcado_mensais,
       };
       const btn = document.getElementById('cf-save');
       btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
@@ -608,12 +631,24 @@ window.Pages.contratos = {
 
   /* Retorna quantos meses do ano de referência já passaram (YTD) */
   _ytdMeses() {
-    const now     = new Date();
+    const now      = new Date();
     const anoAtual = now.getFullYear();
     const mesAtual = now.getMonth() + 1;
     if (this._anoRef < anoAtual) return 12;
     if (this._anoRef > anoAtual) return 0;
     return mesAtual;
+  },
+
+  /* Soma os orçamentos mensais definidos pelo usuário até o mês YTD */
+  _planoYTD(c) {
+    const mesRef  = this._ytdMeses();
+    if (mesRef === 0) return 0;
+    const orcados = c.orcado_mensais || {};
+    let total = 0;
+    for (let m = 1; m <= mesRef; m++) {
+      total += parseFloat(orcados[m] || orcados[String(m)] || 0);
+    }
+    return total;
   },
 
   /* ── Painel de Detalhes / Lançamentos ───────────────────── */
@@ -622,7 +657,7 @@ window.Pages.contratos = {
     if (!c) return;
 
     const mesRef   = this._ytdMeses();
-    const planoYTD = mesRef > 0 ? (c.valor_anual || 0) / 12 * mesRef : 0;
+    const planoYTD = this._planoYTD(c);
 
     const root = document.createElement('div');
     root.id = 'cf-det-root';
@@ -787,7 +822,12 @@ window.Pages.contratos = {
                    </a>`
                 : '<span style="color:var(--text-subtle)">—</span>'}</td>
               <td style="font-size:11.5px;color:var(--text-muted);">${(l.data_lancamento||'').split('T')[0]||l.data_lancamento||'—'}</td>
-              <td>
+              <td style="white-space:nowrap;">
+                <button class="cfg-act-btn cfg-act-edit" title="Editar lançamento"
+                        onclick="Pages.contratos._editarLancamento(${l.id},${id})"
+                        style="margin-right:4px;">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                </button>
                 <button class="cfg-act-btn cfg-act-del" title="Excluir"
                         onclick="Pages.contratos._deletarLancamento(${l.id},${id})">
                   <i class="fa-solid fa-trash"></i>
@@ -918,6 +958,125 @@ window.Pages.contratos = {
     } catch (err) {
       Toast.error('Erro ao salvar lançamento', err.message||'');
       btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar Lançamento';
+    }
+  },
+
+  /* ── Editar Lançamento ──────────────────────────────────── */
+  async _editarLancamento(lid, contaId) {
+    let lanc;
+    try {
+      const todos = await Api.get(`/api/contas-fixas/${contaId}/lancamentos?ano=${this._anoRef}`);
+      lanc = todos.find(l => l.id === lid);
+    } catch { Toast.error('Erro ao carregar lançamento'); return; }
+    if (!lanc) return;
+
+    const secao = document.getElementById('cf-lanc-section');
+    if (!secao) return;
+    document.getElementById('cf-lanc-form-wrap')?.remove();
+
+    const mesOpts = CF_MESES.map((m, i) =>
+      `<option value="${i+1}" ${lanc.mes === i+1 ? 'selected' : ''}>${m}</option>`
+    ).join('');
+
+    const formDiv = document.createElement('div');
+    formDiv.id = 'cf-lanc-form-wrap';
+    formDiv.innerHTML = `
+      <div style="background:rgba(66,44,118,.06);border:1px solid var(--brand);border-radius:12px;padding:16px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--brand);margin-bottom:12px;">
+          <i class="fa-solid fa-pen-to-square"></i> Editar Lançamento — ${CF_MESES[lanc.mes-1]} ${lanc.ano}
+        </div>
+        <div class="form-grid form-grid-3" style="margin-bottom:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Mês</label>
+            <select id="cf-lmes" class="form-control">${mesOpts}</select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Ano</label>
+            <input id="cf-lano" class="form-control" type="number" value="${lanc.ano}">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Valor (R$)</label>
+            <input id="cf-lvalor" class="form-control" type="number" min="0" step="0.01" value="${lanc.valor}">
+          </div>
+        </div>
+        <div class="form-grid form-grid-2" style="margin-bottom:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Tipo de Documento</label>
+            <select id="cf-ltipo" class="form-control">
+              ${['NF','Boleto','Fatura','Recibo','Outro'].map(t =>
+                `<option value="${t}" ${lanc.tipo_doc===t?'selected':''}>${t==='NF'?'Nota Fiscal (NF)':t}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Número do Documento</label>
+            <input id="cf-lndoc" class="form-control" placeholder="Ex: NF-0001234" value="${lanc.numero_doc||''}">
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label class="form-label">Arquivo${lanc.arquivo_nome ? ' (substituir)' : ''}</label>
+          ${lanc.arquivo_nome ? `
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:5px;">
+              <i class="fa-solid fa-paperclip"></i>
+              <a href="${lanc.arquivo_path}" target="_blank" style="color:var(--brand);">${lanc.arquivo_nome}</a>
+              — atual
+            </div>` : ''}
+          <input id="cf-larq" class="form-control" type="file"
+                 accept=".pdf,.png,.jpg,.jpeg,.xml"
+                 style="padding:6px 10px;cursor:pointer;">
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Observações</label>
+          <input id="cf-lobs" class="form-control" placeholder="Opcional" value="${lanc.obs||''}">
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-outline btn-sm"
+                  onclick="document.getElementById('cf-lanc-form-wrap').remove()">
+            Cancelar
+          </button>
+          <button class="btn btn-primary btn-sm" id="cf-lsave"
+                  onclick="Pages.contratos._salvarEdicaoLancamento(${lid},${contaId})">
+            <i class="fa-solid fa-floppy-disk"></i> Salvar Alterações
+          </button>
+        </div>
+      </div>`;
+
+    secao.insertBefore(formDiv, secao.querySelector('#cf-lanc-list'));
+    document.getElementById('cf-lvalor')?.focus();
+  },
+
+  async _salvarEdicaoLancamento(lid, contaId) {
+    const valor = parseFloat(document.getElementById('cf-lvalor').value);
+    if (!valor || valor <= 0) { Toast.warning('Valor inválido', 'Informe o valor do lançamento.'); return; }
+
+    const btn = document.getElementById('cf-lsave');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
+
+    try {
+      const mes        = parseInt(document.getElementById('cf-lmes').value);
+      const ano        = parseInt(document.getElementById('cf-lano').value);
+      const tipo_doc   = document.getElementById('cf-ltipo').value;
+      const numero_doc = document.getElementById('cf-lndoc').value.trim();
+      const obs        = document.getElementById('cf-lobs').value.trim();
+      const arqInput   = document.getElementById('cf-larq');
+      const payload    = { valor, mes, ano, tipo_doc, numero_doc, obs };
+
+      if (arqInput?.files[0]) {
+        const file     = arqInput.files[0];
+        const filePath = `contas_fixas/${contaId}_${ano}_${String(mes).padStart(2,'0')}_${file.name}`;
+        payload.arquivo_path = await SbStorage.upload('uploads', filePath, file);
+        payload.arquivo_nome = file.name;
+      }
+
+      await Api.patch(`/api/contas-fixas/lancamentos/${lid}`, payload);
+      Toast.success('Lançamento atualizado', `${CF_MESES[mes-1]} ${ano} — ${Fmt.currency(valor)}`);
+      document.getElementById('cf-lanc-form-wrap')?.remove();
+      await this._load();
+      this._carregarLancamentos(contaId);
+    } catch (err) {
+      Toast.error('Erro ao salvar', err.message || '');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar Alterações';
     }
   },
 
