@@ -12,6 +12,7 @@ window.Pages.catalogo = {
   _pages: 1,
   _busca: '',
   _segmento: '',
+  _comPreco: false,
   _segmentos: [],
   _debounceTimer: null,
   _tbodyListenerAdded: false,
@@ -86,6 +87,10 @@ window.Pages.catalogo = {
               <option value="">Todos os Segmentos</option>
             </select>
           </div>
+          <button id="cat-com-preco-btn" class="btn btn-sm" style="height:40px;white-space:nowrap;flex-shrink:0;"
+                  onclick="Pages.catalogo._toggleComPreco()">
+            <i class="fa-solid fa-tag"></i> Com Preço
+          </button>
           <button class="btn btn-ghost btn-sm" id="cat-limpar" style="display:none;height:40px;"
                   onclick="Pages.catalogo._limparFiltros()">
             <i class="fa-solid fa-xmark"></i> Limpar
@@ -129,6 +134,7 @@ window.Pages.catalogo = {
     this._page     = 1;
     this._busca    = '';
     this._segmento = '';
+    this._comPreco = false;
     this._tbodyListenerAdded = false;
     // Carrega stats e lista em paralelo
     await Promise.all([this._carregarStats(), this._carregar()]);
@@ -154,10 +160,11 @@ window.Pages.catalogo = {
 
     try {
       const params = new URLSearchParams({
-        page:     this._page,
-        per_page: this._perPage,
-        busca:    this._busca,
-        segmento: this._segmento
+        page:      this._page,
+        per_page:  this._perPage,
+        busca:     this._busca,
+        segmento:  this._segmento,
+        com_preco: this._comPreco ? '1' : ''
       });
       const data = await Api.get(`/api/catalogo?${params}`);
 
@@ -324,7 +331,7 @@ window.Pages.catalogo = {
   _atualizarContador() {
     const el = document.getElementById('cat-contador');
     if (!el) return;
-    const temFiltro = this._busca || this._segmento;
+    const temFiltro = this._busca || this._segmento || this._comPreco;
     el.innerHTML = temFiltro
       ? `<span style="background:var(--brand-surface);color:var(--brand);padding:3px 10px;border-radius:20px;font-weight:600;">
            ${Fmt.number(this._total)} resultado${this._total !== 1 ? 's' : ''}
@@ -359,11 +366,14 @@ window.Pages.catalogo = {
   _limparFiltros() {
     this._busca    = '';
     this._segmento = '';
+    this._comPreco = false;
     this._page     = 1;
     const buscaEl = document.getElementById('cat-busca');
     const segEl   = document.getElementById('cat-segmento');
     if (buscaEl) buscaEl.value = '';
     if (segEl)   segEl.value   = '';
+    const cpBtn = document.getElementById('cat-com-preco-btn');
+    if (cpBtn) { cpBtn.style.background = ''; cpBtn.style.color = ''; cpBtn.style.borderColor = ''; }
     this._carregar();
   },
 
@@ -385,13 +395,34 @@ window.Pages.catalogo = {
   },
 
   _buscarComPreco() {
-    // Filtra por busca vazia + página 1 mas ordena traz os com mais requisições concluídas
-    // Visualmente: limpa filtros e rola para a tabela, onde os top itens já têm preço
-    this._limparFiltros();
-    setTimeout(() => {
-      document.querySelector('#cat-tbody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      Toast.info('Itens com preço', 'Itens com compras concluídas aparecem no topo com o preço médio em verde.');
-    }, 400);
+    this._busca    = '';
+    this._segmento = '';
+    this._page     = 1;
+    const buscaEl = document.getElementById('cat-busca');
+    const segEl   = document.getElementById('cat-segmento');
+    if (buscaEl) buscaEl.value = '';
+    if (segEl)   segEl.value   = '';
+    this._toggleComPreco(true);
+  },
+
+  _toggleComPreco(forceOn) {
+    this._comPreco = forceOn !== undefined ? !!forceOn : !this._comPreco;
+    const btn = document.getElementById('cat-com-preco-btn');
+    if (btn) {
+      if (this._comPreco) {
+        btn.style.background   = 'var(--success)';
+        btn.style.color        = '#fff';
+        btn.style.borderColor  = 'var(--success)';
+        btn.style.fontWeight   = '700';
+      } else {
+        btn.style.background   = '';
+        btn.style.color        = '';
+        btn.style.borderColor  = '';
+        btn.style.fontWeight   = '';
+      }
+    }
+    this._page = 1;
+    this._carregar();
   },
 
   // ── Drawer de detalhe ──────────────────────────────────────

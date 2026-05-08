@@ -9,6 +9,8 @@ window.Pages.entregas = {
   icon: 'fa-truck-ramp-box',
   _data: null,
   _tab: 'pendentes',
+  _busca: '',
+  _unidade: '',
 
   render() {
     return `
@@ -139,6 +141,24 @@ window.Pages.entregas = {
           </button>
         </div>
 
+        <!-- Filtros -->
+        <div style="padding:10px 20px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div style="flex:1;min-width:180px;position:relative;">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:12px;pointer-events:none;"></i>
+            <input type="text" id="ent-busca" class="form-control" placeholder="Buscar #ID ou fornecedor..."
+                   style="padding-left:32px;height:36px;font-size:13px;"
+                   oninput="Pages.entregas._onBusca(this.value)">
+          </div>
+          <select id="ent-unidade" class="form-control" style="height:36px;font-size:13px;width:auto;min-width:160px;"
+                  onchange="Pages.entregas._onUnidade(this.value)">
+            <option value="">Todas as unidades</option>
+          </select>
+          <button id="ent-limpar-btn" class="btn btn-ghost btn-sm" style="display:none;color:var(--accent);height:36px;"
+                  onclick="Pages.entregas._limparFiltros()">
+            <i class="fa-solid fa-xmark"></i> Limpar
+          </button>
+        </div>
+
         <!-- List area -->
         <div id="ent-list" style="padding:20px;">
           <div class="loading-center" style="padding:56px;">
@@ -152,6 +172,8 @@ window.Pages.entregas = {
   },
 
   async init() {
+    this._busca   = '';
+    this._unidade = '';
     await this.carregarDados();
   },
 
@@ -187,6 +209,15 @@ window.Pages.entregas = {
     const br = document.getElementById('ent-badge-recebidos');
     if (bp) bp.textContent = pendentes.length;
     if (br) br.textContent = recebidos.length;
+
+    // Popula select de unidades com base nos dados carregados
+    const unidades = [...new Set((this._data || []).map(r => r.unidade).filter(Boolean))].sort();
+    const sel = document.getElementById('ent-unidade');
+    if (sel && unidades.length) {
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">Todas as unidades</option>' +
+        unidades.map(u => `<option value="${u}" ${u === prev ? 'selected' : ''}>${u}</option>`).join('');
+    }
 
     const el = document.getElementById('ent-kpis');
     if (!el) return;
@@ -244,9 +275,13 @@ window.Pages.entregas = {
     const el = document.getElementById('ent-list');
     if (!el) return;
 
-    const items = (this._data || []).filter(r =>
-      this._tab === 'pendentes' ? r.status === 'Aguardando Entrega' : r.status === 'Recebido'
-    );
+    const b = this._busca.toLowerCase();
+    const items = (this._data || []).filter(r => {
+      if (this._tab === 'pendentes' ? r.status !== 'Aguardando Entrega' : r.status !== 'Recebido') return false;
+      if (b && !`#${r.id} ${r.fornecedor || ''} ${r.itens_preview || ''}`.toLowerCase().includes(b)) return false;
+      if (this._unidade && r.unidade !== this._unidade) return false;
+      return true;
+    });
 
     if (items.length === 0) {
       el.innerHTML = `
@@ -365,6 +400,34 @@ window.Pages.entregas = {
 
         </div>
       </div>`;
+  },
+
+  _onBusca(val) {
+    this._busca = val.trim();
+    this._atualizarLimparBtn();
+    this._renderList();
+  },
+
+  _onUnidade(val) {
+    this._unidade = val;
+    this._atualizarLimparBtn();
+    this._renderList();
+  },
+
+  _limparFiltros() {
+    this._busca   = '';
+    this._unidade = '';
+    const bEl = document.getElementById('ent-busca');
+    const uEl = document.getElementById('ent-unidade');
+    if (bEl) bEl.value = '';
+    if (uEl) uEl.value = '';
+    this._atualizarLimparBtn();
+    this._renderList();
+  },
+
+  _atualizarLimparBtn() {
+    const btn = document.getElementById('ent-limpar-btn');
+    if (btn) btn.style.display = (this._busca || this._unidade) ? '' : 'none';
   },
 
   abrirModal(id) {

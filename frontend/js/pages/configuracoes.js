@@ -7,7 +7,7 @@ window.Pages = window.Pages || {};
 window.Pages.configuracoes = {
   title: 'Configurações',
 
-  _tab: 'usuarios',   // 'usuarios' | 'compradores' | 'orcamento'
+  _tab: 'usuarios',   // 'usuarios' | 'compradores' | 'orcamento' | 'fornecedores' | 'categorias'
   _tabTarget: null,   // set externally to open a specific tab on load
   _opts: { unidades: [], categorias: [], usuarios: [] },
 
@@ -36,6 +36,14 @@ window.Pages.configuracoes = {
         <button class="cfg-tab" data-tab="orcamento"
                 onclick="Pages.configuracoes._switchTab('orcamento')">
           <i class="fa-solid fa-sack-dollar"></i> Orçamento por Unidade
+        </button>
+        <button class="cfg-tab" data-tab="fornecedores"
+                onclick="Pages.configuracoes._switchTab('fornecedores')">
+          <i class="fa-solid fa-building-user"></i> Fornecedores
+        </button>
+        <button class="cfg-tab" data-tab="categorias"
+                onclick="Pages.configuracoes._switchTab('categorias')">
+          <i class="fa-solid fa-tags"></i> Categorias
         </button>
       </div>
 
@@ -208,9 +216,11 @@ window.Pages.configuracoes = {
     document.querySelectorAll('.cfg-tab').forEach(b =>
       b.classList.toggle('active', b.dataset.tab === tab)
     );
-    if (tab === 'usuarios')    this._loadUsuarios();
-    else if (tab === 'orcamento') this._loadOrcamento();
-    else                       this._loadCompradores();
+    if (tab === 'usuarios')         this._loadUsuarios();
+    else if (tab === 'orcamento')   this._loadOrcamento();
+    else if (tab === 'fornecedores') this._loadFornecedores();
+    else if (tab === 'categorias')  this._loadCategorias();
+    else                            this._loadCompradores();
   },
 
   /* ══════════════════════════════════════════════════════════
@@ -1207,5 +1217,355 @@ window.Pages.configuracoes = {
       Toast.success('Orçamento excluído', `${unidade} · ${ano}`);
       this._loadOrcamento();
     } catch { Toast.error('Erro ao excluir'); }
+  },
+
+  /* ══════════════════════════════════════════════════════════
+     TAB 4 — FORNECEDORES HOMOLOGADOS
+  ══════════════════════════════════════════════════════════ */
+  async _loadFornecedores() {
+    const el = document.getElementById('cfg-content');
+    el.innerHTML = `<div style="padding:50px;text-align:center;"><div class="spinner"></div></div>`;
+    try {
+      const rows = await Api.get('/api/catalogo/fornecedores');
+      el.innerHTML = this._htmlFornecedoresTab(rows);
+    } catch {
+      el.innerHTML = `<div class="cfg-empty"><i class="fa-solid fa-circle-xmark"></i><p>Erro ao carregar fornecedores</p></div>`;
+    }
+  },
+
+  _htmlFornecedoresTab(rows) {
+    const tableRows = !rows.length
+      ? `<tr><td colspan="6"><div class="cfg-empty"><i class="fa-solid fa-building-user"></i><p>Nenhum fornecedor cadastrado.<br>Clique em "Novo Fornecedor" para começar.</p></div></td></tr>`
+      : rows.map(f => `
+          <tr id="frow-${(f.cnpj||'').replace(/\D/g,'')}">
+            <td>
+              <div style="font-weight:600;color:var(--text);">${f.razao_social || f.nome || '—'}</div>
+              <div style="font-size:11.5px;color:var(--text-muted);">${f.cnpj || '—'}</div>
+            </td>
+            <td style="font-size:12.5px;">${f.segmento || f.categoria || '<span style="color:var(--text-subtle);">—</span>'}</td>
+            <td style="font-size:12.5px;">${f.cidade ? `${f.cidade}${f.estado ? '/' + f.estado : ''}` : '<span style="color:var(--text-subtle);">—</span>'}</td>
+            <td style="font-size:12.5px;">${f.email || '<span style="color:var(--text-subtle);">—</span>'}</td>
+            <td style="font-size:12.5px;">${f.telefone || '<span style="color:var(--text-subtle);">—</span>'}</td>
+            <td style="text-align:center;white-space:nowrap;">
+              <button class="cfg-act-btn cfg-act-edit"
+                      onclick="Pages.configuracoes._editFornecedor('${(f.cnpj||'').replace(/\D/g,'')}')"
+                      title="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button class="cfg-act-btn cfg-act-del"
+                      onclick="Pages.configuracoes._delFornecedor('${(f.cnpj||'').replace(/\D/g,'')}','${(f.razao_social||f.nome||'').replace(/'/g,'')}')"
+                      title="Excluir"><i class="fa-solid fa-trash"></i></button>
+            </td>
+          </tr>`).join('');
+
+    return `
+      <div class="cfg-card">
+        <div class="cfg-card-hdr">
+          <span class="cfg-card-title">
+            <i class="fa-solid fa-building-user"></i>
+            Fornecedores Homologados
+            <span class="badge badge-gray" style="margin-left:4px;">${rows.length}</span>
+          </span>
+          <button class="btn btn-primary btn-sm" onclick="Pages.configuracoes._newFornecedor()">
+            <i class="fa-solid fa-plus"></i> Novo Fornecedor
+          </button>
+        </div>
+        <div class="cfg-table-wrap">
+          <table class="cfg-table">
+            <thead>
+              <tr>
+                <th>Razão Social / CNPJ</th>
+                <th>Segmento</th>
+                <th>Cidade/UF</th>
+                <th>E-mail</th>
+                <th>Telefone</th>
+                <th style="width:72px;text-align:center;">Ações</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  _newFornecedor() { this._openFornecedorDrawer(null); },
+
+  async _editFornecedor(cnpj) {
+    try {
+      const all = await Api.get(`/api/catalogo/fornecedores?cnpj=${cnpj}`);
+      const f = Array.isArray(all) ? all.find(x => (x.cnpj||'').replace(/\D/g,'') === cnpj) : null;
+      this._openFornecedorDrawer(f || { cnpj });
+    } catch { Toast.error('Erro ao carregar fornecedor'); }
+  },
+
+  _openFornecedorDrawer(f) {
+    const isEdit = !!(f && f.cnpj);
+    const root = document.createElement('div');
+    root.id = 'cfg-drawer-root';
+    root.innerHTML = `
+      <div class="cfg-backdrop" id="cfg-backdrop">
+        <div class="cfg-drawer">
+          <div class="cfg-drw-hdr">
+            <div class="cfg-drw-title">${isEdit ? 'Editar Fornecedor' : 'Novo Fornecedor'}</div>
+            <button class="cfg-drw-close" id="cfg-drw-close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="cfg-drw-body">
+            <div class="form-group">
+              <label class="form-label form-label-required">CNPJ</label>
+              <input class="form-control" id="fdrw-cnpj" type="text" placeholder="00.000.000/0000-00"
+                     value="${f?.cnpj || ''}" ${isEdit ? 'readonly style="background:var(--bg);color:var(--text-muted);"' : ''}>
+            </div>
+            <div class="form-group">
+              <label class="form-label form-label-required">Razão Social</label>
+              <input class="form-control" id="fdrw-razao" type="text" placeholder="Nome da empresa"
+                     value="${f?.razao_social || f?.nome || ''}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Segmento / Categoria</label>
+              <input class="form-control" id="fdrw-segmento" type="text" placeholder="Ex: Informática, Limpeza..."
+                     value="${f?.segmento || f?.categoria || ''}">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Cidade</label>
+                <input class="form-control" id="fdrw-cidade" type="text" value="${f?.cidade || ''}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">UF</label>
+                <input class="form-control" id="fdrw-estado" type="text" maxlength="2" placeholder="SP"
+                       value="${f?.estado || ''}" style="text-transform:uppercase;">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">E-mail de Contato</label>
+              <input class="form-control" id="fdrw-email" type="email" value="${f?.email || ''}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Telefone</label>
+              <input class="form-control" id="fdrw-tel" type="text" value="${f?.telefone || ''}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Site</label>
+              <input class="form-control" id="fdrw-site" type="url" placeholder="https://"
+                     value="${f?.site || ''}">
+            </div>
+          </div>
+          <div class="cfg-drw-footer">
+            <button class="btn btn-outline" id="fdrw-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="fdrw-save">
+              <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Salvar Alterações' : 'Cadastrar'}
+            </button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+    const close = () => root.remove();
+    document.getElementById('cfg-drw-close').addEventListener('click', close);
+    document.getElementById('fdrw-cancel').addEventListener('click', close);
+    document.getElementById('cfg-backdrop').addEventListener('click', e => { if (e.target.id === 'cfg-backdrop') close(); });
+
+    document.getElementById('fdrw-save').addEventListener('click', async () => {
+      const cnpj   = (document.getElementById('fdrw-cnpj').value || '').replace(/\D/g,'');
+      const razao  = document.getElementById('fdrw-razao').value.trim();
+      if (!cnpj || cnpj.length < 14) { Toast.warning('CNPJ inválido', 'Informe o CNPJ completo.'); return; }
+      if (!razao) { Toast.warning('Campo obrigatório', 'Informe a Razão Social.'); return; }
+      const payload = {
+        cnpj, razao_social: razao,
+        segmento:  document.getElementById('fdrw-segmento').value.trim() || null,
+        cidade:    document.getElementById('fdrw-cidade').value.trim()   || null,
+        estado:    (document.getElementById('fdrw-estado').value.trim()  || '').toUpperCase() || null,
+        email:     document.getElementById('fdrw-email').value.trim()    || null,
+        telefone:  document.getElementById('fdrw-tel').value.trim()      || null,
+        site:      document.getElementById('fdrw-site').value.trim()     || null,
+      };
+      const btn = document.getElementById('fdrw-save');
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
+      try {
+        if (isEdit) {
+          await Api.put(`/api/catalogo/fornecedores/${cnpj}`, payload);
+          Toast.success('Fornecedor atualizado!', razao);
+        } else {
+          await Api.post('/api/catalogo/fornecedores', payload);
+          Toast.success('Fornecedor cadastrado!', razao);
+        }
+        close();
+        this._loadFornecedores();
+      } catch (err) {
+        Toast.error('Erro ao salvar fornecedor', err.message || '');
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Salvar Alterações' : 'Cadastrar'}`;
+      }
+    });
+  },
+
+  async _delFornecedor(cnpj, nome) {
+    const ok = await Modal.confirm({
+      icon: 'danger',
+      title: `Excluir fornecedor?`,
+      body: `<strong>${nome || cnpj}</strong> será removido do cadastro de fornecedores.`,
+      confirmText: 'Excluir', confirmClass: 'btn-danger',
+    });
+    if (!ok) return;
+    try {
+      await Api.delete(`/api/catalogo/fornecedores/${cnpj}`);
+      Toast.success('Fornecedor excluído', nome || cnpj);
+      this._loadFornecedores();
+    } catch { Toast.error('Erro ao excluir fornecedor'); }
+  },
+
+  /* ══════════════════════════════════════════════════════════
+     TAB 5 — CATEGORIAS
+  ══════════════════════════════════════════════════════════ */
+  async _loadCategorias() {
+    const el = document.getElementById('cfg-content');
+    el.innerHTML = `<div style="padding:50px;text-align:center;"><div class="spinner"></div></div>`;
+    try {
+      const rows = await Api.get('/api/categorias');
+      el.innerHTML = this._htmlCategoriasTab(rows);
+    } catch {
+      el.innerHTML = `<div class="cfg-empty"><i class="fa-solid fa-circle-xmark"></i><p>Erro ao carregar categorias</p></div>`;
+    }
+  },
+
+  _htmlCategoriasTab(rows) {
+    const macros = [...new Set(rows.map(r => r.macro_categoria).filter(Boolean))].sort();
+    const byMacro = {};
+    for (const r of rows) {
+      const m = r.macro_categoria || 'Sem macro-categoria';
+      if (!byMacro[m]) byMacro[m] = [];
+      byMacro[m].push(r);
+    }
+
+    const sectionsHtml = macros.length === 0
+      ? `<tr><td colspan="3"><div class="cfg-empty"><i class="fa-solid fa-tags"></i><p>Nenhuma categoria cadastrada.<br>Clique em "Nova Categoria" para começar.</p></div></td></tr>`
+      : macros.map(m => byMacro[m].map((cat, i) => `
+          <tr id="catrow-${cat.id}">
+            ${i === 0 ? `<td rowspan="${byMacro[m].length}" style="font-weight:700;color:var(--brand);vertical-align:middle;border-right:2px solid var(--border-subtle);">${m}</td>` : ''}
+            <td style="font-size:13px;">${cat.segmento || '—'}</td>
+            <td style="text-align:center;white-space:nowrap;">
+              <button class="cfg-act-btn cfg-act-edit" title="Editar"
+                      onclick="Pages.configuracoes._editCategoria(${cat.id})">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button class="cfg-act-btn cfg-act-del" title="Excluir"
+                      onclick="Pages.configuracoes._delCategoria(${cat.id},'${cat.segmento?.replace(/'/g,'')||''}')">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>`).join('')).join('');
+
+    return `
+      <div class="cfg-card">
+        <div class="cfg-card-hdr">
+          <span class="cfg-card-title">
+            <i class="fa-solid fa-tags"></i>
+            Categorias de Compras
+            <span class="badge badge-gray" style="margin-left:4px;">${rows.length}</span>
+          </span>
+          <button class="btn btn-primary btn-sm" onclick="Pages.configuracoes._newCategoria()">
+            <i class="fa-solid fa-plus"></i> Nova Categoria
+          </button>
+        </div>
+        <div class="cfg-table-wrap">
+          <table class="cfg-table">
+            <thead>
+              <tr>
+                <th style="width:220px;">Macro-Categoria</th>
+                <th>Segmento / Subcategoria</th>
+                <th style="width:72px;text-align:center;">Ações</th>
+              </tr>
+            </thead>
+            <tbody>${sectionsHtml}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  _newCategoria() { this._openCategoriaDrawer(null); },
+
+  async _editCategoria(id) {
+    try {
+      const all = await Api.get('/api/categorias');
+      const cat = all.find(c => c.id === id);
+      if (cat) this._openCategoriaDrawer(cat);
+    } catch { Toast.error('Erro ao carregar categoria'); }
+  },
+
+  _openCategoriaDrawer(cat) {
+    const isEdit = !!cat;
+    const root = document.createElement('div');
+    root.id = 'cfg-drawer-root';
+    root.innerHTML = `
+      <div class="cfg-backdrop" id="cfg-backdrop">
+        <div class="cfg-drawer" style="width:400px;">
+          <div class="cfg-drw-hdr">
+            <div class="cfg-drw-title">${isEdit ? 'Editar Categoria' : 'Nova Categoria'}</div>
+            <button class="cfg-drw-close" id="cfg-drw-close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="cfg-drw-body">
+            <div class="form-group">
+              <label class="form-label form-label-required">Macro-Categoria</label>
+              <input class="form-control" id="catdrw-macro" type="text"
+                     placeholder="Ex: Tecnologia, Facilities, RH..."
+                     value="${cat?.macro_categoria || ''}">
+            </div>
+            <div class="form-group">
+              <label class="form-label form-label-required">Segmento / Subcategoria</label>
+              <input class="form-control" id="catdrw-seg" type="text"
+                     placeholder="Ex: Hardware, Limpeza, Treinamentos..."
+                     value="${cat?.segmento || ''}">
+            </div>
+          </div>
+          <div class="cfg-drw-footer">
+            <button class="btn btn-outline" id="catdrw-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="catdrw-save">
+              <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Salvar' : 'Criar Categoria'}
+            </button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+    const close = () => root.remove();
+    document.getElementById('cfg-drw-close').addEventListener('click', close);
+    document.getElementById('catdrw-cancel').addEventListener('click', close);
+    document.getElementById('cfg-backdrop').addEventListener('click', e => { if (e.target.id === 'cfg-backdrop') close(); });
+    setTimeout(() => document.getElementById('catdrw-macro')?.focus(), 80);
+
+    document.getElementById('catdrw-save').addEventListener('click', async () => {
+      const macro = document.getElementById('catdrw-macro').value.trim();
+      const seg   = document.getElementById('catdrw-seg').value.trim();
+      if (!macro) { Toast.warning('Campo obrigatório', 'Informe a macro-categoria.'); return; }
+      if (!seg)   { Toast.warning('Campo obrigatório', 'Informe o segmento.'); return; }
+      const btn = document.getElementById('catdrw-save');
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      try {
+        if (isEdit) {
+          await Api.patch(`/api/categorias/${cat.id}`, { macro_categoria: macro, segmento: seg });
+          Toast.success('Categoria atualizada!', `${macro} › ${seg}`);
+        } else {
+          await Api.post('/api/categorias', { macro_categoria: macro, segmento: seg });
+          Toast.success('Categoria criada!', `${macro} › ${seg}`);
+        }
+        close();
+        this._loadCategorias();
+      } catch (err) {
+        Toast.error('Erro ao salvar categoria', err.message || '');
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Salvar' : 'Criar Categoria'}`;
+      }
+    });
+  },
+
+  async _delCategoria(id, nome) {
+    const ok = await Modal.confirm({
+      icon: 'danger',
+      title: 'Excluir categoria?',
+      body: `A categoria <strong>${nome || 'selecionada'}</strong> será removida permanentemente.`,
+      confirmText: 'Excluir', confirmClass: 'btn-danger',
+    });
+    if (!ok) return;
+    try {
+      await Api.delete(`/api/categorias/${id}`);
+      Toast.success('Categoria excluída', nome);
+      this._loadCategorias();
+    } catch { Toast.error('Erro ao excluir categoria'); }
   },
 };

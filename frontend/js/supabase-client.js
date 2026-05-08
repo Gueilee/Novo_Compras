@@ -64,6 +64,8 @@ async function _route(method, path, body) {
   if (method === 'POST' && mSel) return _selecionarFornecedor(+mSel[1], body);
   const mComp = basePath.match(/^\/api\/cotacao\/comparativo\/(\d+)$/);
   if (method === 'GET' && mComp) return _comparativoCotacoes(+mComp[1]);
+  const mLanceUp = basePath.match(/^\/api\/cotacao\/lance\/(\d+)$/);
+  if (method === 'PATCH' && mLanceUp) return _atualizarLance(+mLanceUp[1], body);
   if (method === 'GET' && path.startsWith('/api/cotacao/historico')) return _historicoCotacoes(path);
 
   // Entregas (Confirmação de Recebimento)
@@ -173,6 +175,31 @@ async function _route(method, path, body) {
   const mCompDel = basePath.match(/^\/api\/config\/compradores\/(\d+)$/);
   if (method === 'DELETE' && mCompDel) return _deletarComprador(+mCompDel[1]);
 
+  // Categorias CRUD
+  if (full === 'GET /api/categorias')  return _listarCategorias();
+  if (full === 'POST /api/categorias') return _criarCategoria(body);
+  const mCatId = basePath.match(/^\/api\/categorias\/(\d+)$/);
+  if (method === 'PATCH'  && mCatId) return _atualizarCategoria(+mCatId[1], body);
+  if (method === 'DELETE' && mCatId) return _deletarCategoria(+mCatId[1]);
+
+  // Controle de Estoque
+  if (full === 'GET /api/estoque')           return _listarEstoque();
+  if (full === 'POST /api/estoque/entrada')  return _entradaEstoque(body);
+  if (full === 'POST /api/estoque/saida')    return _saidaEstoque(body);
+  if (full === 'POST /api/estoque/ajuste')   return _ajusteEstoque(body);
+  const mEstMov = basePath.match(/^\/api\/estoque\/(\d+)\/movimentacoes$/);
+  if (method === 'GET' && mEstMov) return _movimentacoesItem(+mEstMov[1]);
+  const mEstItem = basePath.match(/^\/api\/estoque\/(\d+)$/);
+  if (method === 'DELETE' && mEstItem) return _deletarItemEstoque(+mEstItem[1]);
+  if (method === 'PATCH'  && mEstItem) return _atualizarItemEstoque(+mEstItem[1], body);
+
+  // Portal fornecedor — minha cotação existente
+  if (method === 'GET' && path.startsWith('/api/cotacao/minha')) return _minhaCotacao(path);
+
+  // Portal fornecedor — cadastro
+  if (method === 'GET' && path.startsWith('/api/fornecedor/cadastro')) return _getCadastroFornecedor(path);
+  if (full === 'POST /api/fornecedor/cadastro') return _salvarCadastroFornecedor(body);
+
   console.warn('[SHP] Rota não mapeada:', method, path);
   return {};
 }
@@ -259,7 +286,27 @@ async function _dashboardDados(path = '') {
     .sort((a, b) => b.qtd - a.qtd)
     .slice(0, 10);
 
-  const { count: fornCount } = await _sb.from('fornecedores').select('*', { count: 'exact', head: true });
+  const [
+    { count: fornCount },
+    { data: lancesData }
+  ] = await Promise.all([
+    _sb.from('fornecedores').select('*', { count: 'exact', head: true }),
+    _sb.from('lances_fornecedor').select('id_requisicao, preco_unitario, selecionado').gt('preco_unitario', 0).limit(10000)
+  ]);
+
+  // Savings = (max quote - selected quote) per requisição
+  const reqLances = {};
+  for (const l of (lancesData || [])) {
+    if (!reqLances[l.id_requisicao]) reqLances[l.id_requisicao] = { max: 0, selected: null };
+    reqLances[l.id_requisicao].max = Math.max(reqLances[l.id_requisicao].max, l.preco_unitario);
+    if (l.selecionado) reqLances[l.id_requisicao].selected = l.preco_unitario;
+  }
+  let savingValor = 0;
+  for (const v of Object.values(reqLances)) {
+    if (v.selected !== null && v.max > v.selected) savingValor += v.max - v.selected;
+  }
+  const savingBase = totalGasto + savingValor;
+  const savingPct = savingBase > 0 ? (savingValor / savingBase) * 100 : 0;
 
   const unidadesOpts = [...new Set((reqs || []).map(r => r.unidade).filter(Boolean))].sort();
   const anosOpts = [...new Set((reqs || []).map(r => {
@@ -269,7 +316,7 @@ async function _dashboardDados(path = '') {
   }).filter(Boolean))].sort();
 
   return {
-    kpis: { total_pedidos: total, total_gasto: totalGasto, total_fornecedores: fornCount || 0 },
+    kpis: { total_pedidos: total, total_gasto: totalGasto, total_fornecedores: fornCount || 0, saving_valor: savingValor, saving_pct: savingPct },
     status,
     unidades,
     sazonalidade,
@@ -559,6 +606,7 @@ async function _comparativoCotacoes(id) {
     const { data: itens } = await _sb.from('lances_fornecedor_itens').select('*').eq('id_lance', l.id);
     const forn = fornMap[l.cnpj_fornecedor];
     result.push({
+      id: l.id,
       fornecedor: forn?.razao_social || _fmtCnpj(l.cnpj_fornecedor),
       preco: l.preco_unitario, prazo: l.prazo_entrega_dias, data: l.data_resposta,
       cnpj: l.cnpj_fornecedor, pagamento: l.pagamento || '30 DDL',
@@ -569,6 +617,16 @@ async function _comparativoCotacoes(id) {
     });
   }
   return result;
+}
+
+async function _atualizarLance(id, body) {
+  const update = {};
+  if (body.preco_unitario  !== undefined) update.preco_unitario       = body.preco_unitario;
+  if (body.prazo_entrega_dias !== undefined) update.prazo_entrega_dias = body.prazo_entrega_dias;
+  if (body.pagamento       !== undefined) update.pagamento             = body.pagamento;
+  const { error } = await _sb.from('lances_fornecedor').update(update).eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
 }
 
 async function _historicoCotacoes(path) {
@@ -619,10 +677,18 @@ async function _realizarMatch(id, body) {
     await _sb.from('requisicoes').update({ status: 'Concluído', valor_fechado: body.valor_nf, updated_at: new Date().toISOString() }).eq('id_sharepoint', id);
     _logBuscaReq(id, 'Concluído').catch(() => {});
   }
+  // Busca fornecedor da requisição para passagem ao estoque
+  let fornecedor = null;
+  try {
+    const { data: req } = await _sb.from('requisicoes').select('fornecedor').eq('id_sharepoint', id).maybeSingle();
+    fornecedor = req?.fornecedor || null;
+  } catch {}
   return {
     status: aprovado ? 'APROVADO' : 'BLOQUEADO',
     mensagem: aprovado ? 'Todos os dados conferem. Pagamento liberado.' : 'Divergências encontradas. Pagamento bloqueado.',
-    detalhes: aprovado ? [`Quantidade OK: ${qtdRec} un.`, `Valor OK: R$ ${body.valor_nf.toFixed(2)}`] : divergencias
+    detalhes: aprovado ? [`Quantidade OK: ${qtdRec} un.`, `Valor OK: R$ ${body.valor_nf.toFixed(2)}`] : divergencias,
+    preco_unitario: po.preco_unitario || null,
+    fornecedor,
   };
 }
 
@@ -1206,17 +1272,19 @@ async function _catalogoLista(path) {
   const params  = new URLSearchParams(path.split('?')[1] || '');
   const page    = Math.max(1, parseInt(params.get('page') || '1'));
   const perPage = Math.min(100, parseInt(params.get('per_page') || '20'));
-  const busca   = (params.get('busca') || '').trim();
-  const segFilt = (params.get('segmento') || '').trim();
-  const offset  = (page - 1) * perPage;
+  const busca    = (params.get('busca') || '').trim();
+  const segFilt  = (params.get('segmento') || '').trim();
+  const comPreco = params.get('com_preco') === '1';
+  const offset   = (page - 1) * perPage;
 
   // Build server-side query on the view — search, filter, sort and paginate in Postgres
   let q = _sb.from('v_catalogo_itens')
     .select('*', { count: 'exact' })
     .order('ultima_id', { ascending: false })
     .range(offset, offset + perPage - 1);
-  if (busca)   q = q.ilike('descricao', `%${busca}%`);
-  if (segFilt) q = q.eq('segmento', segFilt);
+  if (busca)    q = q.ilike('descricao', `%${busca}%`);
+  if (segFilt)  q = q.eq('segmento', segFilt);
+  if (comPreco) q = q.gt('preco_medio', 0);
 
   // Segmentos for the dropdown (separate small query, no filter)
   const [{ data: rows, count, error }, { data: segRows }] = await Promise.all([
@@ -1302,6 +1370,213 @@ async function _deletarLancamento(id) {
     await SbStorage.remove('uploads', filePath).catch(() => {});
   }
   await _sb.from('lancamentos_cf').delete().eq('id', id);
+  return { status: 'ok' };
+}
+
+// ── Categorias CRUD ───────────────────────────────────────
+async function _listarCategorias() {
+  const { data, error } = await _sb.from('categorias').select('*').order('macro_categoria').order('segmento');
+  if (error) _err(error);
+  return data || [];
+}
+
+async function _criarCategoria(body) {
+  const { data, error } = await _sb.from('categorias').insert({
+    macro_categoria: body.macro_categoria,
+    segmento: body.segmento
+  }).select().single();
+  if (error) _err(error);
+  return data;
+}
+
+async function _atualizarCategoria(id, body) {
+  const update = {};
+  if (body.macro_categoria !== undefined) update.macro_categoria = body.macro_categoria;
+  if (body.segmento        !== undefined) update.segmento        = body.segmento;
+  const { error } = await _sb.from('categorias').update(update).eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+async function _deletarCategoria(id) {
+  const { error } = await _sb.from('categorias').delete().eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+// ── Controle de Estoque ───────────────────────────────────
+async function _listarEstoque() {
+  const { data, error } = await _sb.from('controle_estoque').select('*').order('descricao');
+  if (error) _err(error);
+  return data || [];
+}
+
+async function _atualizarItemEstoque(id, body) {
+  const update = {};
+  if (body.descricao         !== undefined) update.descricao         = body.descricao;
+  if (body.segmento          !== undefined) update.segmento          = body.segmento;
+  if (body.unidade_operacional !== undefined) update.unidade_operacional = body.unidade_operacional;
+  if (body.unidade_medida    !== undefined) update.unidade_medida    = body.unidade_medida;
+  if (body.estoque_minimo    !== undefined) update.estoque_minimo    = body.estoque_minimo;
+  const { error } = await _sb.from('controle_estoque').update(update).eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+async function _deletarItemEstoque(id) {
+  const { error } = await _sb.from('controle_estoque').delete().eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+async function _movimentacoesItem(id) {
+  const { data, error } = await _sb.from('movimentacoes_estoque')
+    .select('*').eq('id_item', id).order('registrado_em', { ascending: false }).limit(100);
+  if (error) _err(error);
+  return data || [];
+}
+
+async function _entradaEstoque(body) {
+  // Upsert item (create if doesn't exist)
+  let itemId = body.id_item;
+  if (!itemId && body.descricao) {
+    const { data: existing } = await _sb.from('controle_estoque')
+      .select('id, saldo_atual').ilike('descricao', body.descricao.trim()).maybeSingle();
+    if (existing) {
+      itemId = existing.id;
+    } else {
+      const { data: novoItem, error: errIns } = await _sb.from('controle_estoque').insert({
+        descricao: body.descricao,
+        segmento: body.segmento || null,
+        unidade_operacional: body.unidade_operacional || null,
+        unidade_medida: body.unidade_medida || 'un',
+        saldo_atual: 0,
+        estoque_minimo: body.estoque_minimo || 0
+      }).select().single();
+      if (errIns) _err(errIns);
+      itemId = novoItem.id;
+    }
+  }
+  const qtd = +body.quantidade;
+  const { data: item, error: errFetch } = await _sb.from('controle_estoque')
+    .select('saldo_atual').eq('id', itemId).single();
+  if (errFetch) _err(errFetch);
+  const novoSaldo = (item.saldo_atual || 0) + qtd;
+  if (qtd > 0) {
+    await _sb.from('controle_estoque').update({ saldo_atual: novoSaldo }).eq('id', itemId);
+    await _sb.from('movimentacoes_estoque').insert({
+      id_item: itemId, tipo: 'entrada', quantidade: qtd, saldo_apos: novoSaldo,
+      id_requisicao: body.id_requisicao || null,
+      fornecedor: body.fornecedor || null,
+      valor_unitario: body.valor_unitario || null,
+      observacoes: body.observacoes || null,
+      registrado_por: body.registrado_por || null
+    });
+  }
+  return { status: 'ok', id_item: itemId, saldo_apos: item.saldo_atual || 0 };
+}
+
+async function _saidaEstoque(body) {
+  const itemId = body.id_item;
+  const qtd = +body.quantidade;
+  const { data: item, error } = await _sb.from('controle_estoque')
+    .select('saldo_atual').eq('id', itemId).single();
+  if (error) _err(error);
+  const novoSaldo = Math.max(0, (item.saldo_atual || 0) - qtd);
+  await _sb.from('controle_estoque').update({ saldo_atual: novoSaldo }).eq('id', itemId);
+  await _sb.from('movimentacoes_estoque').insert({
+    id_item: itemId, tipo: 'saida', quantidade: qtd, saldo_apos: novoSaldo,
+    observacoes: body.observacoes || null,
+    registrado_por: body.registrado_por || null
+  });
+  return { status: 'ok', saldo_apos: novoSaldo };
+}
+
+async function _ajusteEstoque(body) {
+  const itemId = body.id_item;
+  const novoSaldo = +body.saldo_novo;
+  const { data: item, error } = await _sb.from('controle_estoque')
+    .select('saldo_atual').eq('id', itemId).single();
+  if (error) _err(error);
+  const diff = novoSaldo - (item.saldo_atual || 0);
+  await _sb.from('controle_estoque').update({ saldo_atual: novoSaldo }).eq('id', itemId);
+  await _sb.from('movimentacoes_estoque').insert({
+    id_item: itemId, tipo: 'ajuste', quantidade: diff, saldo_apos: novoSaldo,
+    observacoes: body.observacoes || `Ajuste manual: ${diff >= 0 ? '+' : ''}${diff}`,
+    registrado_por: body.registrado_por || null
+  });
+  return { status: 'ok', saldo_apos: novoSaldo };
+}
+
+// ── Portal fornecedor — minha cotação ─────────────────────
+async function _minhaCotacao(path) {
+  const params = new URLSearchParams(path.split('?')[1] || '');
+  const idReq  = +params.get('id');
+  const cnpj   = _normCnpj(params.get('cnpj') || '');
+  if (!idReq || !cnpj) return null;
+  const { data: lance } = await _sb.from('lances_fornecedor')
+    .select('*').eq('id_requisicao', idReq).eq('cnpj_fornecedor', cnpj).maybeSingle();
+  if (!lance) return null;
+  // Busca itens individuais
+  const { data: itens } = await _sb.from('lances_fornecedor_itens')
+    .select('preco_unitario, descricao, quantidade').eq('id_lance', lance.id).order('id');
+  lance.itens_precos = JSON.stringify((itens || []).map(i => i.preco_unitario));
+  return lance;
+}
+
+// ── Cadastro de Fornecedor (portal) ───────────────────────
+async function _getCadastroFornecedor(path) {
+  const params = new URLSearchParams(path.split('?')[1] || '');
+  const cnpj = _normCnpj(params.get('cnpj') || '');
+  if (!cnpj) return null;
+  const { data } = await _sb.from('fornecedores')
+    .select('cnpj, razao_social, cadastro_completo, cadastrado_em, segmentos_interesse')
+    .eq('cnpj', cnpj).maybeSingle();
+  return data || null;
+}
+
+async function _salvarCadastroFornecedor(body) {
+  const cnpj = _normCnpj(body.cnpj || '');
+  if (!cnpj) throw new Error('CNPJ inválido');
+  const payload = {
+    cnpj,
+    razao_social:              body.razao_social             || null,
+    endereco_logradouro:       body.endereco_logradouro      || null,
+    endereco_numero:           body.endereco_numero          || null,
+    endereco_complemento:      body.endereco_complemento     || null,
+    endereco_bairro:           body.endereco_bairro          || null,
+    endereco_cidade:           body.endereco_cidade          || null,
+    endereco_uf:               body.endereco_uf              || null,
+    endereco_cep:              body.endereco_cep             || null,
+    contato_comercial_email:   body.contato_comercial_email  || null,
+    contato_comercial_tel:     body.contato_comercial_tel    || null,
+    contato_financeiro_email:  body.contato_financeiro_email || null,
+    contato_financeiro_tel:    body.contato_financeiro_tel   || null,
+    contato_fiscal_email:      body.contato_fiscal_email     || null,
+    contato_fiscal_tel:        body.contato_fiscal_tel       || null,
+    segmentos_interesse:       body.segmentos_interesse      || [],
+    doc_cartao_cnpj:           body.doc_cartao_cnpj          || null,
+    doc_alvara_funcionamento:  body.doc_alvara_funcionamento || null,
+    doc_alvara_sanitario:      body.doc_alvara_sanitario     || null,
+    doc_iso_9001:              body.doc_iso_9001             || null,
+    doc_ultima_alteracao:      body.doc_ultima_alteracao     || null,
+    cadastro_completo: true,
+    cadastrado_em: new Date().toISOString(),
+    // Mirror to main columns for backward compat
+    segmento:  (body.segmentos_interesse || [])[0] || null,
+    email:     body.contato_comercial_email || null,
+    telefone:  body.contato_comercial_tel   || null,
+    cidade:    body.endereco_cidade         || null,
+    estado:    body.endereco_uf             || null,
+  };
+  const { data: existing } = await _sb.from('fornecedores').select('cnpj').eq('cnpj', cnpj).maybeSingle();
+  if (existing) {
+    const { error } = await _sb.from('fornecedores').update(payload).eq('cnpj', cnpj);
+    if (error) _err(error);
+  } else {
+    const { error } = await _sb.from('fornecedores').insert(payload);
+    if (error) _err(error);
+  }
   return { status: 'ok' };
 }
 

@@ -9,8 +9,9 @@ window.Pages.consulta = {
   _perPage: 20,
   _total: 0,
   _pages: 0,
-  _filters: { busca: '', status: '', unidade: '' },
+  _filters: { busca: '', status: '', unidade: '', comprador: '' },
   _unidades: [],
+  _compradores: [],
   _state: 'list',   // 'list' | 'detail'
   _reqAtual: null,
 
@@ -224,14 +225,15 @@ window.Pages.consulta = {
   async init() {
     this._page    = 1;
     this._state   = 'list';
-    this._filters = { busca: '', status: '', unidade: '' };
+    this._filters = { busca: '', status: '', unidade: '', comprador: '' };
     this._reqAtual = null;
 
-    // Carrega unidades para o filtro
+    // Carrega unidades e compradores para os filtros
     try {
       const f = await Api.get('/api/requisicoes/filtros');
-      this._unidades = f.unidades || [];
-    } catch { this._unidades = []; }
+      this._unidades    = f.unidades    || [];
+      this._compradores = f.compradores || [];
+    } catch { this._unidades = []; this._compradores = []; }
 
     await this._carregarLista();
 
@@ -256,14 +258,15 @@ window.Pages.consulta = {
     // Esqueleto
     main.innerHTML = this._renderListaShell(true);
 
-    const { busca, status, unidade } = this._filters;
+    const { busca, status, unidade, comprador } = this._filters;
     const params = new URLSearchParams({
       page: this._page, per_page: this._perPage,
       sort_by: 'id', sort_order: 'desc',
     });
-    if (busca)    params.set('busca', busca);
-    if (status)   params.set('status', status);
-    if (unidade)  params.set('unidade', unidade);
+    if (busca)      params.set('busca', busca);
+    if (status)     params.set('status', status);
+    if (unidade)    params.set('unidade', unidade);
+    if (comprador)  params.set('comprador', comprador);
 
     try {
       const data = await Api.get(`/api/requisicoes?${params}`);
@@ -289,10 +292,13 @@ window.Pages.consulta = {
   },
 
   _renderListaShell(loading = false, items = []) {
-    const { busca, status, unidade } = this._filters;
+    const { busca, status, unidade, comprador } = this._filters;
 
     const unidadeOptions = this._unidades.map(u =>
       `<option value="${u}" ${unidade === u ? 'selected' : ''}>${u}</option>`).join('');
+
+    const compradorOptions = this._compradores.map(c =>
+      `<option value="${c}" ${comprador === c ? 'selected' : ''}>${c}</option>`).join('');
 
     const statusOpts = [
       ['', 'Todos os Status'],
@@ -320,13 +326,17 @@ window.Pages.consulta = {
           <option value="">Todas as unidades</option>
           ${unidadeOptions}
         </select>
+        <select id="cq-fil-comprador" onchange="Pages.consulta._setFilter('comprador',this.value)">
+          <option value="">Todos os Compradores</option>
+          ${compradorOptions}
+        </select>
         <select id="cq-fil-status" onchange="Pages.consulta._setFilter('status',this.value)">
           ${statusOpts}
         </select>
         <button class="btn btn-primary btn-sm" onclick="Pages.consulta._carregarLista(true)">
           <i class="fa-solid fa-magnifying-glass"></i> Buscar
         </button>
-        ${busca || status || unidade ? `
+        ${busca || status || unidade || comprador ? `
           <button class="btn btn-ghost btn-sm" style="color:var(--accent);" onclick="Pages.consulta._limparFiltros()">
             <i class="fa-solid fa-xmark"></i> Limpar
           </button>` : ''}
@@ -497,7 +507,7 @@ window.Pages.consulta = {
   },
 
   _limparFiltros() {
-    this._filters = { busca: '', status: '', unidade: '' };
+    this._filters = { busca: '', status: '', unidade: '', comprador: '' };
     this._carregarLista(true);
   },
 

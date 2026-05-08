@@ -177,6 +177,47 @@ window.Pages.recebimento = {
 
           <div style="height:1px;background:var(--border);margin-bottom:28px;"></div>
 
+          <!-- Seção 4: Entrada no Estoque (opcional) -->
+          <div style="margin-bottom:28px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+              <div style="width:28px;height:28px;background:var(--brand-surface);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--brand);font-size:13px;font-weight:700;flex-shrink:0;">
+                <i class="fa-solid fa-warehouse" style="font-size:12px;"></i>
+              </div>
+              <span style="font-size:14px;font-weight:700;color:var(--text);">Registrar Entrada no Estoque</span>
+              <span style="font-size:11px;color:var(--text-muted);">(opcional)</span>
+              <label class="cfg-toggle" style="margin-left:auto;" title="Ativar entrada no estoque">
+                <input type="checkbox" id="rec-est-toggle" onchange="Pages.recebimento._toggleEstoque(this.checked)">
+                <span class="cfg-toggle-slider"></span>
+              </label>
+            </div>
+            <div id="rec-est-fields" style="display:none;background:var(--brand-surface);border:1px solid var(--brand-light);border-radius:var(--r-md);padding:16px 18px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                <div class="form-group" style="margin:0;">
+                  <label class="form-label form-label-required">Descrição do Item</label>
+                  <input type="text" class="form-control" id="rec-est-desc" placeholder="Ex: Papel A4 500fls" style="height:40px;">
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label class="form-label">Segmento</label>
+                  <input type="text" class="form-control" id="rec-est-seg" placeholder="Ex: Material de Escritório" style="height:40px;">
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label class="form-label">Quantidade</label>
+                  <input type="number" class="form-control" id="rec-est-qtd" min="0.001" step="0.001" placeholder="0" style="height:40px;">
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label class="form-label">Unidade de Medida</label>
+                  <input type="text" class="form-control" id="rec-est-um" placeholder="un, kg, cx..." value="un" style="height:40px;">
+                </div>
+              </div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:10px;">
+                <i class="fa-solid fa-circle-info" style="margin-right:4px;color:var(--brand);"></i>
+                O fornecedor e valor unitário serão preenchidos automaticamente a partir da PO.
+              </div>
+            </div>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin-bottom:28px;"></div>
+
           <!-- Botão executar -->
           <button class="btn btn-primary btn-lg btn-block" style="height:52px;font-size:15px;font-weight:700;letter-spacing:0.3px;"
                   onclick="Pages.recebimento.realizarMatch()">
@@ -189,7 +230,16 @@ window.Pages.recebimento = {
       <!-- Resultado (aparece abaixo após execução) -->
       <div id="rec-resultado" style="margin-top:20px;"></div>
 
-    </div>`;
+    </div>
+
+    <style>
+    .cfg-toggle { position:relative;width:40px;height:22px;display:inline-block;flex-shrink:0; }
+    .cfg-toggle input { opacity:0;width:0;height:0; }
+    .cfg-toggle-slider { position:absolute;inset:0;border-radius:22px;background:var(--border);cursor:pointer;transition:background .2s; }
+    .cfg-toggle-slider::before { content:'';position:absolute;width:16px;height:16px;border-radius:50%;left:3px;top:3px;background:#fff;transition:transform .2s; }
+    .cfg-toggle input:checked + .cfg-toggle-slider { background:var(--brand); }
+    .cfg-toggle input:checked + .cfg-toggle-slider::before { transform:translateX(18px); }
+    </style>`;
   },
 
   async init() {
@@ -370,6 +420,11 @@ window.Pages.recebimento = {
     } catch { /* não crítico */ }
   },
 
+  _toggleEstoque(checked) {
+    const el = document.getElementById('rec-est-fields');
+    if (el) el.style.display = checked ? '' : 'none';
+  },
+
   async realizarMatch() {
     const nf    = document.getElementById('rec-nf')?.value?.trim();
     const qtd   = parseFloat(document.getElementById('rec-qtd')?.value);
@@ -468,6 +523,27 @@ window.Pages.recebimento = {
 
       if (approved) {
         Toast.success('Conciliação aprovada!', 'Requisição concluída e NF liberada para pagamento.');
+        // Registrar entrada no estoque se toggle ativado
+        const estToggle = document.getElementById('rec-est-toggle');
+        if (estToggle?.checked) {
+          const estDesc = document.getElementById('rec-est-desc')?.value.trim();
+          const estQtd  = parseFloat(document.getElementById('rec-est-qtd')?.value);
+          if (estDesc && estQtd > 0) {
+            try {
+              await Api.post('/api/estoque/entrada', {
+                descricao: estDesc,
+                segmento: document.getElementById('rec-est-seg')?.value.trim() || null,
+                unidade_medida: document.getElementById('rec-est-um')?.value.trim() || 'un',
+                quantidade: estQtd,
+                valor_unitario: res.preco_unitario || null,
+                fornecedor: res.fornecedor || null,
+                id_requisicao: this._pedidoAtual,
+                registrado_por: localStorage.getItem('shp_user_email') || null,
+              });
+              Toast.success('Entrada no estoque registrada!', `${estQtd} ${document.getElementById('rec-est-um')?.value||'un'} · ${estDesc}`);
+            } catch { Toast.warning('Conciliação OK, mas erro ao registrar estoque', 'Registre manualmente no módulo de Estoque.'); }
+          }
+        }
         // Remove a PO do dropdown e reseta o formulário
         const sel = document.getElementById('rec-po-select');
         if (sel) {

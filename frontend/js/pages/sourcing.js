@@ -9,6 +9,8 @@ window.Pages.sourcing = {
   _pedidoInfo: null,
   _segmentoAtual: null,
   _segmentos: [],
+  _todosPedidos: [],
+  _filtroSourcing: { busca: '', status: '' },
 
   render() {
     return `
@@ -47,7 +49,7 @@ window.Pages.sourcing = {
             <i class="fa-solid fa-rotate-right"></i>
           </button>
         </div>
-        <div id="sourcing-pedidos" class="grid-auto">
+        <div id="sourcing-pedidos">
           ${Skeleton.list(3)}
         </div>
       </div>
@@ -123,12 +125,33 @@ window.Pages.sourcing = {
           </div>
         </div>
       </div>
-    </div>`;
+    </div>
+
+    <style>
+    .sou-filter-bar { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+    .sou-filter-wrap { position:relative; flex:1; min-width:200px; }
+    .sou-filter-wrap i { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--text-subtle); font-size:12px; pointer-events:none; }
+    .sou-filter-input { width:100%; height:36px; padding:0 12px 0 34px; background:var(--bg); border:1px solid var(--border); border-radius:var(--r-md); font-size:13px; font-family:var(--font); color:var(--text); outline:none; box-sizing:border-box; }
+    .sou-filter-input:focus { border-color:var(--brand); }
+    .sou-filter-sel { height:36px; padding:0 10px; min-width:160px; background:var(--bg); border:1px solid var(--border); border-radius:var(--r-md); font-size:13px; font-family:var(--font); color:var(--text); outline:none; }
+    .sou-filter-count { font-size:12px; font-weight:700; color:var(--text-muted); white-space:nowrap; }
+    .sou-pedidos-table { width:100%; border-collapse:collapse; }
+    .sou-pedidos-table thead th { padding:9px 12px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); background:var(--bg); border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; }
+    .sou-pedidos-table tbody tr { border-bottom:1px solid var(--border-subtle); transition:background .12s; }
+    .sou-pedidos-table tbody tr:last-child { border-bottom:none; }
+    .sou-pedido-row { cursor:pointer; }
+    .sou-pedido-row:hover { background:var(--brand-surface); }
+    .sou-pedido-row.selected { background:var(--brand-surface); box-shadow:inset 3px 0 0 var(--brand); }
+    .sou-pedidos-table td { padding:11px 12px; font-size:13px; color:var(--text); vertical-align:middle; }
+    .sou-row-id { font-weight:700; font-size:12.5px; color:var(--brand); }
+    </style>`;
   },
 
   async init() {
     this._pedidoSelecionado = null;
     this._pedidoInfo = null;
+    this._todosPedidos = [];
+    this._filtroSourcing = { busca: '', status: '' };
     // Carrega segmentos em background
     Api.get('/api/sourcing/segmentos').then(data => {
       this._segmentos = data || [];
@@ -144,7 +167,7 @@ window.Pages.sourcing = {
 
       if (!pedidos || pedidos.length === 0) {
         container.innerHTML = `
-          <div class="empty-state" style="grid-column:1/-1;padding:30px 0;">
+          <div class="empty-state" style="padding:30px 0;">
             <div class="empty-icon" style="background:var(--success-surface);color:var(--success-dark);">
               <i class="fa-solid fa-circle-check"></i>
             </div>
@@ -154,35 +177,100 @@ window.Pages.sourcing = {
         return;
       }
 
-      container.innerHTML = pedidos.map(p => {
-        const emCotacao = p.status === 'Em Cotação';
-        const statusBadge = emCotacao
-          ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;background:#ede9fe;color:#6d28d9;border-radius:8px;padding:2px 7px;margin-top:4px;">
-               <i class="fa-solid fa-tag" style="font-size:8px;"></i> Em Cotação
-             </span>`
-          : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;background:#fef3c7;color:#d97706;border-radius:8px;padding:2px 7px;margin-top:4px;">
-               <i class="fa-solid fa-clock" style="font-size:8px;"></i> Aguardando Cotação
-             </span>`;
-        return `
-        <div class="order-mini-card" id="pedido-card-${p.id}" onclick="Pages.sourcing.selecionarPedido(${p.id}, this)">
-          <div class="order-mini-card-id">Pedido #${p.id}</div>
-          <div class="order-mini-card-meta">
-            <div><i class="fa-solid fa-user" style="color:var(--brand);width:14px;"></i> ${p.solicitante}</div>
-            <div><i class="fa-solid fa-building" style="color:var(--brand);width:14px;"></i> ${p.unidade}</div>
-            <div><i class="fa-solid fa-calendar" style="color:var(--brand);width:14px;"></i> ${Fmt.date(p.data)}</div>
-          </div>
-          ${statusBadge}
-        </div>`;
-      }).join('');
+      this._todosPedidos = pedidos;
+      this._renderPedidosList();
     } catch {
       Toast.error('Erro ao carregar pedidos', 'Verifique a API.');
     }
   },
 
-  async selecionarPedido(id, el) {
+  _renderPedidosList() {
+    const container = document.getElementById('sourcing-pedidos');
+    if (!container) return;
+    const { busca, status } = this._filtroSourcing;
+    const b = busca.toLowerCase();
+    const filtered = this._todosPedidos.filter(p => {
+      if (status && p.status !== status) return false;
+      if (b && !`#${p.id} ${p.solicitante || ''} ${p.unidade || ''}`.toLowerCase().includes(b)) return false;
+      return true;
+    });
+
+    const filterBar = `
+      <div class="sou-filter-bar">
+        <div class="sou-filter-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input class="sou-filter-input" type="text"
+                 placeholder="Buscar por ID, solicitante, unidade…"
+                 value="${busca.replace(/"/g, '&quot;')}" id="sou-busca"
+                 oninput="Pages.sourcing._onSouBusca(this.value)">
+        </div>
+        <select class="sou-filter-sel" id="sou-status" onchange="Pages.sourcing._onSouStatus(this.value)">
+          <option value="">Todos os status</option>
+          <option value="Aguardando Cotação" ${status === 'Aguardando Cotação' ? 'selected' : ''}>Aguardando Cotação</option>
+          <option value="Em Cotação" ${status === 'Em Cotação' ? 'selected' : ''}>Em Cotação</option>
+        </select>
+        <span class="sou-filter-count">${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}</span>
+      </div>`;
+
+    if (filtered.length === 0) {
+      container.innerHTML = filterBar + `
+        <div class="empty-state" style="padding:24px 0;">
+          <div class="empty-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+          <p class="empty-title">Nenhum pedido encontrado</p>
+          <p class="empty-desc">Ajuste os filtros para encontrar pedidos.</p>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = filterBar + `
+      <div style="overflow-x:auto;">
+        <table class="sou-pedidos-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Solicitante</th><th>Unidade</th><th>Data</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map(p => {
+              const emCotacao = p.status === 'Em Cotação';
+              const badge = emCotacao
+                ? `<span style="background:#ede9fe;color:#6d28d9;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;">Em Cotação</span>`
+                : `<span style="background:#fef3c7;color:#d97706;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;">Aguardando Cotação</span>`;
+              const isSel = this._pedidoSelecionado === p.id;
+              return `
+                <tr class="sou-pedido-row${isSel ? ' selected' : ''}" id="pedido-row-${p.id}"
+                    onclick="Pages.sourcing.selecionarPedido(${p.id})">
+                  <td><span class="sou-row-id">#${p.id}</span></td>
+                  <td style="font-size:13px;">${p.solicitante || '—'}</td>
+                  <td><span class="badge badge-gray">${p.unidade || '—'}</span></td>
+                  <td style="color:var(--text-muted);font-size:12.5px;white-space:nowrap;">${Fmt.date(p.data)}</td>
+                  <td>${badge}</td>
+                  <td style="text-align:right;">
+                    <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();Pages.sourcing.selecionarPedido(${p.id})">
+                      <i class="fa-solid fa-arrow-right"></i> Selecionar
+                    </button>
+                  </td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  },
+
+  _onSouBusca(val) {
+    this._filtroSourcing.busca = val;
+    this._renderPedidosList();
+  },
+
+  _onSouStatus(val) {
+    this._filtroSourcing.status = val;
+    this._renderPedidosList();
+  },
+
+  async selecionarPedido(id) {
     this._pedidoSelecionado = id;
-    document.querySelectorAll('.order-mini-card').forEach(c => c.classList.remove('selected'));
-    el.classList.add('selected');
+    document.querySelectorAll('.sou-pedido-row').forEach(c => c.classList.remove('selected'));
+    document.getElementById(`pedido-row-${id}`)?.classList.add('selected');
 
     const ws = document.getElementById('sourcing-workspace');
     ws.style.display = 'grid';
@@ -487,7 +575,12 @@ window.Pages.sourcing = {
                       ? '<span class="badge badge-success">Base</span>'
                       : `<span class="badge badge-accent">+${variacao}%</span>`}
                   </td>
-                  <td>
+                  <td style="white-space:nowrap;text-align:right;">
+                    <button class="btn btn-ghost btn-sm" style="color:var(--text-muted);margin-right:4px;"
+                            title="Editar lance"
+                            onclick="Pages.sourcing._editarLance(${l.id},${l.preco},${l.prazo || 0},'${(l.pagamento||'').replace(/'/g,"\\'")}','${(l.fornecedor||'').replace(/'/g,"\\'")}')">
+                      <i class="fa-solid fa-pen"></i>
+                    </button>
                     ${isSel
                       ? `<span style="font-size:12px;color:var(--success-dark);font-weight:700;"><i class="fa-solid fa-check"></i> PO Gerada</span>`
                       : !jaTemSelecionado
@@ -542,19 +635,18 @@ window.Pages.sourcing = {
     try {
       await Api.post(`/api/sourcing/selecionar/${idReq}`, { cnpj_fornecedor: cnpj });
 
-      // 1. Remove o card da lista de pedidos imediatamente
-      const card = document.getElementById(`pedido-card-${idReq}`);
-      if (card) {
-        card.style.transition = 'opacity .3s, transform .3s';
-        card.style.opacity = '0';
-        card.style.transform = 'scale(.95)';
-        setTimeout(() => card.remove(), 300);
+      // 1. Remove a linha da lista de pedidos imediatamente
+      const row = document.getElementById(`pedido-row-${idReq}`);
+      if (row) {
+        row.style.transition = 'opacity .3s';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 300);
       }
 
       // 2. Verifica se ainda há pedidos na lista; se não, mostra empty state
       setTimeout(() => {
         const container = document.getElementById('sourcing-pedidos');
-        if (container && container.querySelectorAll('.order-mini-card').length === 0) {
+        if (container && container.querySelectorAll('.sou-pedido-row').length === 0) {
           container.innerHTML = `
             <div class="empty-state" style="grid-column:1/-1;padding:30px 0;">
               <div class="empty-icon" style="background:var(--success-surface);color:var(--success-dark);">
@@ -583,6 +675,63 @@ window.Pages.sourcing = {
     } catch {
       Toast.error('Erro ao selecionar fornecedor');
     }
+  },
+
+  _editarLance(lanceId, preco, prazo, pagamento, fornecedor) {
+    const overlay = document.getElementById('modal-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:440px;">
+        <div class="modal-header">
+          <div class="modal-icon" style="background:var(--brand-surface);color:var(--brand);">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div>
+            <div class="modal-title">Editar Lance</div>
+            <div class="modal-subtitle">${fornecedor}</div>
+          </div>
+        </div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+          <div class="form-group">
+            <label class="form-label">Preço Unitário (R$)</label>
+            <input id="el-preco" class="form-control" type="number" step="0.01" min="0" value="${preco}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Prazo de Entrega (dias)</label>
+            <input id="el-prazo" class="form-control" type="number" min="0" value="${prazo || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Condição de Pagamento</label>
+            <input id="el-pgto" class="form-control" type="text" placeholder="Ex: 30 DDL" value="${pagamento || ''}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="Modal.close()">Cancelar</button>
+          <button class="btn btn-primary" id="el-save-btn">
+            <i class="fa-solid fa-floppy-disk"></i> Salvar
+          </button>
+        </div>
+      </div>`;
+    overlay.classList.add('open');
+
+    document.getElementById('el-save-btn')?.addEventListener('click', async () => {
+      const novoPreco = parseFloat(document.getElementById('el-preco')?.value || '0');
+      const novoPrazo = parseInt(document.getElementById('el-prazo')?.value || '0', 10);
+      const novoPgto  = document.getElementById('el-pgto')?.value.trim() || '';
+      const btn = document.getElementById('el-save-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+      try {
+        await Api.patch(`/api/cotacao/lance/${lanceId}`, {
+          preco_unitario: novoPreco, prazo_entrega_dias: novoPrazo, pagamento: novoPgto
+        });
+        Modal.close();
+        Toast.success('Lance atualizado!', 'Os dados do lance foram salvos.');
+        this.carregarMapa(this._pedidoSelecionado);
+      } catch {
+        Toast.error('Erro ao salvar lance');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar'; }
+      }
+    });
   },
 
   emitirPO(id, cnpj) {

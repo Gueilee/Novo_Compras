@@ -254,6 +254,36 @@
     .spin-sm { width: 17px; height: 17px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.3); border-top-color: #fff; animation: spin .7s linear infinite; flex-shrink: 0; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Cadastro — doc rows ─────────────────────────────────── */
+    .cad-doc-row {
+      display: flex; align-items: center; gap: 12px;
+      background: #f9f6ff; border: 1.5px solid #f0ebff;
+      border-radius: 10px; padding: 10px 14px;
+      transition: background .15s, border-color .15s;
+    }
+    .cad-doc-chk {
+      accent-color: #6633ee; width: 16px; height: 16px; cursor: pointer; flex-shrink: 0;
+    }
+    .cad-doc-icon-wrap {
+      width: 32px; height: 32px; background: #ede9fe; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #6633ee; font-size: 13px; flex-shrink: 0;
+    }
+    .cad-doc-lbl {
+      flex: 1; font-size: 13px; font-weight: 600; color: #333;
+    }
+    .cad-doc-actions {
+      align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    .cad-doc-upload-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #6633ee; color: #fff; border-radius: 7px;
+      padding: 5px 11px; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: background .15s; white-space: nowrap;
+    }
+    .cad-doc-upload-btn:hover { background: #5521d9; }
+    .cad-doc-status { font-size: 11.5px; min-width: 0; flex-shrink: 1; }
+
     /* ── Success ─────────────────────────────────────────────── */
     .success-wrap { text-align: center; padding: 8px 0 14px; }
     .success-circle {
@@ -486,6 +516,250 @@
     </div>
   </div>
 
+  <!-- ═══ CADASTRO ════════════════════════════════════════ -->
+  <div id="state-cadastro" style="display:none;">
+    <div class="pf-card-hdr">
+      <div class="pf-card-hdr-icon" style="background:linear-gradient(135deg,#6633ee,#8b5cf6);color:#fff;box-shadow:0 4px 12px rgba(102,51,238,.28);">
+        <i class="fa-solid fa-clipboard-list"></i>
+      </div>
+      <div>
+        <div class="pf-card-hdr-title">Ficha Cadastral de Fornecedor</div>
+        <div class="pf-card-hdr-sub">Primeiro acesso — preenchimento obrigatório e único</div>
+      </div>
+    </div>
+    <div class="pf-card-body">
+
+      <div class="pf-info-box" style="background:#f0ebff;border-color:#c4b5fd;">
+        <i class="fa-solid fa-circle-info" style="color:#6633ee;flex-shrink:0;"></i>
+        <p style="color:#444;margin:0;">Este é seu <strong>primeiro acesso</strong> à plataforma. Preencha a ficha cadastral abaixo para liberar o envio de propostas. Este processo é feito <strong>somente uma vez</strong> e seus dados ficam salvos para as próximas cotações.</p>
+      </div>
+
+      <!-- ── Dados da Empresa ──────────────────────────────── -->
+      <div class="f-sec" style="margin-top:20px;"><i class="fa-solid fa-building"></i> Dados da Empresa</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">CNPJ</label>
+          <input class="form-control" id="cad-cnpj" type="text" readonly
+                 style="background:#f9f6ff;color:#6633ee;font-weight:700;border-color:#d8b4fe;">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Razão Social <span style="color:#e11d48;">*</span></label>
+          <input class="form-control" id="cad-razao" type="text" placeholder="Carregando...">
+        </div>
+      </div>
+
+      <!-- ── Endereço ──────────────────────────────────────── -->
+      <div class="f-sec" style="margin-top:20px;"><i class="fa-solid fa-location-dot"></i> Endereço</div>
+      <div style="display:grid;grid-template-columns:160px 1fr 90px;gap:12px;margin-bottom:12px;align-items:end;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">CEP <span style="color:#e11d48;">*</span></label>
+          <input class="form-control" id="cad-cep" type="text" placeholder="00000-000" maxlength="9"
+                 oninput="this.value=this.value.replace(/\D/g,'').replace(/(\d{5})(\d)/,'$1-$2')"
+                 onblur="buscarCEP()">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Logradouro <span style="color:#e11d48;">*</span></label>
+          <input class="form-control" id="cad-logradouro" type="text" placeholder="Rua, Av., Al...">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Número</label>
+          <input class="form-control" id="cad-numero" type="text" placeholder="Nº">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 70px;gap:12px;margin-bottom:6px;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Complemento</label>
+          <input class="form-control" id="cad-complemento" type="text" placeholder="Sala, Andar...">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Bairro</label>
+          <input class="form-control" id="cad-bairro" type="text" placeholder="Bairro">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Cidade <span style="color:#e11d48;">*</span></label>
+          <input class="form-control" id="cad-cidade" type="text" placeholder="Cidade">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">UF <span style="color:#e11d48;">*</span></label>
+          <input class="form-control" id="cad-uf" type="text" placeholder="SP" maxlength="2"
+                 style="text-transform:uppercase;">
+        </div>
+      </div>
+
+      <!-- ── Contatos ──────────────────────────────────────── -->
+      <div class="f-sec" style="margin-top:20px;"><i class="fa-solid fa-address-book"></i> Contatos</div>
+
+      <!-- Comercial -->
+      <div style="background:#f9f6ff;border:1.5px solid #e8d9ff;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+        <div style="font-size:11.5px;font-weight:700;color:#6633ee;margin-bottom:10px;display:flex;align-items:center;gap:7px;">
+          <i class="fa-solid fa-handshake"></i> Contato Comercial <span style="color:#e11d48;font-size:10px;">obrigatório</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">E-mail <span style="color:#e11d48;">*</span></label>
+            <input class="form-control" id="cad-com-email" type="email" placeholder="comercial@empresa.com">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Telefone / WhatsApp</label>
+            <input class="form-control" id="cad-com-tel" type="tel" placeholder="(11) 90000-0000">
+          </div>
+        </div>
+      </div>
+
+      <!-- Financeiro -->
+      <div style="background:#f9f6ff;border:1.5px solid #e8d9ff;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+        <div style="font-size:11.5px;font-weight:700;color:#6633ee;margin-bottom:10px;display:flex;align-items:center;gap:7px;">
+          <i class="fa-solid fa-coins"></i> Contato Financeiro <span style="color:#e11d48;font-size:10px;">obrigatório</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">E-mail <span style="color:#e11d48;">*</span></label>
+            <input class="form-control" id="cad-fin-email" type="email" placeholder="financeiro@empresa.com">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Telefone</label>
+            <input class="form-control" id="cad-fin-tel" type="tel" placeholder="(11) 3000-0000">
+          </div>
+        </div>
+      </div>
+
+      <!-- Fiscal -->
+      <div style="background:#f9f6ff;border:1.5px solid #e8d9ff;border-radius:12px;padding:14px 16px;margin-bottom:6px;">
+        <div style="font-size:11.5px;font-weight:700;color:#6633ee;margin-bottom:10px;display:flex;align-items:center;gap:7px;">
+          <i class="fa-solid fa-file-invoice"></i> Contato Fiscal <span style="color:#e11d48;font-size:10px;">obrigatório</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">E-mail <span style="color:#e11d48;">*</span></label>
+            <input class="form-control" id="cad-fis-email" type="email" placeholder="fiscal@empresa.com">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label" style="font-size:12px;font-weight:700;color:#333;">Telefone</label>
+            <input class="form-control" id="cad-fis-tel" type="tel" placeholder="(11) 3000-0000">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Segmentos ─────────────────────────────────────── -->
+      <div class="f-sec" style="margin-top:20px;"><i class="fa-solid fa-tags"></i> Segmentos de Interesse <span style="color:#e11d48;font-size:11px;">(selecione ao menos 1)</span></div>
+      <p style="font-size:12.5px;color:#888;margin:-6px 0 12px;">Indique em quais categorias deseja participar de cotações da Vendemmia:</p>
+      <div id="cad-segmentos-wrap" style="margin-bottom:6px;min-height:60px;">
+        <div style="text-align:center;padding:20px;color:#bbb;font-size:12.5px;">
+          <span style="width:14px;height:14px;border-radius:50%;border:2px solid #e0d9f9;border-top-color:#6633ee;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px;"></span> Carregando segmentos...
+        </div>
+      </div>
+
+      <!-- ── Documentação ──────────────────────────────────── -->
+      <div class="f-sec" style="margin-top:20px;"><i class="fa-solid fa-folder-open"></i> Documentação</div>
+      <p style="font-size:12.5px;color:#888;margin:-6px 0 12px;">Marque os documentos que sua empresa possui e anexe os arquivos (PDF, JPG, PNG — máx. 10MB):</p>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+
+        <!-- Cartão CNPJ -->
+        <div class="cad-doc-row" id="cad-doc-row-cartao_cnpj">
+          <label style="display:flex;align-items:center;gap:0;cursor:pointer;flex-shrink:0;">
+            <input type="checkbox" id="cad-doc-flag-cartao_cnpj" class="cad-doc-chk"
+                   onchange="toggleDocUpload('cartao_cnpj')">
+          </label>
+          <div class="cad-doc-icon-wrap"><i class="fa-solid fa-id-card"></i></div>
+          <div class="cad-doc-lbl">Cartão CNPJ</div>
+          <div class="cad-doc-actions" id="cad-doc-actions-cartao_cnpj" style="display:none;">
+            <label class="cad-doc-upload-btn" for="cad-doc-file-cartao_cnpj" id="cad-doc-upload-lbl-cartao_cnpj">
+              <i class="fa-solid fa-arrow-up-from-bracket"></i> Anexar
+            </label>
+            <input type="file" id="cad-doc-file-cartao_cnpj" style="display:none;"
+                   accept=".pdf,.jpg,.jpeg,.png" onchange="uploadDocCadastro('cartao_cnpj',this)">
+          </div>
+          <div class="cad-doc-status" id="cad-doc-status-cartao_cnpj"></div>
+        </div>
+
+        <!-- Alvará de Funcionamento -->
+        <div class="cad-doc-row" id="cad-doc-row-alvara_func">
+          <label style="display:flex;align-items:center;gap:0;cursor:pointer;flex-shrink:0;">
+            <input type="checkbox" id="cad-doc-flag-alvara_func" class="cad-doc-chk"
+                   onchange="toggleDocUpload('alvara_func')">
+          </label>
+          <div class="cad-doc-icon-wrap"><i class="fa-solid fa-store"></i></div>
+          <div class="cad-doc-lbl">Alvará de Funcionamento</div>
+          <div class="cad-doc-actions" id="cad-doc-actions-alvara_func" style="display:none;">
+            <label class="cad-doc-upload-btn" for="cad-doc-file-alvara_func" id="cad-doc-upload-lbl-alvara_func">
+              <i class="fa-solid fa-arrow-up-from-bracket"></i> Anexar
+            </label>
+            <input type="file" id="cad-doc-file-alvara_func" style="display:none;"
+                   accept=".pdf,.jpg,.jpeg,.png" onchange="uploadDocCadastro('alvara_func',this)">
+          </div>
+          <div class="cad-doc-status" id="cad-doc-status-alvara_func"></div>
+        </div>
+
+        <!-- Alvará Sanitário -->
+        <div class="cad-doc-row" id="cad-doc-row-alvara_san">
+          <label style="display:flex;align-items:center;gap:0;cursor:pointer;flex-shrink:0;">
+            <input type="checkbox" id="cad-doc-flag-alvara_san" class="cad-doc-chk"
+                   onchange="toggleDocUpload('alvara_san')">
+          </label>
+          <div class="cad-doc-icon-wrap"><i class="fa-solid fa-heart-pulse"></i></div>
+          <div class="cad-doc-lbl">Alvará Sanitário</div>
+          <div class="cad-doc-actions" id="cad-doc-actions-alvara_san" style="display:none;">
+            <label class="cad-doc-upload-btn" for="cad-doc-file-alvara_san" id="cad-doc-upload-lbl-alvara_san">
+              <i class="fa-solid fa-arrow-up-from-bracket"></i> Anexar
+            </label>
+            <input type="file" id="cad-doc-file-alvara_san" style="display:none;"
+                   accept=".pdf,.jpg,.jpeg,.png" onchange="uploadDocCadastro('alvara_san',this)">
+          </div>
+          <div class="cad-doc-status" id="cad-doc-status-alvara_san"></div>
+        </div>
+
+        <!-- ISO 9001 -->
+        <div class="cad-doc-row" id="cad-doc-row-iso_9001">
+          <label style="display:flex;align-items:center;gap:0;cursor:pointer;flex-shrink:0;">
+            <input type="checkbox" id="cad-doc-flag-iso_9001" class="cad-doc-chk"
+                   onchange="toggleDocUpload('iso_9001')">
+          </label>
+          <div class="cad-doc-icon-wrap"><i class="fa-solid fa-certificate"></i></div>
+          <div class="cad-doc-lbl">ISO 9001</div>
+          <div class="cad-doc-actions" id="cad-doc-actions-iso_9001" style="display:none;">
+            <label class="cad-doc-upload-btn" for="cad-doc-file-iso_9001" id="cad-doc-upload-lbl-iso_9001">
+              <i class="fa-solid fa-arrow-up-from-bracket"></i> Anexar
+            </label>
+            <input type="file" id="cad-doc-file-iso_9001" style="display:none;"
+                   accept=".pdf,.jpg,.jpeg,.png" onchange="uploadDocCadastro('iso_9001',this)">
+          </div>
+          <div class="cad-doc-status" id="cad-doc-status-iso_9001"></div>
+        </div>
+
+        <!-- Última Alteração Contratual -->
+        <div class="cad-doc-row" id="cad-doc-row-ult_alter">
+          <label style="display:flex;align-items:center;gap:0;cursor:pointer;flex-shrink:0;">
+            <input type="checkbox" id="cad-doc-flag-ult_alter" class="cad-doc-chk"
+                   onchange="toggleDocUpload('ult_alter')">
+          </label>
+          <div class="cad-doc-icon-wrap"><i class="fa-solid fa-file-signature"></i></div>
+          <div class="cad-doc-lbl">Última Alteração Contratual</div>
+          <div class="cad-doc-actions" id="cad-doc-actions-ult_alter" style="display:none;">
+            <label class="cad-doc-upload-btn" for="cad-doc-file-ult_alter" id="cad-doc-upload-lbl-ult_alter">
+              <i class="fa-solid fa-arrow-up-from-bracket"></i> Anexar
+            </label>
+            <input type="file" id="cad-doc-file-ult_alter" style="display:none;"
+                   accept=".pdf,.jpg,.jpeg,.png,.docx" onchange="uploadDocCadastro('ult_alter',this)">
+          </div>
+          <div class="cad-doc-status" id="cad-doc-status-ult_alter"></div>
+        </div>
+
+      </div><!-- /docs -->
+
+      <!-- LGPD -->
+      <div class="lgpd-box" style="margin-top:20px;">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span>Seus dados são armazenados com segurança e utilizados exclusivamente para fins comerciais com a Vendemmia, em conformidade com a <strong>LGPD (Lei 13.709/2018)</strong>.</span>
+      </div>
+
+      <button class="btn-pf btn-pf-primary" id="cad-btn-submit" onclick="salvarCadastro()">
+        <i class="fa-solid fa-check-circle"></i> Salvar Cadastro e Continuar
+      </button>
+
+    </div>
+  </div>
+
   <!-- ═══ FORMULÁRIO ═══════════════════════════════════════ -->
   <div id="state-form" style="display:none;">
     <div class="pf-card-hdr">
@@ -529,6 +803,17 @@
             <span style="width:11px;height:11px;border-radius:50%;border:1.5px solid #ccc;border-top-color:#888;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0;"></span>
             Buscando razão social...
           </div>
+        </div>
+      </div>
+
+      <!-- Banner cotação anterior -->
+      <div id="cotacao-anterior-banner" style="display:none;background:linear-gradient(135deg,rgba(102,51,238,.1),rgba(102,51,238,.05));border:1.5px solid rgba(102,51,238,.25);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:none;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:#6633ee;margin-bottom:6px;">
+          <i class="fa-solid fa-rotate-left"></i> Cotação anterior encontrada — campos preenchidos automaticamente
+        </div>
+        <div style="font-size:11.5px;color:#666;line-height:1.5;">
+          Você já enviou uma proposta para esta requisição. Os valores foram pré-preenchidos para facilitar sua atualização.
+          Revise e envie para confirmar a nova proposta.
         </div>
       </div>
 
@@ -704,17 +989,24 @@ let CNPJ   = params.get('cnpj');
 let _totalItens = 0;
 let _itensCotacao = []; // [{descricao, quantidade}]
 let _razaoSocial = '';
+let _cotacaoExistente = null; // cotação anterior deste fornecedor para esta req
+let _docsUrls = {};           // {cartao_cnpj: url, ...} — uploads da ficha cadastral
+let _segmentosCadastro = [];  // categorias do banco para os checkboxes
 
 /* ── UI helpers ─────────────────────────────────────────────── */
 function setState(s) {
-  ['state-lookup','state-loading','state-error','state-form','state-success'].forEach(id => {
+  ['state-lookup','state-loading','state-error','state-cadastro','state-form','state-success'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = (id === s) ? '' : 'none';
   });
-  const steps = document.getElementById('pf-steps');
+  const steps  = document.getElementById('pf-steps');
   const heroSub = document.getElementById('pf-hero-sub');
   const heroH1  = document.querySelector('.pf-hero h1');
-  if (s === 'state-form') {
+  if (s === 'state-cadastro') {
+    if (steps) steps.style.display = 'none';
+    if (heroH1) heroH1.innerHTML = 'Complete seu <em>Cadastro</em>';
+    if (heroSub) heroSub.textContent = 'Preencha a ficha cadastral para liberar o envio de propostas.';
+  } else if (s === 'state-form') {
     if (steps) steps.style.display = 'flex';
     setStep(2);
     if (heroH1) heroH1.innerHTML = 'Preencha sua <em>Proposta</em>';
@@ -783,6 +1075,187 @@ async function buscarRazaoSocial(cnpjClean) {
   }
 }
 
+/* ── Verificação de cadastro ────────────────────────────────── */
+async function verificarCadastro() {
+  setState('state-loading');
+  const cnpjClean = (CNPJ || '').replace(/\D/g,'');
+  if (!cnpjClean) { await carregarRequisicao(); return; }
+  try {
+    const cadastro = await Api.get(`/api/fornecedor/cadastro?cnpj=${cnpjClean}`);
+    if (!cadastro || !cadastro.cadastro_completo) {
+      await abrirCadastro(cadastro);
+    } else {
+      await carregarRequisicao();
+    }
+  } catch { setState('state-error'); }
+}
+
+async function abrirCadastro(dadosExistentes) {
+  try { _segmentosCadastro = await Api.get('/api/categorias'); } catch { _segmentosCadastro = []; }
+  _docsUrls = {};
+  setState('state-cadastro');
+
+  const cnpjClean = (CNPJ || '').replace(/\D/g,'');
+  const cnpjFmt = cnpjClean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  const cnpjEl = document.getElementById('cad-cnpj');
+  if (cnpjEl) cnpjEl.value = cnpjFmt;
+
+  // Razão social — BrasilAPI
+  const razaoEl = document.getElementById('cad-razao');
+  if (razaoEl) {
+    razaoEl.readOnly = true; razaoEl.value = ''; razaoEl.placeholder = 'Buscando...';
+    fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjClean}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const nome = d?.razao_social || d?.nome_fantasia || '';
+        if (nome) { razaoEl.value = nome; razaoEl.readOnly = true; }
+        else       { razaoEl.readOnly = false; razaoEl.placeholder = 'Digite a razão social'; }
+      })
+      .catch(() => { razaoEl.readOnly = false; razaoEl.placeholder = 'Digite a razão social'; });
+  }
+
+  renderSegmentosCadastro(_segmentosCadastro, dadosExistentes?.segmentos_interesse || []);
+}
+
+function renderSegmentosCadastro(cats, selecionados) {
+  const wrap = document.getElementById('cad-segmentos-wrap');
+  if (!wrap) return;
+  if (!cats.length) {
+    wrap.innerHTML = `<div style="font-size:13px;color:#aaa;padding:8px 0;">Nenhum segmento configurado. Preencha os demais campos e continue.</div>`;
+    return;
+  }
+  const macros = [...new Set(cats.map(c => c.macro_categoria).filter(Boolean))].sort();
+  const byMacro = {};
+  cats.forEach(c => { const m = c.macro_categoria || 'Outros'; if (!byMacro[m]) byMacro[m] = []; byMacro[m].push(c); });
+
+  wrap.innerHTML = macros.map(m => `
+    <div style="margin-bottom:14px;">
+      <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#9b7cff;margin-bottom:8px;">${m}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${byMacro[m].map(c => {
+          const checked = selecionados.includes(c.segmento);
+          return `<label id="cad-seg-lbl-${c.id}"
+            style="display:flex;align-items:center;gap:7px;background:${checked?'#ede9fe':'#f9f6ff'};
+                   border:1.5px solid ${checked?'#6633ee':'#e8d9ff'};border-radius:8px;
+                   padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:#333;
+                   transition:all .15s;"
+            onmouseenter="this.style.borderColor='#6633ee'"
+            onmouseleave="if(!document.getElementById('cad-seg-${c.id}').checked)this.style.borderColor='#e8d9ff';else this.style.borderColor='#6633ee'">
+            <input type="checkbox" id="cad-seg-${c.id}" value="${c.segmento}"
+                   ${checked?'checked':''} style="accent-color:#6633ee;width:14px;height:14px;"
+                   onchange="const l=document.getElementById('cad-seg-lbl-${c.id}');l.style.background=this.checked?'#ede9fe':'#f9f6ff';l.style.borderColor=this.checked?'#6633ee':'#e8d9ff';">
+            ${c.segmento}
+          </label>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function buscarCEP() {
+  const cep = (document.getElementById('cad-cep')?.value || '').replace(/\D/g,'');
+  if (cep.length !== 8) return;
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if (d.erro) return;
+    const map = { 'cad-logradouro': d.logradouro, 'cad-bairro': d.bairro, 'cad-cidade': d.localidade, 'cad-uf': d.uf };
+    for (const [id, val] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el && val) { el.value = val; el.readOnly = true; }
+    }
+    document.getElementById('cad-numero')?.focus();
+  } catch {}
+}
+
+function toggleDocUpload(tipo) {
+  const flag    = document.getElementById(`cad-doc-flag-${tipo}`);
+  const actions = document.getElementById(`cad-doc-actions-${tipo}`);
+  const row     = document.getElementById(`cad-doc-row-${tipo}`);
+  if (!flag || !actions) return;
+  actions.style.display = flag.checked ? 'flex' : 'none';
+  if (row) row.style.background = flag.checked ? '#f0ebff' : '';
+  if (row) row.style.borderColor = flag.checked ? '#c4b5fd' : '#f0ebff';
+}
+
+async function uploadDocCadastro(tipo, inputEl) {
+  const file = inputEl?.files?.[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { Toast.warning('Arquivo muito grande', 'O limite é 10 MB.'); return; }
+  const cnpj = (CNPJ || '').replace(/\D/g,'');
+  const statusEl = document.getElementById(`cad-doc-status-${tipo}`);
+  const lblEl    = document.getElementById(`cad-doc-upload-lbl-${tipo}`);
+  if (statusEl) statusEl.innerHTML = `<span style="color:#6633ee;font-size:11.5px;"><i class="fa-solid fa-spinner fa-spin"></i> Enviando...</span>`;
+  if (lblEl) { lblEl.style.opacity='.5'; lblEl.style.pointerEvents='none'; }
+  try {
+    const ts  = Date.now();
+    const ext = file.name.split('.').pop().toLowerCase();
+    const url = await SbStorage.upload('uploads', `cadastros/${cnpj}/${tipo}_${ts}.${ext}`, file);
+    _docsUrls[tipo] = url;
+    if (statusEl) statusEl.innerHTML = `<span style="color:#059669;font-size:11.5px;"><i class="fa-solid fa-circle-check"></i> ${file.name.length>24?file.name.substring(0,22)+'…':file.name}</span>`;
+    if (lblEl) { lblEl.innerHTML='<i class="fa-solid fa-rotate-right"></i> Substituir'; lblEl.style.opacity='1'; lblEl.style.pointerEvents=''; }
+  } catch {
+    if (statusEl) statusEl.innerHTML = `<span style="color:#e11d48;font-size:11.5px;"><i class="fa-solid fa-triangle-exclamation"></i> Erro — tente novamente</span>`;
+    if (lblEl) { lblEl.style.opacity='1'; lblEl.style.pointerEvents=''; }
+    delete _docsUrls[tipo];
+  }
+}
+
+async function salvarCadastro() {
+  const v = id => document.getElementById(id)?.value?.trim();
+  const razao    = v('cad-razao');
+  const comEmail = v('cad-com-email');
+  const finEmail = v('cad-fin-email');
+  const fisEmail = v('cad-fis-email');
+  const cidade   = v('cad-cidade');
+  const uf       = v('cad-uf');
+
+  if (!razao)    { Toast.warning('Campo obrigatório', 'Informe a Razão Social.'); return; }
+  if (!comEmail) { Toast.warning('Campo obrigatório', 'Informe o e-mail do contato comercial.'); return; }
+  if (!finEmail) { Toast.warning('Campo obrigatório', 'Informe o e-mail do contato financeiro.'); return; }
+  if (!fisEmail) { Toast.warning('Campo obrigatório', 'Informe o e-mail do contato fiscal.'); return; }
+  if (!cidade)   { Toast.warning('Campo obrigatório', 'Informe a cidade.'); return; }
+  if (!uf || uf.length !== 2) { Toast.warning('Campo obrigatório', 'Informe a UF com 2 letras.'); return; }
+
+  const segmentos = [];
+  document.querySelectorAll('[id^="cad-seg-"]:checked').forEach(el => { if (el.value) segmentos.push(el.value); });
+  if (!segmentos.length) { Toast.warning('Selecione ao menos um segmento', 'Indique em quais categorias deseja participar de cotações.'); return; }
+
+  const btn = document.getElementById('cad-btn-submit');
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
+  try {
+    const cnpj = (CNPJ || '').replace(/\D/g,'');
+    await Api.post('/api/fornecedor/cadastro', {
+      cnpj,
+      razao_social:              razao,
+      endereco_cep:              v('cad-cep')?.replace(/\D/g,'') || null,
+      endereco_logradouro:       v('cad-logradouro') || null,
+      endereco_numero:           v('cad-numero')     || null,
+      endereco_complemento:      v('cad-complemento')|| null,
+      endereco_bairro:           v('cad-bairro')     || null,
+      endereco_cidade:           cidade,
+      endereco_uf:               uf.toUpperCase(),
+      contato_comercial_email:   comEmail,
+      contato_comercial_tel:     v('cad-com-tel') || null,
+      contato_financeiro_email:  finEmail,
+      contato_financeiro_tel:    v('cad-fin-tel') || null,
+      contato_fiscal_email:      fisEmail,
+      contato_fiscal_tel:        v('cad-fis-tel') || null,
+      segmentos_interesse:       segmentos,
+      doc_cartao_cnpj:           _docsUrls['cartao_cnpj']  || null,
+      doc_alvara_funcionamento:  _docsUrls['alvara_func']  || null,
+      doc_alvara_sanitario:      _docsUrls['alvara_san']   || null,
+      doc_iso_9001:              _docsUrls['iso_9001']      || null,
+      doc_ultima_alteracao:      _docsUrls['ult_alter']    || null,
+    });
+    Toast.success('Cadastro salvo!', 'Bem-vindo(a) à plataforma Vendemmia!');
+    await carregarRequisicao();
+  } catch (err) {
+    Toast.error('Erro ao salvar cadastro', err.message || 'Verifique os dados e tente novamente.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Salvar Cadastro e Continuar';
+  }
+}
+
 /* ── Lookup ─────────────────────────────────────────────────── */
 async function lookupCotacao() {
   const cnpjRaw = document.getElementById('lookup-cnpj')?.value?.trim();
@@ -794,7 +1267,7 @@ async function lookupCotacao() {
   }
   REQ_ID = reqId;
   CNPJ   = cnpjRaw.replace(/\D/g,'');
-  await carregarRequisicao();
+  await verificarCadastro();
 }
 
 function showLookupErr(msg) {
@@ -873,10 +1346,41 @@ async function carregarRequisicao() {
     }
 
     setState('state-form');
+
+    // Busca cotação anterior deste fornecedor
+    const cnpjClean = (CNPJ || '').replace(/\D/g,'');
+    if (cnpjClean) {
+      try {
+        _cotacaoExistente = await Api.get(`/api/cotacao/minha?id=${REQ_ID}&cnpj=${cnpjClean}`);
+      } catch { _cotacaoExistente = null; }
+    }
+
     renderItensPrecos();
 
+    // Banner cotação anterior
+    if (_cotacaoExistente) {
+      const bannerEl = document.getElementById('cotacao-anterior-banner');
+      if (bannerEl) {
+        bannerEl.style.display = '';
+        // Pre-fill campos gerais
+        const fields = {
+          'f-prazo':     _cotacaoExistente.prazo_entrega_dias,
+          'f-pagamento': _cotacaoExistente.pagamento,
+          'f-validade':  _cotacaoExistente.validade_dias,
+          'f-obs':       _cotacaoExistente.observacoes,
+        };
+        for (const [id, val] of Object.entries(fields)) {
+          const el = document.getElementById(id);
+          if (el && val != null && val !== '') el.value = val;
+        }
+        const freteEl = document.getElementById('f-frete');
+        if (freteEl && _cotacaoExistente.frete_incluso != null) freteEl.checked = !!_cotacaoExistente.frete_incluso;
+        const impEl = document.getElementById('f-imposto');
+        if (impEl && _cotacaoExistente.imposto_incluso != null) impEl.checked = !!_cotacaoExistente.imposto_incluso;
+      }
+    }
+
     // Busca razão social
-    const cnpjClean = (CNPJ || '').replace(/\D/g,'');
     buscarRazaoSocial(cnpjClean);
 
   } catch {
@@ -892,7 +1396,17 @@ function renderItensPrecos() {
     wrap.innerHTML = `<div style="font-size:13px;color:#999;padding:8px 0;">Sem itens detalhados para esta requisição.</div>`;
     return;
   }
-  wrap.innerHTML = _itensCotacao.map((it, i) => `
+  // Pre-fill de preços da cotação anterior
+  let precosPrev = [];
+  if (_cotacaoExistente?.itens_precos) {
+    try { precosPrev = JSON.parse(_cotacaoExistente.itens_precos); } catch {}
+  } else if (_cotacaoExistente?.preco_unitario && _itensCotacao.length === 1) {
+    precosPrev = [_cotacaoExistente.preco_unitario];
+  }
+
+  wrap.innerHTML = _itensCotacao.map((it, i) => {
+    const prevVal = precosPrev[i] ? Number(precosPrev[i]).toFixed(2) : '';
+    return `
     <div class="item-price-row">
       <div>
         <div class="item-price-label">${it.descricao}</div>
@@ -903,10 +1417,12 @@ function renderItensPrecos() {
         <input type="number" class="item-price-input" id="preco-item-${i}"
                placeholder="0,00" min="0" step="0.01"
                oninput="calcularTotal()"
-               data-qty="${it.quantidade}">
+               data-qty="${it.quantidade}"
+               value="${prevVal}">
         <div class="item-price-subtotal" id="sub-item-${i}">Subtotal: —</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   calcularTotal();
 }
 
@@ -1111,7 +1627,7 @@ function abrirCotacaoHistorico(reqId, cnpj) {
   fecharHistorico();
   REQ_ID = reqId;
   CNPJ   = cnpj;
-  carregarRequisicao();
+  verificarCadastro();
 }
 
 function fecharHistorico() {
@@ -1120,8 +1636,9 @@ function fecharHistorico() {
 
 /* ── Init ───────────────────────────────────────────────────── */
 (function init() {
-  if (REQ_ID) carregarRequisicao();
-  else        setState('state-lookup');
+  if (REQ_ID && CNPJ) verificarCadastro();
+  else if (REQ_ID)    carregarRequisicao();
+  else                setState('state-lookup');
 })();
 </script>
 </body>

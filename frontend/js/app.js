@@ -19,6 +19,7 @@ const App = {
     catalogo:       'Catálogo de Itens',
     contratos:      'Gestão de Contas Fixas',
     consulta:       'Consulta de Requisições',
+    estoque:        'Controle de Estoque',
     configuracoes:  'Configurações',
   },
 
@@ -34,6 +35,7 @@ const App = {
     catalogo:       'Compras Estratégicas',
     contratos:      'Compras Estratégicas & Fixas',
     consulta:       'Compras Estratégicas',
+    estoque:        'Compras Estratégicas',
     configuracoes:  'Administração',
   },
 

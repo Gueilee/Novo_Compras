@@ -80,8 +80,8 @@ window.Pages.dashboard = {
       </div>
 
       <!-- KPI Cards -->
-      <div class="grid-4 mb-4" id="dash-kpis">
-        ${Skeleton.kpiGrid(4)}
+      <div class="grid-3 mb-4" id="dash-kpis">
+        ${Skeleton.kpiGrid(6)}
       </div>
 
       <!-- Charts Row 1 -->
@@ -326,6 +326,24 @@ window.Pages.dashboard = {
           <i class="fa-solid fa-building text-muted"></i> ${(dados.unidades || []).map(u => u.unidade).join(', ')}
           <span class="kpi-drill"><i class="fa-solid fa-arrow-up-right-from-square"></i> Por unidade</span>
         </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-card-top">
+          <div class="kpi-icon-box" style="background:rgba(1,225,142,.12);color:#01a864;"><i class="fa-solid fa-piggy-bank"></i></div>
+          <span class="kpi-trend-tag kpi-trend-up"><i class="fa-solid fa-arrow-down"></i> Negociação</span>
+        </div>
+        <div class="kpi-value" style="color:#01a864;">${Fmt.currency(dados.kpis.saving_valor || 0)}</div>
+        <div class="kpi-label">Savings (Valor)</div>
+        <div class="kpi-meta"><i class="fa-solid fa-circle-info text-muted"></i> Diferença entre maior cotação e valor fechado</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-card-top">
+          <div class="kpi-icon-box" style="background:rgba(1,225,142,.12);color:#01a864;"><i class="fa-solid fa-chart-line"></i></div>
+          <span class="kpi-trend-tag kpi-trend-up"><i class="fa-solid fa-percent"></i> Saving</span>
+        </div>
+        <div class="kpi-value" style="color:#01a864;">${(dados.kpis.saving_pct || 0).toFixed(1)}%</div>
+        <div class="kpi-label">Savings (%)</div>
+        <div class="kpi-meta"><i class="fa-solid fa-circle-info text-muted"></i> % economizado sobre o maior preço recebido</div>
       </div>
     `;
 

@@ -393,6 +393,12 @@ window.Pages.intake = {
       return;
     }
 
+    const semCategoria = itens.some(i => !i.segmento);
+    if (semCategoria) {
+      Toast.warning('Campo obrigatório', 'Selecione a categoria de todos os itens antes de enviar.');
+      return;
+    }
+
     const confirmado = await Modal.confirm({
       icon: 'info',
       title: 'Enviar Requisição?',

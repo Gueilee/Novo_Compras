@@ -1122,6 +1122,9 @@ window.Pages.pedidos = {
           </div><!-- /body -->
 
           <div class="req-drawer-footer">
+            <button class="btn btn-outline btn-sm" id="req-copy-link-btn" title="Copiar link desta requisição" style="margin-right:auto;">
+              <i class="fa-solid fa-link"></i> Copiar Link
+            </button>
             <button class="btn btn-outline" id="req-cancel-btn">Cancelar</button>
             <button class="btn btn-primary" id="req-save-btn" data-id="${req.id}">
               <i class="fa-solid fa-floppy-disk"></i> Salvar Alterações
@@ -1166,6 +1169,14 @@ window.Pages.pedidos = {
     document.getElementById('req-cancel-btn')?.addEventListener('click', close);
     document.getElementById('req-backdrop')?.addEventListener('click', e => {
       if (e.target === document.getElementById('req-backdrop')) close();
+    });
+
+    // Copy link
+    document.getElementById('req-copy-link-btn')?.addEventListener('click', () => {
+      const url = `${location.origin}${location.pathname}?req=${req.id}`;
+      navigator.clipboard.writeText(url)
+        .then(() => Toast.success('Link copiado!', `Link da Req. #${req.id} copiado para a área de transferência.`))
+        .catch(() => Toast.error('Não foi possível copiar o link.'));
     });
 
     // Save
