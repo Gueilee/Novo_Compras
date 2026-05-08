@@ -358,7 +358,7 @@ window.Pages.entregas = {
             `}
             <button class="btn btn-ghost btn-sm"
                     style="white-space:nowrap;justify-content:center;"
-                    onclick="App.navigate('consulta')">
+                    onclick="Pages.consulta._targetId=${r.id};App.navigate('consulta')">
               <i class="fa-solid fa-eye"></i>&nbsp; Ver Detalhes
             </button>
           </div>

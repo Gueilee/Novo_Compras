@@ -219,6 +219,8 @@ window.Pages.consulta = {
   /* ════════════════════════════════════════════════════════
      INIT
   ════════════════════════════════════════════════════════ */
+  _targetId: null,  // preenchido externamente para auto-abrir um detalhe
+
   async init() {
     this._page    = 1;
     this._state   = 'list';
@@ -232,6 +234,13 @@ window.Pages.consulta = {
     } catch { this._unidades = []; }
 
     await this._carregarLista();
+
+    // Se outra tela pediu para abrir um req diretamente
+    if (this._targetId) {
+      const tid = this._targetId;
+      this._targetId = null;
+      this._abrirDetalhe(tid);
+    }
   },
 
   /* ════════════════════════════════════════════════════════

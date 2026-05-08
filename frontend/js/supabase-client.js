@@ -504,17 +504,29 @@ async function _salvarCotacao(body) {
 }
 
 async function _selecionarFornecedor(id, body) {
-  const cnpjN = _normCnpj(body.cnpj_fornecedor);
+  const cnpjN   = _normCnpj(body.cnpj_fornecedor);
+  const cnpjFmt = _fmtCnpj(cnpjN);
+
+  // Reset todos os lances, depois marca o vencedor nos dois formatos possíveis
   await _sb.from('lances_fornecedor').update({ selecionado: 0 }).eq('id_requisicao', id);
   await _sb.from('lances_fornecedor').update({ selecionado: 1 })
-    .eq('id_requisicao', id).eq('cnpj_fornecedor', cnpjN);
-  const { data: lance } = await _sb.from('lances_fornecedor')
-    .select('preco_unitario')  // No FK join — lookup separately
-    .eq('id_requisicao', id).eq('cnpj_fornecedor', cnpjN).maybeSingle();
-  // Lookup fornecedor name by normalizing stored CNPJs for comparison
+    .eq('id_requisicao', id)
+    .or(`cnpj_fornecedor.eq.${cnpjN},cnpj_fornecedor.eq.${cnpjFmt}`);
+
+  // Busca o lance com maior preço entre os dois formatos (evita maybeSingle em duplicatas)
+  const { data: lances } = await _sb.from('lances_fornecedor')
+    .select('preco_unitario')
+    .eq('id_requisicao', id)
+    .or(`cnpj_fornecedor.eq.${cnpjN},cnpj_fornecedor.eq.${cnpjFmt}`)
+    .order('preco_unitario', { ascending: false })
+    .limit(1);
+  const lance = lances?.[0];
+
+  // Nome do fornecedor comparando CNPJ normalizado
   const { data: allForns } = await _sb.from('fornecedores').select('cnpj,razao_social');
   const fornRec = (allForns || []).find(f => _normCnpj(f.cnpj) === cnpjN);
-  const nomeForn = fornRec?.razao_social || _fmtCnpj(cnpjN);
+  const nomeForn = fornRec?.razao_social || cnpjFmt;
+
   await _sb.from('requisicoes').update({
     status: 'Aguardando Entrega', fornecedor: nomeForn,
     valor_fechado: lance?.preco_unitario || 0,

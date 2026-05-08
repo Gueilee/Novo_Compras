@@ -682,8 +682,8 @@ window.Pages.contratos = {
                 </div>
                 <div>
                   <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:.06em;">Plano YTD</div>
-                  <div style="font-size:17px;font-weight:800;color:var(--text);">${Fmt.currency(planoYTD)}</div>
-                  <div style="font-size:10.5px;color:var(--text-subtle);margin-top:2px;">${mesRef} ${mesRef===1?'mês':'meses'} orçados</div>
+                  <div id="cf-det-plano-ytd" style="font-size:17px;font-weight:800;color:var(--text);">—</div>
+                  <div id="cf-det-plano-ytd-sub" style="font-size:10.5px;color:var(--text-subtle);margin-top:2px;">calculando...</div>
                 </div>
                 <div>
                   <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:.06em;">Real YTD</div>
@@ -751,14 +751,35 @@ window.Pages.contratos = {
       const lancamentos = await Api.get(`/api/contas-fixas/${id}/lancamentos?ano=${this._anoRef}`);
 
       // ── YTD: Real YTD e % Saving ────────────────────────────────
-      const mesRef  = Pages.contratos._ytdMeses();
-      const conta   = Pages.contratos._contas.find(x => x.id === id);
-      const realYTD = lancamentos
-        .filter(l => l.mes <= mesRef)
-        .reduce((s, l) => s + l.valor, 0);
-      const planoYTD = mesRef > 0 ? (conta?.valor_anual || 0) / 12 * mesRef : 0;
+      const conta    = Pages.contratos._contas.find(x => x.id === id);
+      const orcados  = conta?.orcado_mensais || {};
+      const vMensal  = parseFloat(conta?.valor_mensal || 0);
+
+      // Filtra lançamentos até o mês YTD
+      const mesRef   = Pages.contratos._ytdMeses();
+      const lancsYTD = lancamentos.filter(l => l.mes <= mesRef);
+
+      // Real YTD = soma dos pagamentos até o mês atual
+      const realYTD  = lancsYTD.reduce((s, l) => s + l.valor, 0);
+
+      // Plano YTD = soma do orçado de cada mês que tem pagamento real
+      // Se orcado_mensais não estiver definido para o mês, usa valor_mensal como fallback
+      const mesesComPagamento = [...new Set(lancsYTD.map(l => l.mes))];
+      const planoYTD = mesesComPagamento.reduce((s, m) => {
+        const orcadoMes = parseFloat(orcados[m] || orcados[String(m)] || 0);
+        return s + (orcadoMes > 0 ? orcadoMes : vMensal);
+      }, 0);
+
       const saving   = planoYTD > 0 ? (planoYTD - realYTD) / planoYTD * 100 : 0;
       const savingColor = saving >= 0 ? 'var(--success-deeper,#007a50)' : 'var(--accent)';
+
+      const planoYTDEl = document.getElementById('cf-det-plano-ytd');
+      if (planoYTDEl) { planoYTDEl.textContent = Fmt.currency(planoYTD); }
+      const planoYTDSubEl = document.getElementById('cf-det-plano-ytd-sub');
+      if (planoYTDSubEl) {
+        const n = mesesComPagamento.length;
+        planoYTDSubEl.textContent = `${n} ${n === 1 ? 'mês' : 'meses'} com lançamento`;
+      }
 
       const realYTDEl = document.getElementById('cf-det-real-ytd');
       if (realYTDEl) { realYTDEl.textContent = Fmt.currency(realYTD); }
