@@ -3,6 +3,8 @@ window.Pages = window.Pages || {};
 
 window.Pages.aprovacoes = {
   title: 'Painel de Requisições',
+  _todos: [],
+  _filtros: { busca: '', unidades: [] },
 
   render() {
     return `
@@ -19,6 +21,27 @@ window.Pages.aprovacoes = {
             <i class="fa-solid fa-rotate-right"></i> Atualizar
           </button>
         </div>
+      </div>
+
+      <!-- Filtros -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+                  padding:14px 20px;background:#fff;
+                  border:1px solid var(--border);border-radius:var(--r-lg);
+                  margin-bottom:20px;">
+        <div style="position:relative;flex:1;min-width:180px;">
+          <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:10px;top:50%;
+             transform:translateY(-50%);color:var(--text-muted);font-size:12px;pointer-events:none;"></i>
+          <input type="text" id="aprov-busca" class="form-control"
+                 placeholder="Buscar #ID ou solicitante..."
+                 style="padding-left:32px;height:36px;font-size:13px;"
+                 oninput="Pages.aprovacoes._onBusca(this.value)">
+        </div>
+        <div id="aprov-unidade-wrap"></div>
+        <button id="aprov-limpar-btn" class="btn btn-ghost btn-sm"
+                style="display:none;color:var(--accent);height:36px;"
+                onclick="Pages.aprovacoes._limparFiltros()">
+          <i class="fa-solid fa-xmark"></i> Limpar
+        </button>
       </div>
 
       <!-- Lista de pendências -->
@@ -218,6 +241,9 @@ window.Pages.aprovacoes = {
 
   /* ── init ──────────────────────────────────────────────────── */
   async init() {
+    this._filtros = { busca: '', unidades: [] };
+    const bEl = document.getElementById('aprov-busca');
+    if (bEl) bEl.value = '';
     await this._loadPendencias();
     refreshNotifBadge();
   },
@@ -231,39 +257,23 @@ window.Pages.aprovacoes = {
     lista.innerHTML = `<div style="padding:40px;text-align:center;"><div class="spinner"></div></div>`;
 
     try {
-      const dados  = await Api.get('/api/aprovacoes/pendentes');
-      const pedidos = dados.pedidos || [];
+      const dados = await Api.get('/api/aprovacoes/pendentes');
+      this._todos = dados.pedidos || [];
 
       if (countEl) {
-        countEl.textContent = `${pedidos.length} pendente${pedidos.length !== 1 ? 's' : ''}`;
-        countEl.style.display = pedidos.length > 0 ? '' : 'none';
+        countEl.textContent = `${this._todos.length} pendente${this._todos.length !== 1 ? 's' : ''}`;
+        countEl.style.display = this._todos.length > 0 ? '' : 'none';
       }
 
-      if (pedidos.length === 0) {
-        lista.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon" style="background:var(--success-surface);color:var(--success-dark);">
-              <i class="fa-solid fa-circle-check"></i>
-            </div>
-            <p class="empty-title">Tudo em dia!</p>
-            <p class="empty-desc">Não há requisições aguardando sua aprovação no momento.</p>
-          </div>`;
-        return;
+      // Populate unidade multi-select
+      const unidades = [...new Set(this._todos.map(p => p.unidade).filter(Boolean))].sort();
+      const wrap = document.getElementById('aprov-unidade-wrap');
+      if (wrap) {
+        wrap.innerHTML = msHtml('aprov-ms-unidade', unidades, this._filtros.unidades, 'Unidade',
+          "Pages.aprovacoes._toggleFilter('unidades',");
       }
 
-      lista.innerHTML = pedidos.map(p => this._htmlCard(p)).join('');
-
-      // Attach listeners via delegation
-      lista.addEventListener('click', e => {
-        const btn = e.target.closest('[data-aprov-action]');
-        if (!btn) return;
-        const id     = parseInt(btn.dataset.id);
-        const unid   = btn.dataset.unidade || '';
-        const action = btn.dataset.aprovAction;
-        if (action === 'detalhe')  this._openDetalhe(id);
-        if (action === 'aprovar')  this.aprovar(id, unid);
-        if (action === 'reprovar') this.reprovar(id);
-      });
+      this._renderLista();
 
     } catch {
       lista.innerHTML = `
@@ -273,6 +283,102 @@ window.Pages.aprovacoes = {
           <p class="empty-desc">Verifique se a API está online.</p>
         </div>`;
     }
+  },
+
+  /* ── Render filtered list ──────────────────────────────────── */
+  _renderLista() {
+    const lista = document.getElementById('aprov-lista');
+    if (!lista) return;
+
+    const { busca, unidades } = this._filtros;
+    const b = busca.toLowerCase();
+
+    const itens = this._todos.filter(p => {
+      if (b && !`#${p.id_pedido} ${p.solicitante || ''} ${p.comprador || ''} ${p.unidade || ''}`.toLowerCase().includes(b)) return false;
+      if (unidades.length && !unidades.includes(p.unidade)) return false;
+      return true;
+    });
+
+    if (this._todos.length === 0) {
+      lista.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon" style="background:var(--success-surface);color:var(--success-dark);">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <p class="empty-title">Tudo em dia!</p>
+          <p class="empty-desc">Não há requisições aguardando sua aprovação no momento.</p>
+        </div>`;
+      return;
+    }
+
+    if (itens.length === 0) {
+      lista.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon"><i class="fa-solid fa-filter"></i></div>
+          <p class="empty-title">Nenhum resultado</p>
+          <p class="empty-desc">Nenhuma requisição corresponde aos filtros aplicados.</p>
+        </div>`;
+      return;
+    }
+
+    lista.innerHTML = itens.map(p => this._htmlCard(p)).join('');
+
+    lista.onclick = e => {
+      const btn = e.target.closest('[data-aprov-action]');
+      if (!btn) return;
+      const id     = parseInt(btn.dataset.id);
+      const unid   = btn.dataset.unidade || '';
+      const action = btn.dataset.aprovAction;
+      if (action === 'detalhe')  this._openDetalhe(id);
+      if (action === 'aprovar')  this.aprovar(id, unid);
+      if (action === 'reprovar') this.reprovar(id);
+    };
+  },
+
+  /* ── Filter helpers ────────────────────────────────────────── */
+  _toggleFilter(key, val, checked) {
+    const arr = this._filtros[key];
+    if (checked) { if (!arr.includes(val)) arr.push(val); }
+    else { const i = arr.indexOf(val); if (i > -1) arr.splice(i, 1); }
+
+    const n = arr.length;
+    const ph = key === 'unidades' ? 'Unidade' : key;
+    const lbl = n === 0 ? ph : n === 1 ? arr[0] : `${n} selecionados`;
+    const msId = key === 'unidades' ? 'aprov-ms-unidade' : `aprov-ms-${key}`;
+    const wrap = document.getElementById(msId);
+    if (wrap) {
+      const lblEl = wrap.querySelector('.ms-lbl');
+      if (lblEl) lblEl.textContent = lbl;
+      wrap.classList.toggle('ms-has-val', n > 0);
+    }
+
+    this._atualizarLimparBtn();
+    this._renderLista();
+  },
+
+  _onBusca(val) {
+    this._filtros.busca = val.trim();
+    this._atualizarLimparBtn();
+    this._renderLista();
+  },
+
+  _limparFiltros() {
+    this._filtros = { busca: '', unidades: [] };
+    const bEl = document.getElementById('aprov-busca');
+    if (bEl) bEl.value = '';
+    const unidades = [...new Set(this._todos.map(p => p.unidade).filter(Boolean))].sort();
+    const wrap = document.getElementById('aprov-unidade-wrap');
+    if (wrap) {
+      wrap.innerHTML = msHtml('aprov-ms-unidade', unidades, [], 'Unidade',
+        "Pages.aprovacoes._toggleFilter('unidades',");
+    }
+    this._atualizarLimparBtn();
+    this._renderLista();
+  },
+
+  _atualizarLimparBtn() {
+    const btn = document.getElementById('aprov-limpar-btn');
+    if (btn) btn.style.display = (this._filtros.busca || this._filtros.unidades.length) ? '' : 'none';
   },
 
   /* ── Build card HTML ───────────────────────────────────────── */

@@ -10,7 +10,7 @@ window.Pages.entregas = {
   _data: null,
   _tab: 'pendentes',
   _busca: '',
-  _unidade: '',
+  _unidades: [],
 
   render() {
     return `
@@ -149,10 +149,7 @@ window.Pages.entregas = {
                    style="padding-left:32px;height:36px;font-size:13px;"
                    oninput="Pages.entregas._onBusca(this.value)">
           </div>
-          <select id="ent-unidade" class="form-control" style="height:36px;font-size:13px;width:auto;min-width:160px;"
-                  onchange="Pages.entregas._onUnidade(this.value)">
-            <option value="">Todas as unidades</option>
-          </select>
+          <div id="ent-unidade-wrap"></div>
           <button id="ent-limpar-btn" class="btn btn-ghost btn-sm" style="display:none;color:var(--accent);height:36px;"
                   onclick="Pages.entregas._limparFiltros()">
             <i class="fa-solid fa-xmark"></i> Limpar
@@ -172,8 +169,8 @@ window.Pages.entregas = {
   },
 
   async init() {
-    this._busca   = '';
-    this._unidade = '';
+    this._busca    = '';
+    this._unidades = [];
     await this.carregarDados();
   },
 
@@ -210,13 +207,12 @@ window.Pages.entregas = {
     if (bp) bp.textContent = pendentes.length;
     if (br) br.textContent = recebidos.length;
 
-    // Popula select de unidades com base nos dados carregados
+    // Popula multi-select de unidades com base nos dados carregados
     const unidades = [...new Set((this._data || []).map(r => r.unidade).filter(Boolean))].sort();
-    const sel = document.getElementById('ent-unidade');
-    if (sel && unidades.length) {
-      const prev = sel.value;
-      sel.innerHTML = '<option value="">Todas as unidades</option>' +
-        unidades.map(u => `<option value="${u}" ${u === prev ? 'selected' : ''}>${u}</option>`).join('');
+    const wrap = document.getElementById('ent-unidade-wrap');
+    if (wrap) {
+      wrap.innerHTML = msHtml('ent-ms-unidade', unidades, this._unidades, 'Unidade',
+        "Pages.entregas._toggleUnidade(");
     }
 
     const el = document.getElementById('ent-kpis');
@@ -279,7 +275,7 @@ window.Pages.entregas = {
     const items = (this._data || []).filter(r => {
       if (this._tab === 'pendentes' ? r.status !== 'Aguardando Entrega' : r.status !== 'Recebido') return false;
       if (b && !`#${r.id} ${r.fornecedor || ''} ${r.itens_preview || ''}`.toLowerCase().includes(b)) return false;
-      if (this._unidade && r.unidade !== this._unidade) return false;
+      if (this._unidades.length && !this._unidades.includes(r.unidade)) return false;
       return true;
     });
 
@@ -408,26 +404,41 @@ window.Pages.entregas = {
     this._renderList();
   },
 
-  _onUnidade(val) {
-    this._unidade = val;
+  _toggleUnidade(val, checked) {
+    if (checked) { if (!this._unidades.includes(val)) this._unidades.push(val); }
+    else { const i = this._unidades.indexOf(val); if (i > -1) this._unidades.splice(i, 1); }
+
+    const n = this._unidades.length;
+    const lbl = n === 0 ? 'Unidade' : n === 1 ? this._unidades[0] : `${n} selecionados`;
+    const wrap = document.getElementById('ent-ms-unidade');
+    if (wrap) {
+      const lblEl = wrap.querySelector('.ms-lbl');
+      if (lblEl) lblEl.textContent = lbl;
+      wrap.classList.toggle('ms-has-val', n > 0);
+    }
+
     this._atualizarLimparBtn();
     this._renderList();
   },
 
   _limparFiltros() {
-    this._busca   = '';
-    this._unidade = '';
+    this._busca    = '';
+    this._unidades = [];
     const bEl = document.getElementById('ent-busca');
-    const uEl = document.getElementById('ent-unidade');
     if (bEl) bEl.value = '';
-    if (uEl) uEl.value = '';
+    const unidades = [...new Set((this._data || []).map(r => r.unidade).filter(Boolean))].sort();
+    const wrap = document.getElementById('ent-unidade-wrap');
+    if (wrap) {
+      wrap.innerHTML = msHtml('ent-ms-unidade', unidades, [], 'Unidade',
+        "Pages.entregas._toggleUnidade(");
+    }
     this._atualizarLimparBtn();
     this._renderList();
   },
 
   _atualizarLimparBtn() {
     const btn = document.getElementById('ent-limpar-btn');
-    if (btn) btn.style.display = (this._busca || this._unidade) ? '' : 'none';
+    if (btn) btn.style.display = (this._busca || this._unidades.length) ? '' : 'none';
   },
 
   abrirModal(id) {

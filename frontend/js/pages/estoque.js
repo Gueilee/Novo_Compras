@@ -77,6 +77,9 @@ window.Pages.estoque = {
   },
 
   async init() {
+    this._busca = '';
+    const bEl = document.getElementById('est-busca');
+    if (bEl) bEl.value = '';
     try {
       this._itens = await Api.get('/api/estoque');
       this._renderTabela();

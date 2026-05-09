@@ -151,7 +151,7 @@ window.Pages.sourcing = {
     this._pedidoSelecionado = null;
     this._pedidoInfo = null;
     this._todosPedidos = [];
-    this._filtroSourcing = { busca: '', status: '' };
+    this._filtroSourcing = { busca: '', statuses: [] };
     // Carrega segmentos em background
     Api.get('/api/sourcing/segmentos').then(data => {
       this._segmentos = data || [];
