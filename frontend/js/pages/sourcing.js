@@ -10,7 +10,7 @@ window.Pages.sourcing = {
   _segmentoAtual: null,
   _segmentos: [],
   _todosPedidos: [],
-  _filtroSourcing: { busca: '', status: '' },
+  _filtroSourcing: { busca: '', statuses: [] },
 
   render() {
     return `
@@ -187,10 +187,10 @@ window.Pages.sourcing = {
   _renderPedidosList() {
     const container = document.getElementById('sourcing-pedidos');
     if (!container) return;
-    const { busca, status } = this._filtroSourcing;
+    const { busca, statuses } = this._filtroSourcing;
     const b = busca.toLowerCase();
     const filtered = this._todosPedidos.filter(p => {
-      if (status && p.status !== status) return false;
+      if (statuses.length && !statuses.includes(p.status)) return false;
       if (b && !`#${p.id} ${p.solicitante || ''} ${p.unidade || ''}`.toLowerCase().includes(b)) return false;
       return true;
     });
@@ -204,11 +204,7 @@ window.Pages.sourcing = {
                  value="${busca.replace(/"/g, '&quot;')}" id="sou-busca"
                  oninput="Pages.sourcing._onSouBusca(this.value)">
         </div>
-        <select class="sou-filter-sel" id="sou-status" onchange="Pages.sourcing._onSouStatus(this.value)">
-          <option value="">Todos os status</option>
-          <option value="Aguardando Cotação" ${status === 'Aguardando Cotação' ? 'selected' : ''}>Aguardando Cotação</option>
-          <option value="Em Cotação" ${status === 'Em Cotação' ? 'selected' : ''}>Em Cotação</option>
-        </select>
+        ${msHtml('sou-ms-stat', ['Aguardando Cotação','Em Cotação'], statuses, 'Todos os status', "Pages.sourcing._toggleSouStatus(")}
         <span class="sou-filter-count">${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}</span>
       </div>`;
 
@@ -262,8 +258,9 @@ window.Pages.sourcing = {
     this._renderPedidosList();
   },
 
-  _onSouStatus(val) {
-    this._filtroSourcing.status = val;
+  _toggleSouStatus(val, checked) {
+    const arr = this._filtroSourcing.statuses;
+    this._filtroSourcing.statuses = checked ? [...arr, val] : arr.filter(v => v !== val);
     this._renderPedidosList();
   },
 

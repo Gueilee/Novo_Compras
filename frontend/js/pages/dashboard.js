@@ -5,7 +5,7 @@ window.Pages.dashboard = {
   title:    'Dashboard Analítico',
   subtitle: 'Visão geral de compras',
 
-  _filters: { unidade: '', period: '', mes: '' },
+  _filters: { unidades: [], anos: [], meses: [] },
   _opts:    { unidades: [], anos: [] },
 
   /* ── RENDER ──────────────────────────────────────────────── */
@@ -35,35 +35,17 @@ window.Pages.dashboard = {
 
           <div class="dash-filter-group">
             <label class="dash-filter-lbl">Unidade</label>
-            <select class="dash-filter-sel" id="df-unidade">
-              <option value="">Todas as unidades</option>
-            </select>
+            <div id="df-unidade-wrap"></div>
           </div>
 
           <div class="dash-filter-group">
             <label class="dash-filter-lbl">Ano</label>
-            <select class="dash-filter-sel" id="df-period">
-              <option value="">Todos os anos</option>
-            </select>
+            <div id="df-period-wrap"></div>
           </div>
 
           <div class="dash-filter-group">
             <label class="dash-filter-lbl">Mês</label>
-            <select class="dash-filter-sel" id="df-mes" style="min-width:130px;">
-              <option value="">Todos os meses</option>
-              <option value="01">Janeiro</option>
-              <option value="02">Fevereiro</option>
-              <option value="03">Março</option>
-              <option value="04">Abril</option>
-              <option value="05">Maio</option>
-              <option value="06">Junho</option>
-              <option value="07">Julho</option>
-              <option value="08">Agosto</option>
-              <option value="09">Setembro</option>
-              <option value="10">Outubro</option>
-              <option value="11">Novembro</option>
-              <option value="12">Dezembro</option>
-            </select>
+            <div id="df-mes-wrap"></div>
           </div>
 
           <div id="dash-active-chips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
@@ -173,7 +155,7 @@ window.Pages.dashboard = {
 
   /* ── INIT ────────────────────────────────────────────────── */
   async init() {
-    this._filters = { unidade: '', period: '', mes: '' };
+    this._filters = { unidades: [], anos: [], meses: [] };
     await this._loadData();
     this._bindFilters();
   },
@@ -185,17 +167,14 @@ window.Pages.dashboard = {
   async _loadData() {
     try {
       const p = new URLSearchParams({
-        unidade: this._filters.unidade || '',
-        period:  this._filters.period  || '',
-        mes:     this._filters.mes     || '',
+        unidade: this._filters.unidades.join(','),
+        period:  this._filters.anos.join(','),
+        mes:     this._filters.meses.join(','),
       });
       const dados = await Api.get(`/dashboard-dados?${p}`);
 
-      // Populate filter dropdowns (first load)
-      if (dados.opts) {
-        this._opts = dados.opts;
-        this._populateFilterSelects();
-      }
+      if (dados.opts) this._opts = dados.opts;
+      this._populateFilterSelects();
 
       this._renderKPIs(dados);
       this._renderCharts(dados);
@@ -215,61 +194,53 @@ window.Pages.dashboard = {
   },
 
   _applyFilters() {
-    this._filters.unidade = document.getElementById('df-unidade')?.value || '';
-    this._filters.period  = document.getElementById('df-period')?.value  || '';
-    this._filters.mes     = document.getElementById('df-mes')?.value     || '';
     this._loadData();
   },
 
   _clearFilters() {
-    this._filters = { unidade: '', period: '', mes: '' };
-    const u = document.getElementById('df-unidade'); if (u) u.value = '';
-    const p = document.getElementById('df-period');  if (p) p.value = '';
-    const m = document.getElementById('df-mes');     if (m) m.value = '';
+    this._filters = { unidades: [], anos: [], meses: [] };
     this._renderActiveChips();
+    this._populateFilterSelects();
     this._loadData();
   },
 
+  _toggleDashFilter(key, val, checked) {
+    const arr = this._filters[key] || [];
+    this._filters[key] = checked ? [...arr, val] : arr.filter(v => v !== val);
+    this._populateFilterSelects();
+    this._renderActiveChips();
+  },
+
   _populateFilterSelects() {
-    const selU = document.getElementById('df-unidade');
-    const selP = document.getElementById('df-period');
-    if (selU && selU.options.length <= 1) {
-      this._opts.unidades.forEach(u => {
-        const o = document.createElement('option'); o.value = u; o.textContent = u; selU.appendChild(o);
+    const MES_OPTS = [
+      ['01','Janeiro'],['02','Fevereiro'],['03','Março'],['04','Abril'],
+      ['05','Maio'],['06','Junho'],['07','Julho'],['08','Agosto'],
+      ['09','Setembro'],['10','Outubro'],['11','Novembro'],['12','Dezembro'],
+    ];
+    const wu = document.getElementById('df-unidade-wrap');
+    const wp = document.getElementById('df-period-wrap');
+    const wm = document.getElementById('df-mes-wrap');
+    if (wu) wu.innerHTML = msHtml('df-ms-unid', this._opts.unidades, this._filters.unidades, 'Todas as unidades', "Pages.dashboard._toggleDashFilter('unidades',");
+    if (wp) wp.innerHTML = msHtml('df-ms-ano',  this._opts.anos,     this._filters.anos,     'Todos os anos',     "Pages.dashboard._toggleDashFilter('anos',");
+    if (wm) wm.innerHTML = msHtml('df-ms-mes',  MES_OPTS.map(m => m[0]), this._filters.meses, 'Todos os meses',  "Pages.dashboard._toggleDashFilter('meses',");
+    // Replace month codes with names in the ms-dropdown items
+    if (wm) {
+      wm.querySelectorAll('.ms-item').forEach((lbl, i) => {
+        const span = lbl.querySelector('span');
+        if (span && MES_OPTS[i]) span.textContent = MES_OPTS[i][1];
       });
     }
-    if (selP && selP.options.length <= 1) {
-      this._opts.anos.forEach(a => {
-        const o = document.createElement('option'); o.value = a; o.textContent = a; selP.appendChild(o);
-      });
-    }
-    // Restore active selections
-    if (this._filters.unidade && selU) selU.value = this._filters.unidade;
-    if (this._filters.period  && selP) selP.value = this._filters.period;
-    const selM = document.getElementById('df-mes');
-    if (this._filters.mes && selM) selM.value = this._filters.mes;
   },
 
   _renderActiveChips() {
     const el = document.getElementById('dash-active-chips');
     if (!el) return;
     const chips = [];
-    const MES_NOME = {
-      '01':'Jan','02':'Fev','03':'Mar','04':'Abr','05':'Mai','06':'Jun',
-      '07':'Jul','08':'Ago','09':'Set','10':'Out','11':'Nov','12':'Dez'
-    };
-    if (this._filters.unidade) chips.push(`<span class="dash-chip">${this._filters.unidade}<button onclick="Pages.dashboard._removeFilter('unidade')">✕</button></span>`);
-    if (this._filters.period)  chips.push(`<span class="dash-chip">${this._filters.period}<button onclick="Pages.dashboard._removeFilter('period')">✕</button></span>`);
-    if (this._filters.mes)     chips.push(`<span class="dash-chip">${MES_NOME[this._filters.mes] || this._filters.mes}<button onclick="Pages.dashboard._removeFilter('mes')">✕</button></span>`);
+    const MES_NOME = {'01':'Jan','02':'Fev','03':'Mar','04':'Abr','05':'Mai','06':'Jun','07':'Jul','08':'Ago','09':'Set','10':'Out','11':'Nov','12':'Dez'};
+    this._filters.unidades.forEach(u => chips.push(`<span class="dash-chip">${u}<button onclick="Pages.dashboard._toggleDashFilter('unidades','${u.replace(/'/g,"\\'")}',false);Pages.dashboard._applyFilters()">✕</button></span>`));
+    this._filters.anos.forEach(a => chips.push(`<span class="dash-chip">${a}<button onclick="Pages.dashboard._toggleDashFilter('anos','${a}',false);Pages.dashboard._applyFilters()">✕</button></span>`));
+    this._filters.meses.forEach(m => chips.push(`<span class="dash-chip">${MES_NOME[m]||m}<button onclick="Pages.dashboard._toggleDashFilter('meses','${m}',false);Pages.dashboard._applyFilters()">✕</button></span>`));
     el.innerHTML = chips.join('');
-  },
-
-  _removeFilter(key) {
-    this._filters[key] = '';
-    const map = { unidade: 'df-unidade', period: 'df-period', mes: 'df-mes' };
-    const el = document.getElementById(map[key]); if (el) el.value = '';
-    this._renderActiveChips();
-    this._loadData();
   },
 
   /* ── KPI CARDS ───────────────────────────────────────────── */

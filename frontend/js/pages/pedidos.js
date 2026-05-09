@@ -20,7 +20,7 @@ window.Pages.pedidos = {
   _st: {
     mode:    'list',   // 'list' | 'unidades'
     page:    1,
-    filters: { busca: '', status: '', unidade: '', comprador: '', id_req: '' },
+    filters: { busca: '', statuses: [], unidades: [], compradores: [], id_req: '' },
     sort:    { by: 'id', order: 'desc' },
     total:   0,
     pages:   1,
@@ -406,14 +406,14 @@ window.Pages.pedidos = {
     const s = this._st;
     s.page = 1;
     s.mode = 'list';
-    s.filters = { busca: '', status: '', unidade: '', comprador: '', id_req: '' };
+    s.filters = { busca: '', statuses: [], unidades: [], compradores: [], id_req: '' };
 
     s.sort = { by: 'id', order: 'desc' };
 
     if (this._initialFilter) {
       if (this._initialFilter.mode)    s.mode = this._initialFilter.mode;
-      if (this._initialFilter.status)  s.filters.status = this._initialFilter.status;
-      if (this._initialFilter.unidade) s.filters.unidade = this._initialFilter.unidade;
+      if (this._initialFilter.status)  s.filters.statuses = [this._initialFilter.status];
+      if (this._initialFilter.unidade) s.filters.unidades = [this._initialFilter.unidade];
       this._initialFilter = null;
     }
 
@@ -449,9 +449,9 @@ window.Pages.pedidos = {
     try {
       const p = new URLSearchParams({
         page: s.page, per_page: 20,
-        status:    s.filters.status,
-        unidade:   s.filters.unidade,
-        comprador: s.filters.comprador,
+        status:    s.filters.statuses.join(','),
+        unidade:   s.filters.unidades.join(','),
+        comprador: s.filters.compradores.join(','),
         busca:     s.filters.busca,
         id_req:    s.filters.id_req || 0,
         sort_by:    s.sort.by,
@@ -590,20 +590,12 @@ window.Pages.pedidos = {
   _htmlFilters() {
     const s = this._st;
 
-    const statusOpts = s.opts.statuses.map(st =>
-      `<option value="${st}" ${s.filters.status === st ? 'selected' : ''}>${st}</option>`
-    ).join('');
-    const unidOpts = s.opts.unidades.map(u =>
-      `<option value="${u}" ${s.filters.unidade === u ? 'selected' : ''}>${u}</option>`
-    ).join('');
-    const comprOpts = s.opts.compradores.map(c =>
-      `<option value="${c}" ${s.filters.comprador === c ? 'selected' : ''}>${c}</option>`
-    ).join('');
-
     const sortOpts = this._SORT_OPTS.map((o, i) => {
       const sel = s.sort.by === o.by && s.sort.order === o.order ? 'selected' : '';
       return `<option value="${i}" ${sel}>${o.label}</option>`;
     }).join('');
+
+    const statusOpts = ['abertos', ...s.opts.statuses];
 
     return `
       <div class="ped-filters">
@@ -633,27 +625,17 @@ window.Pages.pedidos = {
 
         <div class="ped-filter-group">
           <div class="ped-filter-label">Status</div>
-          <select class="ped-filter-select" id="pf-status" style="width:165px;">
-            <option value="">Todos os status</option>
-            <option value="abertos" ${s.filters.status === 'abertos' ? 'selected' : ''}>Em aberto</option>
-            ${statusOpts}
-          </select>
+          ${msHtml('pf-ms-stat', statusOpts, s.filters.statuses, 'Todos os status', "Pages.pedidos._toggleMsFilter('statuses',")}
         </div>
 
         <div class="ped-filter-group">
           <div class="ped-filter-label">Unidade</div>
-          <select class="ped-filter-select" id="pf-unidade" style="width:120px;">
-            <option value="">Todas</option>
-            ${unidOpts}
-          </select>
+          ${msHtml('pf-ms-unid', s.opts.unidades, s.filters.unidades, 'Todas', "Pages.pedidos._toggleMsFilter('unidades',")}
         </div>
 
         <div class="ped-filter-group">
           <div class="ped-filter-label">Comprador</div>
-          <select class="ped-filter-select" id="pf-comprador" style="width:140px;">
-            <option value="">Todos</option>
-            ${comprOpts}
-          </select>
+          ${msHtml('pf-ms-comp', s.opts.compradores, s.filters.compradores, 'Todos', "Pages.pedidos._toggleMsFilter('compradores',")}
         </div>
 
         <div class="ped-filter-group">
@@ -726,23 +708,24 @@ window.Pages.pedidos = {
     const s = this._st;
     const f = s.filters;
     const chips = [];
-    if (f.id_req)    chips.push(`<span class="ped-chip" style="background:rgba(59,130,246,.1);color:#3B82F6;border-color:#3B82F6;">Req. #${f.id_req}<button onclick="Pages.pedidos._removeFilter('id_req')" style="color:#3B82F6;"><i class="fa-solid fa-xmark"></i></button></span>`);
-    if (f.status)    chips.push(`<span class="ped-chip">Status: ${f.status === 'abertos' ? 'Em aberto' : f.status}<button onclick="Pages.pedidos._removeFilter('status')"><i class="fa-solid fa-xmark"></i></button></span>`);
-    if (f.unidade)   chips.push(`<span class="ped-chip">Unidade: ${f.unidade}<button onclick="Pages.pedidos._removeFilter('unidade')"><i class="fa-solid fa-xmark"></i></button></span>`);
-    if (f.comprador) chips.push(`<span class="ped-chip">Comprador: ${f.comprador}<button onclick="Pages.pedidos._removeFilter('comprador')"><i class="fa-solid fa-xmark"></i></button></span>`);
-    if (f.busca)     chips.push(`<span class="ped-chip">Busca: "${f.busca}"<button onclick="Pages.pedidos._removeFilter('busca')"><i class="fa-solid fa-xmark"></i></button></span>`);
+    if (f.id_req) chips.push(`<span class="ped-chip" style="background:rgba(59,130,246,.1);color:#3B82F6;border-color:#3B82F6;">Req. #${f.id_req}<button onclick="Pages.pedidos._removeFilter('id_req')" style="color:#3B82F6;"><i class="fa-solid fa-xmark"></i></button></span>`);
+    (f.statuses||[]).forEach(st => chips.push(`<span class="ped-chip">Status: ${st === 'abertos' ? 'Em aberto' : st}<button onclick="Pages.pedidos._toggleMsFilter('statuses','${st.replace(/'/g,"\\'")}',false);Pages.pedidos._applyFilters()"><i class="fa-solid fa-xmark"></i></button></span>`));
+    (f.unidades||[]).forEach(u => chips.push(`<span class="ped-chip">Unidade: ${u}<button onclick="Pages.pedidos._toggleMsFilter('unidades','${u.replace(/'/g,"\\'")}',false);Pages.pedidos._applyFilters()"><i class="fa-solid fa-xmark"></i></button></span>`));
+    (f.compradores||[]).forEach(c => chips.push(`<span class="ped-chip">Comprador: ${c}<button onclick="Pages.pedidos._toggleMsFilter('compradores','${c.replace(/'/g,"\\'")}',false);Pages.pedidos._applyFilters()"><i class="fa-solid fa-xmark"></i></button></span>`));
+    if (f.busca) chips.push(`<span class="ped-chip">Busca: "${f.busca}"<button onclick="Pages.pedidos._removeFilter('busca')"><i class="fa-solid fa-xmark"></i></button></span>`);
     return chips.join('');
   },
 
   /* ── filter helpers ──────────────────────────────────────── */
+  _toggleMsFilter(key, val, checked) {
+    const arr = this._st.filters[key] || [];
+    this._st.filters[key] = checked ? [...arr, val] : arr.filter(v => v !== val);
+  },
+
   _applyFilters() {
     const s = this._st;
-    s.filters.id_req    = document.getElementById('pf-id-req')?.value.trim() || '';
-    s.filters.busca     = document.getElementById('pf-busca')?.value.trim() || '';
-    s.filters.status    = document.getElementById('pf-status')?.value || '';
-    s.filters.unidade   = document.getElementById('pf-unidade')?.value || '';
-    s.filters.comprador = document.getElementById('pf-comprador')?.value || '';
-    // Read sort selection
+    s.filters.id_req = document.getElementById('pf-id-req')?.value.trim() || '';
+    s.filters.busca  = document.getElementById('pf-busca')?.value.trim() || '';
     const sortIdx = parseInt(document.getElementById('pf-sort')?.value ?? '0');
     const sortOpt = this._SORT_OPTS[sortIdx] || this._SORT_OPTS[0];
     s.sort = { by: sortOpt.by, order: sortOpt.order };
@@ -751,20 +734,21 @@ window.Pages.pedidos = {
   },
 
   _clearFilters() {
-    this._st.filters = { busca: '', status: '', unidade: '', comprador: '', id_req: '' };
+    this._st.filters = { busca: '', statuses: [], unidades: [], compradores: [], id_req: '' };
     this._st.sort    = { by: 'id', order: 'desc' };
     this._st.page    = 1;
     this._loadList();
   },
 
   _removeFilter(key) {
-    this._st.filters[key] = '';
+    if (Array.isArray(this._st.filters[key])) this._st.filters[key] = [];
+    else this._st.filters[key] = '';
     this._st.page = 1;
     this._loadList();
   },
 
   _quickStatus(val) {
-    this._st.filters.status = val;
+    this._st.filters.statuses = [val];
     this._st.page = 1;
     this._loadList();
   },

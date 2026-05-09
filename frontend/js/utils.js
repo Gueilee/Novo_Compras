@@ -279,6 +279,20 @@ const Skeleton = {
   }
 };
 
+/* ── MULTI-SELECT HELPER ─────────────────────────────────── */
+function msHtml(id, opts, sel, ph, onChangeFn) {
+  const n = sel.length;
+  const lbl = n === 0 ? ph : n === 1 ? sel[0] : `${n} selecionados`;
+  const items = opts.map(o => {
+    const esc = o.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return `<label class="ms-item" onclick="event.stopPropagation()"><input type="checkbox" ${sel.includes(o) ? 'checked' : ''} onchange="${onChangeFn}'${esc}',this.checked)"><span>${o}</span></label>`;
+  }).join('');
+  return `<div class="ms-wrap${n ? ' ms-has-val' : ''}" id="${id}"><button type="button" class="ms-trigger" onclick="event.stopPropagation();this.parentElement.classList.toggle('ms-open')">${lbl}<i class="fa-solid fa-chevron-down ms-chev"></i></button><div class="ms-dropdown">${items || '<div style="padding:10px 12px;font-size:12px;color:var(--text-muted);">Sem opções</div>'}</div></div>`;
+}
+document.addEventListener('click', function() {
+  document.querySelectorAll('.ms-wrap.ms-open').forEach(w => w.classList.remove('ms-open'));
+});
+
 /* ── NOTIFICATION COUNTER ─────────────────────────────────── */
 async function refreshNotifBadge() {
   try {

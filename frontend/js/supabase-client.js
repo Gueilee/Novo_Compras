@@ -228,22 +228,35 @@ async function _dashboardDados(path = '') {
   const fMes  = qp.get('mes')     || '';
 
   // Push ALL filters to SQL so count and data are always consistent
+  const unidArr = fUnid ? fUnid.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const anoArr  = fAno  ? fAno.split(',').map(s => s.trim()).filter(Boolean)  : [];
+  const mesArr  = fMes  ? fMes.split(',').map(s => s.trim()).filter(Boolean)  : [];
   const applyFilters = (q) => {
-    if (fUnid) q = q.eq('unidade', fUnid);
-    if (fAno)  q = q.like('data_solicitacao', `%/${fAno}`);
-    if (fMes)  q = q.like('data_solicitacao', `__/${String(fMes).padStart(2,'0')}/%`);
+    if (unidArr.length === 1) q = q.eq('unidade', unidArr[0]);
+    else if (unidArr.length > 1) q = q.in('unidade', unidArr);
     return q;
+  };
+  const jsFilter = (r) => {
+    if (anoArr.length > 0) {
+      const p = (r.data_solicitacao || '').split('/');
+      if (p.length < 3 || !anoArr.includes(p[2])) return false;
+    }
+    if (mesArr.length > 0) {
+      const p = (r.data_solicitacao || '').split('/');
+      if (p.length < 3 || !mesArr.includes(p[1])) return false;
+    }
+    return true;
   };
 
   // Parallel: exact count (bypasses PostgREST row cap) + full data rows
-  const [{ count: totalExato }, { data: allReqs }] = await Promise.all([
+  const [{ count: totalExato }, { data: rawReqs }] = await Promise.all([
     applyFilters(_sb.from('requisicoes').select('*', { count: 'exact', head: true })),
     applyFilters(_sb.from('requisicoes')
       .select('status, valor_fechado, unidade, data_solicitacao, comprador')
       .limit(10000))
   ]);
 
-  const reqs     = allReqs || [];
+  const reqs     = (rawReqs || []).filter(jsFilter);
   const total    = totalExato ?? reqs.length;
   // Investimento Total = soma de TODOS os valores fechados (todas as POs emitidas)
   const totalGasto = reqs.reduce((s, r) => s + (Number(r.valor_fechado) || 0), 0);
@@ -308,8 +321,8 @@ async function _dashboardDados(path = '') {
   const savingBase = totalGasto + savingValor;
   const savingPct = savingBase > 0 ? (savingValor / savingBase) * 100 : 0;
 
-  const unidadesOpts = [...new Set((reqs || []).map(r => r.unidade).filter(Boolean))].sort();
-  const anosOpts = [...new Set((reqs || []).map(r => {
+  const unidadesOpts = [...new Set((rawReqs || []).map(r => r.unidade).filter(Boolean))].sort();
+  const anosOpts = [...new Set((rawReqs || []).map(r => {
     if (!r.data_solicitacao) return null;
     const p = r.data_solicitacao.split('/');
     return p.length >= 3 ? p[2] : null;
@@ -1061,9 +1074,26 @@ async function _listarRequisicoes(path) {
     .order(col, { ascending: sortOrd === 'asc' })
     .range((page - 1) * perPage, page * perPage - 1);
 
-  if (status && status !== 'todos') query = query.eq('status', status);
-  if (unidade) query = query.eq('unidade', unidade);
-  if (comprador) query = query.ilike('comprador', `%${comprador}%`);
+  if (status && status !== 'todos') {
+    const statArr = status.split(',').map(s => s.trim()).filter(Boolean);
+    if (statArr.includes('abertos')) {
+      query = query.not('status', 'in', '("Concluído","Reprovado","Cancelado")');
+    } else if (statArr.length === 1) {
+      query = query.eq('status', statArr[0]);
+    } else if (statArr.length > 1) {
+      query = query.in('status', statArr);
+    }
+  }
+  if (unidade) {
+    const unArr = unidade.split(',').map(s => s.trim()).filter(Boolean);
+    if (unArr.length === 1) query = query.eq('unidade', unArr[0]);
+    else if (unArr.length > 1) query = query.in('unidade', unArr);
+  }
+  if (comprador) {
+    const cArr = comprador.split(',').map(s => s.trim()).filter(Boolean);
+    if (cArr.length === 1) query = query.eq('comprador', cArr[0]);
+    else if (cArr.length > 1) query = query.in('comprador', cArr);
+  }
   if (idReq && +idReq > 0) {
     query = query.eq('id_sharepoint', +idReq);
   } else if (q) {

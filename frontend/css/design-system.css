@@ -1444,3 +1444,32 @@ table.table {
   .form-grid-3, .form-grid-2 { grid-template-columns: 1fr; }
   .data-row { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── Multi-Select Dropdown ─────────────────────────────── */
+.ms-wrap { position:relative; display:inline-flex; flex-direction:column; }
+.ms-trigger {
+  display:flex; align-items:center; gap:6px;
+  height:32px; padding:0 10px; min-width:130px;
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--r-md); font-size:12.5px;
+  font-family:var(--font); color:var(--text-muted);
+  cursor:pointer; white-space:nowrap; transition:border-color .15s;
+}
+.ms-trigger:hover { border-color:var(--brand); }
+.ms-has-val > .ms-trigger { border-color:var(--brand); color:var(--brand); background:var(--brand-surface); }
+.ms-chev { font-size:9px; margin-left:auto; transition:transform .2s; }
+.ms-open > .ms-trigger .ms-chev { transform:rotate(180deg); }
+.ms-dropdown {
+  display:none; position:absolute; top:calc(100% + 4px); left:0;
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--r-md); box-shadow:0 8px 24px rgba(0,0,0,.12);
+  min-width:190px; max-height:260px; overflow-y:auto; z-index:300; padding:4px 0;
+}
+.ms-open > .ms-dropdown { display:block; }
+.ms-item {
+  display:flex; align-items:center; gap:8px;
+  padding:7px 12px; font-size:13px; color:var(--text);
+  cursor:pointer; user-select:none; transition:background .1s;
+}
+.ms-item:hover { background:var(--brand-surface); }
+.ms-item input[type=checkbox] { width:14px; height:14px; accent-color:var(--brand); cursor:pointer; flex-shrink:0; }
