@@ -10,7 +10,7 @@ window.Pages.sourcing = {
   _segmentoAtual: null,
   _segmentos: [],
   _todosPedidos: [],
-  _filtroSourcing: { busca: '', statuses: [] },
+  _filtroSourcing: { busca: '', statuses: [], compradores: [] },
 
   render() {
     return `
@@ -151,7 +151,7 @@ window.Pages.sourcing = {
     this._pedidoSelecionado = null;
     this._pedidoInfo = null;
     this._todosPedidos = [];
-    this._filtroSourcing = { busca: '', statuses: [] };
+    this._filtroSourcing = { busca: '', statuses: [], compradores: [] };
     // Carrega segmentos em background
     Api.get('/api/sourcing/segmentos').then(data => {
       this._segmentos = data || [];
@@ -187,13 +187,16 @@ window.Pages.sourcing = {
   _renderPedidosList() {
     const container = document.getElementById('sourcing-pedidos');
     if (!container) return;
-    const { busca, statuses } = this._filtroSourcing;
+    const { busca, statuses, compradores } = this._filtroSourcing;
     const b = busca.toLowerCase();
     const filtered = this._todosPedidos.filter(p => {
       if (statuses.length && !statuses.includes(p.status)) return false;
-      if (b && !`#${p.id} ${p.solicitante || ''} ${p.unidade || ''}`.toLowerCase().includes(b)) return false;
+      if (compradores.length && !compradores.includes(p.comprador)) return false;
+      if (b && !`#${p.id} ${p.solicitante || ''} ${p.unidade || ''} ${p.comprador || ''}`.toLowerCase().includes(b)) return false;
       return true;
     });
+
+    const compradoresOpts = [...new Set(this._todosPedidos.map(p => p.comprador).filter(Boolean))].sort();
 
     const filterBar = `
       <div class="sou-filter-bar">
@@ -204,7 +207,8 @@ window.Pages.sourcing = {
                  value="${busca.replace(/"/g, '&quot;')}" id="sou-busca"
                  oninput="Pages.sourcing._onSouBusca(this.value)">
         </div>
-        ${msHtml('sou-ms-stat', ['Aguardando Cotação','Em Cotação'], statuses, 'Todos os status', "Pages.sourcing._toggleSouStatus(")}
+        ${msHtml('sou-ms-stat', ['Aguardando Cotação','Em Cotação'], statuses, 'Status', "Pages.sourcing._toggleSouStatus(")}
+        ${compradoresOpts.length ? msHtml('sou-ms-comp', compradoresOpts, compradores, 'Responsável', "Pages.sourcing._toggleSouComprador(") : ''}
         <span class="sou-filter-count">${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}</span>
       </div>`;
 
@@ -261,6 +265,12 @@ window.Pages.sourcing = {
   _toggleSouStatus(val, checked) {
     const arr = this._filtroSourcing.statuses;
     this._filtroSourcing.statuses = checked ? [...arr, val] : arr.filter(v => v !== val);
+    this._renderPedidosList();
+  },
+
+  _toggleSouComprador(val, checked) {
+    const arr = this._filtroSourcing.compradores;
+    this._filtroSourcing.compradores = checked ? [...arr, val] : arr.filter(v => v !== val);
     this._renderPedidosList();
   },
 
