@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro de Fornecedor | Vendemmia Compras</title>
+  <link rel="icon" type="image/png" href="img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { min-height: 100vh; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #0f0720; }
+
+    /* ── Background ─────────────────────────────────────────── */
+    .bg-grad {
+      position: fixed; inset: 0; z-index: 0;
+      background: linear-gradient(145deg, #0f0720 0%, #1c0a40 40%, #2d1b5e 75%, #3a2272 100%);
+    }
+    .bg-grad::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(102,51,238,.35) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 40% at 90% 90%, rgba(66,44,118,.25) 0%, transparent 60%);
+    }
+    .bg-dots {
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    /* ── Top bar ────────────────────────────────────────────── */
+    .topbar {
+      position: relative; z-index: 20; width: 100%;
+      height: 60px; padding: 0 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: #fff; border-bottom: 1px solid #e8e4f0;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 12px; }
+    .topbar-brand-icon {
+      width: 34px; height: 34px; background: linear-gradient(135deg, #422c76, #6633ee);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 15px;
+    }
+    .topbar-brand-name { font-size: 15px; font-weight: 800; color: #1a1a2e; }
+    .topbar-brand-sep { width: 1px; height: 20px; background: #e0e0e0; }
+    .topbar-brand-tag { font-size: 11px; font-weight: 600; color: #999; letter-spacing: .5px; text-transform: uppercase; }
+    .topbar-right {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11.5px; font-weight: 600; color: #888;
+      border: 1px solid #e0e0e0; border-radius: 20px; padding: 4px 12px;
+    }
+
+    /* ── Hero ───────────────────────────────────────────────── */
+    .hero {
+      position: relative; z-index: 10; text-align: center;
+      padding: 40px 20px 24px;
+    }
+    .hero-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(102,51,238,.2); border: 1px solid rgba(102,51,238,.4);
+      border-radius: 20px; padding: 5px 14px; margin-bottom: 14px;
+      font-size: 12px; font-weight: 600; color: rgba(180,150,255,.9);
+    }
+    .hero h1 {
+      font-size: clamp(22px, 3.5vw, 32px); font-weight: 800; color: #fff;
+      margin: 0 0 8px; line-height: 1.2; letter-spacing: -.5px;
+    }
+    .hero h1 em { color: #a78bfa; font-style: normal; }
+    .hero p { font-size: 14px; color: rgba(255,255,255,.6); margin: 0; }
+
+    /* ── Form card ──────────────────────────────────────────── */
+    .form-wrap {
+      position: relative; z-index: 10;
+      max-width: 780px; margin: 0 auto 48px; padding: 0 16px;
+    }
+    .form-card {
+      background: #fff; border-radius: 20px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.3);
+      overflow: hidden;
+    }
+
+    /* ── Section ────────────────────────────────────────────── */
+    .sec {
+      padding: 24px 28px;
+      border-bottom: 1px solid #f0ecfa;
+    }
+    .sec:last-child { border-bottom: none; }
+    .sec-title {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .07em; color: #422c76; margin-bottom: 18px;
+    }
+    .sec-title-icon {
+      width: 30px; height: 30px; background: #f0ecfa; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #6633ee; font-size: 13px; flex-shrink: 0;
+    }
+
+    /* ── Form elements ──────────────────────────────────────── */
+    .field-grid { display: grid; gap: 14px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+    @media (max-width: 600px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 11.5px; font-weight: 700; color: #555; text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .field label .req { color: #e53e3e; margin-left: 2px; }
+    .field input, .field select, .field textarea {
+      height: 40px; padding: 0 13px;
+      border: 1.5px solid #e2ddf0; border-radius: 9px;
+      font-size: 13.5px; font-family: 'Inter', sans-serif;
+      color: #1a1a2e; background: #faf9fd;
+      outline: none; transition: border-color .15s, box-shadow .15s;
+    }
+    .field textarea { height: auto; padding: 10px 13px; resize: vertical; }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: #6633ee;
+      box-shadow: 0 0 0 3px rgba(102,51,238,.12);
+      background: #fff;
+    }
+    .field input.error { border-color: #e53e3e; }
+
+    /* ── Segmentos checkboxes ───────────────────────────────── */
+    .segs-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+    .seg-chk {
+      display: flex; align-items: center; gap: 9px;
+      padding: 9px 12px; border: 1.5px solid #e2ddf0; border-radius: 9px;
+      cursor: pointer; transition: all .15s; background: #faf9fd;
+      font-size: 13px; color: #333; user-select: none;
+    }
+    .seg-chk input[type=checkbox] { display: none; }
+    .seg-chk-box {
+      width: 18px; height: 18px; border: 2px solid #d0c4f9; border-radius: 5px;
+      background: #fff; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: all .15s; color: #fff; font-size: 10px;
+    }
+    .seg-chk:hover { border-color: #a78bfa; background: #f5f0ff; }
+    .seg-chk.checked { border-color: #6633ee; background: #f0ecfa; }
+    .seg-chk.checked .seg-chk-box { background: #6633ee; border-color: #6633ee; }
+
+    /* ── Contact sub-block ──────────────────────────────────── */
+    .contact-block {
+      padding: 14px 16px; background: #faf9fd;
+      border: 1.5px solid #f0ecfa; border-radius: 10px; margin-bottom: 12px;
+    }
+    .contact-block:last-child { margin-bottom: 0; }
+    .contact-block-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: #888; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ── Submit area ────────────────────────────────────────── */
+    .submit-area {
+      padding: 24px 28px;
+      background: linear-gradient(135deg, #f5f0ff 0%, #ede9fe 100%);
+      border-top: 1.5px solid #e2ddf0;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      flex-wrap: wrap;
+    }
+    .submit-note { font-size: 12px; color: #888; display: flex; align-items: center; gap: 6px; }
+    .btn-submit {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: linear-gradient(135deg, #422c76, #6633ee);
+      color: #fff; border: none; border-radius: 11px;
+      padding: 13px 28px; font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif; cursor: pointer;
+      box-shadow: 0 4px 20px rgba(102,51,238,.4);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 26px rgba(102,51,238,.5); }
+    .btn-submit:disabled { opacity: .6; cursor: default; transform: none; }
+
+    /* ── Success screen ─────────────────────────────────────── */
+    #success-screen {
+      display: none; position: relative; z-index: 10;
+      max-width: 520px; margin: 40px auto 60px; padding: 0 16px; text-align: center;
+    }
+    .success-card {
+      background: #fff; border-radius: 20px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.3);
+      padding: 48px 40px;
+    }
+    .success-icon {
+      width: 72px; height: 72px; background: #e8faf2;
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; margin: 0 auto 20px;
+      color: #00a86b; font-size: 30px;
+    }
+    .success-title { font-size: 22px; font-weight: 800; color: #1a1a2e; margin-bottom: 10px; }
+    .success-desc { font-size: 14px; color: #666; line-height: 1.6; }
+
+    /* ── Spinner ────────────────────────────────────────────── */
+    .spinner-sm {
+      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .7s linear infinite; display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Loader de segmentos ─────────────────────────────────── */
+    .segs-loading {
+      font-size: 13px; color: #999; padding: 20px 0; text-align: center;
+    }
+
+    /* ── Error alert ─────────────────────────────────────────── */
+    .alert-error {
+      background: #fff5f5; border: 1.5px solid #fed7d7; border-radius: 10px;
+      padding: 12px 16px; font-size: 13px; color: #c53030;
+      display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="bg-grad">
+  <div class="bg-dots"></div>
+</div>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-brand-icon"><i class="fa-solid fa-building-user"></i></div>
+    <span class="topbar-brand-name">Vendemmia</span>
+    <div class="topbar-brand-sep"></div>
+    <span class="topbar-brand-tag">Cadastro de Fornecedor</span>
+  </div>
+  <div class="topbar-right">
+    <i class="fa-solid fa-shield-halved" style="color:#6633ee;font-size:12px;"></i>
+    Ambiente seguro
+  </div>
+</div>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-chip">
+    <i class="fa-solid fa-truck-ramp-box"></i> Portal de Homologação
+  </div>
+  <h1>Cadastre-se como <em>Fornecedor Homologado</em></h1>
+  <p>Preencha os dados abaixo para entrar para nossa base de fornecedores.</p>
+</div>
+
+<!-- Form -->
+<div class="form-wrap" id="form-wrap">
+  <div class="form-card">
+
+    <div id="alert-area"></div>
+
+    <!-- Seção 1: Identificação -->
+    <div class="sec">
+      <div class="sec-title">
+        <div class="sec-title-icon"><i class="fa-solid fa-id-card"></i></div>
+        Dados da Empresa
+      </div>
+      <div class="field-grid grid-2">
+        <div class="field">
+          <label>CNPJ <span class="req">*</span></label>
+          <input type="text" id="f-cnpj" placeholder="00.000.000/0000-00" maxlength="18">
+        </div>
+        <div class="field">
+          <label>Razão Social <span class="req">*</span></label>
+          <input type="text" id="f-razao" placeholder="Nome da empresa conforme CNPJ">
+        </div>
+      </div>
+    </div>
+
+    <!-- Seção 2: Endereço -->
+    <div class="sec">
+      <div class="sec-title">
+        <div class="sec-title-icon"><i class="fa-solid fa-location-dot"></i></div>
+        Endereço
+      </div>
+      <div class="field-grid">
+        <div class="field-grid grid-4">
+          <div class="field" style="grid-column:1/3;">
+            <label>Logradouro</label>
+            <input type="text" id="f-logr" placeholder="Rua, Av., Travessa...">
+          </div>
+          <div class="field">
+            <label>Número</label>
+            <input type="text" id="f-num" placeholder="S/N">
+          </div>
+          <div class="field">
+            <label>CEP</label>
+            <input type="text" id="f-cep" placeholder="00000-000" maxlength="9">
+          </div>
+        </div>
+        <div class="field-grid grid-4">
+          <div class="field">
+            <label>Bairro</label>
+            <input type="text" id="f-bairro" placeholder="Bairro">
+          </div>
+          <div class="field" style="grid-column:2/4;">
+            <label>Cidade <span class="req">*</span></label>
+            <input type="text" id="f-cidade" placeholder="Cidade">
+          </div>
+          <div class="field">
+            <label>UF <span class="req">*</span></label>
+            <input type="text" id="f-uf" placeholder="SP" maxlength="2" style="text-transform:uppercase;">
+          </div>
+        </div>
+        <div class="field">
+          <label>Complemento</label>
+          <input type="text" id="f-compl" placeholder="Sala, andar, galpão... (opcional)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Seção 3: Contatos -->
+    <div class="sec">
+      <div class="sec-title">
+        <div class="sec-title-icon"><i class="fa-solid fa-address-book"></i></div>
+        Contatos
+      </div>
+
+      <div class="contact-block">
+        <div class="contact-block-title">
+          <i class="fa-solid fa-briefcase"></i> Contato Comercial
+        </div>
+        <div class="field-grid grid-2">
+          <div class="field">
+            <label>E-mail Comercial <span class="req">*</span></label>
+            <input type="email" id="f-com-email" placeholder="comercial@empresa.com.br">
+          </div>
+          <div class="field">
+            <label>Telefone / WhatsApp</label>
+            <input type="tel" id="f-com-tel" placeholder="(11) 99999-9999">
+          </div>
+        </div>
+      </div>
+
+      <div class="contact-block">
+        <div class="contact-block-title">
+          <i class="fa-solid fa-file-invoice-dollar"></i> Contato Financeiro
+        </div>
+        <div class="field-grid grid-2">
+          <div class="field">
+            <label>E-mail Financeiro</label>
+            <input type="email" id="f-fin-email" placeholder="financeiro@empresa.com.br">
+          </div>
+          <div class="field">
+            <label>Telefone</label>
+            <input type="tel" id="f-fin-tel" placeholder="(11) 3000-0000">
+          </div>
+        </div>
+      </div>
+
+      <div class="contact-block">
+        <div class="contact-block-title">
+          <i class="fa-solid fa-file-circle-check"></i> Contato Fiscal / NF-e
+        </div>
+        <div class="field-grid grid-2">
+          <div class="field">
+            <label>E-mail Fiscal</label>
+            <input type="email" id="f-fis-email" placeholder="nfe@empresa.com.br">
+          </div>
+          <div class="field">
+            <label>Telefone</label>
+            <input type="tel" id="f-fis-tel" placeholder="(11) 3000-0001">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Seção 4: Segmentos -->
+    <div class="sec">
+      <div class="sec-title">
+        <div class="sec-title-icon"><i class="fa-solid fa-tags"></i></div>
+        Segmentos de Atuação
+      </div>
+      <div id="segs-container">
+        <div class="segs-loading"><div class="spinner-sm" style="border-color:rgba(102,51,238,.3);border-top-color:#6633ee;"></div><span style="margin-left:8px;">Carregando segmentos...</span></div>
+      </div>
+    </div>
+
+    <!-- Seção 5: Documentação -->
+    <div class="sec">
+      <div class="sec-title">
+        <div class="sec-title-icon"><i class="fa-solid fa-folder-open"></i></div>
+        Documentação <span style="font-size:10px;font-weight:400;color:#aaa;margin-left:6px;text-transform:none;letter-spacing:0;">(links para acesso aos documentos — opcional)</span>
+      </div>
+      <div class="field-grid grid-2">
+        <div class="field">
+          <label>Cartão CNPJ (link)</label>
+          <input type="url" id="f-doc-cnpj" placeholder="https://drive.google.com/...">
+        </div>
+        <div class="field">
+          <label>Alvará de Funcionamento (link)</label>
+          <input type="url" id="f-doc-alvara" placeholder="https://drive.google.com/...">
+        </div>
+        <div class="field">
+          <label>Alvará Sanitário (link)</label>
+          <input type="url" id="f-doc-sanitario" placeholder="https://drive.google.com/...">
+        </div>
+        <div class="field">
+          <label>Certificado ISO 9001 (link)</label>
+          <input type="url" id="f-doc-iso" placeholder="https://drive.google.com/...">
+        </div>
+        <div class="field" style="grid-column:1/-1;">
+          <label>Última Alteração Contratual (link)</label>
+          <input type="url" id="f-doc-alt" placeholder="https://drive.google.com/...">
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="submit-area">
+      <div class="submit-note">
+        <i class="fa-solid fa-lock" style="color:#6633ee;"></i>
+        Seus dados são salvos com segurança e usados apenas para cotações.
+      </div>
+      <button class="btn-submit" id="btn-submit" onclick="submitForm()">
+        <i class="fa-solid fa-paper-plane"></i>
+        Enviar Cadastro
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Success Screen -->
+<div id="success-screen">
+  <div class="success-card">
+    <div class="success-icon">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <div class="success-title">Cadastro recebido!</div>
+    <div class="success-desc" id="success-msg">
+      Seus dados foram salvos com sucesso.<br>
+      Nossa equipe de compras entrará em contato em breve quando houver oportunidades de cotação no seu segmento de atuação.
+    </div>
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid #f0f0f0;font-size:12px;color:#aaa;">
+      <i class="fa-solid fa-building-user" style="color:#6633ee;margin-right:6px;"></i>
+      Vendemmia Compras — Sistema SHP
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ── Supabase direto (sem depender de utils.js/supabase-client.js) ── */
+const _SB_URL = 'https://ayuypxbipvuayyiatbir.supabase.co';
+const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dXlweGJpcHZ1YXl5aWF0YmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDg0MTQsImV4cCI6MjA5MjYyNDQxNH0.a_uCBEuB8oLX94d3n936HX6we9rLV_19hOfLfCpapmM';
+const _sb = supabase.createClient(_SB_URL, _SB_KEY);
+
+const normCnpj = s => (s || '').replace(/\D/g, '');
+const fmtCnpj  = s => s.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+const fmtCep   = s => s.replace(/^(\d{5})(\d{3})$/, '$1-$2');
+
+/* ── CNPJ mask ─────────────────────────────────────────── */
+document.getElementById('f-cnpj').addEventListener('input', function() {
+  let v = this.value.replace(/\D/g, '').slice(0, 14);
+  if (v.length > 12) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, '$1.$2.$3/$4-$5');
+  else if (v.length > 8) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{0,4})/, '$1.$2.$3/$4');
+  else if (v.length > 5) v = v.replace(/^(\d{2})(\d{3})(\d{0,3})/, '$1.$2.$3');
+  else if (v.length > 2) v = v.replace(/^(\d{2})(\d{0,3})/, '$1.$2');
+  this.value = v;
+});
+
+/* ── CEP mask ──────────────────────────────────────────── */
+document.getElementById('f-cep').addEventListener('input', function() {
+  let v = this.value.replace(/\D/g, '').slice(0, 8);
+  if (v.length > 5) v = v.replace(/^(\d{5})(\d{0,3})/, '$1-$2');
+  this.value = v;
+});
+
+/* ── Load segmentos ─────────────────────────────────────── */
+let selectedSegs = new Set();
+
+(async () => {
+  const { data } = await _sb.from('categorias').select('segmento').order('segmento');
+  const segs = [...new Set((data || []).map(c => c.segmento).filter(Boolean))].sort();
+  const container = document.getElementById('segs-container');
+
+  if (!segs.length) {
+    container.innerHTML = `<div class="segs-loading" style="color:#aaa;">Nenhum segmento cadastrado ainda.</div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="segs-grid">${segs.map(s => `
+    <label class="seg-chk" data-seg="${s}" onclick="toggleSeg(this)">
+      <input type="checkbox" value="${s}">
+      <div class="seg-chk-box"><i class="fa-solid fa-check"></i></div>
+      <span>${s}</span>
+    </label>`).join('')}</div>`;
+})();
+
+function toggleSeg(el) {
+  const seg = el.dataset.seg;
+  if (selectedSegs.has(seg)) {
+    selectedSegs.delete(seg);
+    el.classList.remove('checked');
+  } else {
+    selectedSegs.add(seg);
+    el.classList.add('checked');
+  }
+}
+
+/* ── Validation helpers ─────────────────────────────────── */
+function showAlert(msg) {
+  document.getElementById('alert-area').innerHTML = `
+    <div class="alert-error" style="margin:16px 28px 0;">
+      <i class="fa-solid fa-circle-exclamation" style="flex-shrink:0;"></i>
+      ${msg}
+    </div>`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function clearAlert() { document.getElementById('alert-area').innerHTML = ''; }
+
+function required(id, msg) {
+  const el = document.getElementById(id);
+  const v  = el.value.trim();
+  if (!v) { el.classList.add('error'); el.focus(); showAlert(msg); return false; }
+  el.classList.remove('error');
+  return v;
+}
+
+/* ── Submit ─────────────────────────────────────────────── */
+async function submitForm() {
+  clearAlert();
+
+  const cnpjRaw = normCnpj(document.getElementById('f-cnpj').value);
+  if (cnpjRaw.length !== 14) { document.getElementById('f-cnpj').classList.add('error'); showAlert('Informe um CNPJ válido com 14 dígitos.'); return; }
+
+  const razao = required('f-razao', 'O campo Razão Social é obrigatório.');
+  if (!razao) return;
+  const cidade = required('f-cidade', 'O campo Cidade é obrigatório.');
+  if (!cidade) return;
+  const uf = required('f-uf', 'O campo UF é obrigatório.');
+  if (!uf) return;
+  const comEmail = required('f-com-email', 'O e-mail comercial é obrigatório para contato.');
+  if (!comEmail) return;
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner-sm"></div> Enviando...';
+
+  const body = {
+    cnpj: cnpjRaw,
+    razao_social:             razao,
+    endereco_logradouro:      document.getElementById('f-logr').value.trim()     || null,
+    endereco_numero:          document.getElementById('f-num').value.trim()       || null,
+    endereco_complemento:     document.getElementById('f-compl').value.trim()     || null,
+    endereco_bairro:          document.getElementById('f-bairro').value.trim()    || null,
+    endereco_cidade:          cidade,
+    endereco_uf:              uf.toUpperCase(),
+    endereco_cep:             normCnpj(document.getElementById('f-cep').value)    || null,
+    contato_comercial_email:  comEmail,
+    contato_comercial_tel:    document.getElementById('f-com-tel').value.trim()   || null,
+    contato_financeiro_email: document.getElementById('f-fin-email').value.trim() || null,
+    contato_financeiro_tel:   document.getElementById('f-fin-tel').value.trim()   || null,
+    contato_fiscal_email:     document.getElementById('f-fis-email').value.trim() || null,
+    contato_fiscal_tel:       document.getElementById('f-fis-tel').value.trim()   || null,
+    segmentos_interesse:      [...selectedSegs],
+    doc_cartao_cnpj:          document.getElementById('f-doc-cnpj').value.trim()      || null,
+    doc_alvara_funcionamento: document.getElementById('f-doc-alvara').value.trim()    || null,
+    doc_alvara_sanitario:     document.getElementById('f-doc-sanitario').value.trim() || null,
+    doc_iso_9001:             document.getElementById('f-doc-iso').value.trim()       || null,
+    doc_ultima_alteracao:     document.getElementById('f-doc-alt').value.trim()       || null,
+  };
+
+  try {
+    /* upsert — se CNPJ já existir, atualiza; senão insere */
+    const payload = {
+      ...body,
+      segmento:  body.segmentos_interesse[0] || null,
+      email:     body.contato_comercial_email,
+      telefone:  body.contato_comercial_tel,
+      cidade:    body.endereco_cidade,
+      estado:    body.endereco_uf,
+      cadastro_completo: true,
+      cadastrado_em: new Date().toISOString(),
+    };
+
+    const { data: existing } = await _sb.from('fornecedores').select('cnpj').eq('cnpj', cnpjRaw).maybeSingle();
+    if (existing) {
+      const { error } = await _sb.from('fornecedores').update(payload).eq('cnpj', cnpjRaw);
+      if (error) throw error;
+    } else {
+      const { error } = await _sb.from('fornecedores').insert(payload);
+      if (error) throw error;
+    }
+
+    /* Vincula segmentos na junction table */
+    if (body.segmentos_interesse.length) {
+      const { data: cats } = await _sb.from('categorias').select('id, segmento').in('segmento', body.segmentos_interesse);
+      if (cats && cats.length) {
+        await _sb.from('fornecedores_segmentos').delete().eq('cnpj_fornecedor', cnpjRaw);
+        await _sb.from('fornecedores_segmentos').insert(cats.map(c => ({ cnpj_fornecedor: cnpjRaw, id_categoria: c.id })));
+      }
+    }
+
+    /* Show success */
+    document.getElementById('form-wrap').style.display = 'none';
+    document.getElementById('success-msg').innerHTML =
+      `Dados de <strong>${razao}</strong> salvos com sucesso!<br>Nossa equipe de compras entrará em contato quando houver oportunidades de cotação nos seus segmentos de atuação.`;
+    const ss = document.getElementById('success-screen');
+    ss.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  } catch (err) {
+    console.error(err);
+    showAlert('Erro ao salvar cadastro: ' + (err.message || 'Tente novamente em instantes.'));
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Cadastro';
+  }
+}
+</script>
+</body>
+</html>

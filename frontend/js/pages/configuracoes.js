@@ -1264,6 +1264,10 @@ window.Pages.configuracoes = {
             Fornecedores Homologados
             <span class="badge badge-gray" style="margin-left:4px;">${rows.length}</span>
           </span>
+          <button class="btn btn-outline btn-sm" onclick="Pages.configuracoes._linkCadastroFornecedor()"
+                  title="Gerar link para o fornecedor preencher o próprio cadastro">
+            <i class="fa-solid fa-link"></i> Link de Auto-Cadastro
+          </button>
           <button class="btn btn-primary btn-sm" onclick="Pages.configuracoes._newFornecedor()">
             <i class="fa-solid fa-plus"></i> Novo Fornecedor
           </button>
@@ -1287,6 +1291,113 @@ window.Pages.configuracoes = {
   },
 
   _newFornecedor() { this._openFornecedorDrawer(null); },
+
+  _linkCadastroFornecedor() {
+    const base = window.location.href.split('#')[0].replace(/\/[^/]*$/, '/');
+    const url  = base + 'cadastro-fornecedor.html';
+
+    const root = document.createElement('div');
+    root.id = 'cfg-link-modal';
+    root.style.cssText = 'position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);padding:20px;';
+    root.innerHTML = `
+      <div style="background:#fff;border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.22);
+                  width:100%;max-width:560px;overflow:hidden;animation:fadeIn .2s ease;">
+
+        <!-- Header -->
+        <div style="display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid var(--border);">
+          <div style="width:44px;height:44px;background:var(--brand-surface);border-radius:12px;
+               display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="fa-solid fa-link" style="color:var(--brand);font-size:18px;"></i>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:15px;font-weight:800;color:var(--text);">Link de Auto-Cadastro</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+              Envie este link ao fornecedor — ele preenche os dados e salva direto no sistema
+            </div>
+          </div>
+          <button onclick="document.getElementById('cfg-link-modal').remove()"
+                  style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);
+                         background:none;cursor:pointer;display:flex;align-items:center;
+                         justify-content:center;color:var(--text-muted);font-size:14px;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:22px 24px;">
+
+          <!-- Como funciona -->
+          <div style="display:flex;gap:20px;margin-bottom:22px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:130px;text-align:center;">
+              <div style="width:40px;height:40px;background:var(--brand-surface);border-radius:12px;
+                   display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
+                <i class="fa-solid fa-copy" style="color:var(--brand);"></i>
+              </div>
+              <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">1. Copie o link</div>
+              <div style="font-size:11px;color:var(--text-muted);">Botão abaixo já copia</div>
+            </div>
+            <div style="flex:1;min-width:130px;text-align:center;">
+              <div style="width:40px;height:40px;background:var(--brand-surface);border-radius:12px;
+                   display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
+                <i class="fa-solid fa-paper-plane" style="color:var(--brand);"></i>
+              </div>
+              <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">2. Envie ao fornecedor</div>
+              <div style="font-size:11px;color:var(--text-muted);">WhatsApp, e-mail, etc.</div>
+            </div>
+            <div style="flex:1;min-width:130px;text-align:center;">
+              <div style="width:40px;height:40px;background:var(--success-surface);border-radius:12px;
+                   display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
+                <i class="fa-solid fa-database" style="color:var(--success-dark);"></i>
+              </div>
+              <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">3. Salva automático</div>
+              <div style="font-size:11px;color:var(--text-muted);">Aparece aqui na lista</div>
+            </div>
+          </div>
+
+          <!-- Link box -->
+          <div style="background:var(--surface);border:1.5px solid var(--brand);border-radius:10px;
+                      padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <i class="fa-solid fa-globe" style="color:var(--brand);flex-shrink:0;font-size:14px;"></i>
+            <div style="flex:1;font-size:12px;color:var(--text);word-break:break-all;
+                        font-family:monospace;line-height:1.5;">${url}</div>
+            <button id="cfg-copy-link-btn" class="btn btn-primary btn-sm" style="flex-shrink:0;white-space:nowrap;"
+                    onclick="
+                      navigator.clipboard.writeText('${url.replace(/'/g, "\\'")}');
+                      this.innerHTML='<i class=\\'fa-solid fa-check\\'></i> Copiado!';
+                      this.style.background='var(--success-dark)';
+                      this.style.borderColor='var(--success-dark)';
+                      setTimeout(() => {
+                        this.innerHTML='<i class=\\'fa-solid fa-copy\\'></i> Copiar';
+                        this.style.background='';this.style.borderColor='';
+                      }, 2500);">
+              <i class="fa-solid fa-copy"></i> Copiar
+            </button>
+          </div>
+
+          <!-- Abrir em nova aba -->
+          <div style="text-align:center;">
+            <a href="${url}" target="_blank"
+               style="font-size:12.5px;color:var(--brand);font-weight:600;text-decoration:none;
+                      display:inline-flex;align-items:center;gap:6px;">
+              <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:11px;"></i>
+              Pré-visualizar formulário
+            </a>
+          </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div style="padding:14px 24px;border-top:1px solid var(--border);background:var(--bg);
+                    display:flex;justify-content:flex-end;">
+          <button class="btn btn-outline" onclick="document.getElementById('cfg-link-modal').remove()">
+            Fechar
+          </button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(root);
+    root.addEventListener('click', e => { if (e.target === root) root.remove(); });
+  },
 
   async _editFornecedor(cnpj) {
     try {
