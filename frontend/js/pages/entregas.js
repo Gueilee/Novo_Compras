@@ -11,6 +11,7 @@ window.Pages.entregas = {
   _tab: 'pendentes',
   _busca: '',
   _unidades: [],
+  _compradores: [],
 
   render() {
     return `
@@ -150,6 +151,7 @@ window.Pages.entregas = {
                    oninput="Pages.entregas._onBusca(this.value)">
           </div>
           <div id="ent-unidade-wrap"></div>
+          <div id="ent-comprador-wrap"></div>
           <button id="ent-limpar-btn" class="btn btn-ghost btn-sm" style="display:none;color:var(--accent);height:36px;"
                   onclick="Pages.entregas._limparFiltros()">
             <i class="fa-solid fa-xmark"></i> Limpar
@@ -169,8 +171,9 @@ window.Pages.entregas = {
   },
 
   async init() {
-    this._busca    = '';
-    this._unidades = [];
+    this._busca       = '';
+    this._unidades    = [];
+    this._compradores = [];
     await this.carregarDados();
   },
 
@@ -207,12 +210,20 @@ window.Pages.entregas = {
     if (bp) bp.textContent = pendentes.length;
     if (br) br.textContent = recebidos.length;
 
-    // Popula multi-select de unidades com base nos dados carregados
+    // Popula multi-selects com base nos dados carregados
     const unidades = [...new Set((this._data || []).map(r => r.unidade).filter(Boolean))].sort();
-    const wrap = document.getElementById('ent-unidade-wrap');
-    if (wrap) {
-      wrap.innerHTML = msHtml('ent-ms-unidade', unidades, this._unidades, 'Unidade',
+    const wrapU = document.getElementById('ent-unidade-wrap');
+    if (wrapU) {
+      wrapU.innerHTML = msHtml('ent-ms-unidade', unidades, this._unidades, 'Unidade',
         "Pages.entregas._toggleUnidade(");
+    }
+    const compradores = [...new Set((this._data || []).map(r => r.comprador).filter(Boolean))].sort();
+    const wrapC = document.getElementById('ent-comprador-wrap');
+    if (wrapC) {
+      wrapC.innerHTML = compradores.length
+        ? msHtml('ent-ms-comprador', compradores, this._compradores, 'Vendedor',
+            "Pages.entregas._toggleComprador(")
+        : '';
     }
 
     const el = document.getElementById('ent-kpis');
@@ -274,8 +285,9 @@ window.Pages.entregas = {
     const b = this._busca.toLowerCase();
     const items = (this._data || []).filter(r => {
       if (this._tab === 'pendentes' ? r.status !== 'Aguardando Entrega' : r.status !== 'Recebido') return false;
-      if (b && !`#${r.id} ${r.fornecedor || ''} ${r.itens_preview || ''}`.toLowerCase().includes(b)) return false;
-      if (this._unidades.length && !this._unidades.includes(r.unidade)) return false;
+      if (b && !`#${r.id} ${r.fornecedor || ''} ${r.itens_preview || ''} ${r.comprador || ''}`.toLowerCase().includes(b)) return false;
+      if (this._unidades.length    && !this._unidades.includes(r.unidade))     return false;
+      if (this._compradores.length && !this._compradores.includes(r.comprador)) return false;
       return true;
     });
 
@@ -421,16 +433,42 @@ window.Pages.entregas = {
     this._renderList();
   },
 
+  _toggleComprador(val, checked) {
+    if (checked) { if (!this._compradores.includes(val)) this._compradores.push(val); }
+    else { const i = this._compradores.indexOf(val); if (i > -1) this._compradores.splice(i, 1); }
+
+    const n   = this._compradores.length;
+    const lbl = n === 0 ? 'Vendedor' : n === 1 ? this._compradores[0] : `${n} selecionados`;
+    const wrap = document.getElementById('ent-ms-comprador');
+    if (wrap) {
+      const lblEl = wrap.querySelector('.ms-lbl');
+      if (lblEl) lblEl.textContent = lbl;
+      wrap.classList.toggle('ms-has-val', n > 0);
+    }
+
+    this._atualizarLimparBtn();
+    this._renderList();
+  },
+
   _limparFiltros() {
-    this._busca    = '';
-    this._unidades = [];
+    this._busca       = '';
+    this._unidades    = [];
+    this._compradores = [];
     const bEl = document.getElementById('ent-busca');
     if (bEl) bEl.value = '';
     const unidades = [...new Set((this._data || []).map(r => r.unidade).filter(Boolean))].sort();
-    const wrap = document.getElementById('ent-unidade-wrap');
-    if (wrap) {
-      wrap.innerHTML = msHtml('ent-ms-unidade', unidades, [], 'Unidade',
+    const wrapU = document.getElementById('ent-unidade-wrap');
+    if (wrapU) {
+      wrapU.innerHTML = msHtml('ent-ms-unidade', unidades, [], 'Unidade',
         "Pages.entregas._toggleUnidade(");
+    }
+    const compradores = [...new Set((this._data || []).map(r => r.comprador).filter(Boolean))].sort();
+    const wrapC = document.getElementById('ent-comprador-wrap');
+    if (wrapC) {
+      wrapC.innerHTML = compradores.length
+        ? msHtml('ent-ms-comprador', compradores, [], 'Vendedor',
+            "Pages.entregas._toggleComprador(")
+        : '';
     }
     this._atualizarLimparBtn();
     this._renderList();
@@ -438,7 +476,7 @@ window.Pages.entregas = {
 
   _atualizarLimparBtn() {
     const btn = document.getElementById('ent-limpar-btn');
-    if (btn) btn.style.display = (this._busca || this._unidades.length) ? '' : 'none';
+    if (btn) btn.style.display = (this._busca || this._unidades.length || this._compradores.length) ? '' : 'none';
   },
 
   abrirModal(id) {
