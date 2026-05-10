@@ -497,22 +497,49 @@ async function _pedidosAprovados() {
 }
 
 async function _fornecedoresPorSegmento(segmento) {
+  // Step 1: find category IDs matching the segment name
   const { data: cats } = await _sb.from('categorias').select('id').ilike('segmento', `%${segmento}%`);
   const catIds = (cats || []).map(c => c.id);
+
   let fornecedores = [];
   if (catIds.length) {
-    const { data: fs } = await _sb.from('fornecedores_segmentos')
-      .select('cnpj_fornecedor, fornecedores(*)')
+    // Step 2: get CNPJs linked to those categories (explicit — no PostgREST FK join)
+    const { data: links } = await _sb.from('fornecedores_segmentos')
+      .select('cnpj_fornecedor')
       .in('id_categoria', catIds);
-    fornecedores = (fs || []).map(f => f.fornecedores).filter(Boolean);
+    const cnpjs = [...new Set((links || []).map(l => l.cnpj_fornecedor).filter(Boolean))];
+
+    if (cnpjs.length) {
+      // Step 3: fetch full supplier records by CNPJ
+      const { data: fs } = await _sb.from('fornecedores')
+        .select('*')
+        .in('cnpj', cnpjs)
+        .order('razao_social');
+      fornecedores = fs || [];
+    }
   }
+
+  // Fallback: if the junction table returned nothing, show ALL suppliers
+  // (handles suppliers imported without segment linking)
+  if (!fornecedores.length) {
+    const { data: all } = await _sb.from('fornecedores')
+      .select('*')
+      .order('razao_social')
+      .limit(500);
+    fornecedores = all || [];
+  }
+
   const { data: hist } = await _sb.from('requisicoes')
     .select('data_solicitacao, valor_fechado, fornecedor, itens_requisicao(descricao, quantidade)')
     .eq('status', 'Concluído').limit(5);
-  return { fornecedores, historico_precos: (hist || []).map(h => ({
-    data: h.data_solicitacao, item: h.itens_requisicao?.[0]?.descricao || '',
-    qtd: h.itens_requisicao?.[0]?.quantidade || 0, valor: h.valor_fechado, fornecedor: h.fornecedor
-  })), total_fornecedores: fornecedores.length };
+  return {
+    fornecedores,
+    historico_precos: (hist || []).map(h => ({
+      data: h.data_solicitacao, item: h.itens_requisicao?.[0]?.descricao || '',
+      qtd: h.itens_requisicao?.[0]?.quantidade || 0, valor: h.valor_fechado, fornecedor: h.fornecedor
+    })),
+    total_fornecedores: fornecedores.length
+  };
 }
 
 async function _requisicaoParaFornecedor(id) {
@@ -1400,6 +1427,20 @@ async function _catalogoDetalhe(path) {
 
 // ── Sourcing — segmentos ───────────────────────────────────
 async function _sourcingSegmentos() {
+  // Priority: return only segments that have at least one supplier linked
+  const { data: links } = await _sb.from('fornecedores_segmentos').select('id_categoria').limit(2000);
+  const linkedIds = [...new Set((links || []).map(l => l.id_categoria).filter(Boolean))];
+
+  if (linkedIds.length) {
+    const { data: cats } = await _sb.from('categorias')
+      .select('segmento')
+      .in('id', linkedIds)
+      .order('segmento');
+    const segs = [...new Set((cats || []).map(c => c.segmento).filter(Boolean))].sort();
+    if (segs.length) return segs;
+  }
+
+  // Fallback: all categories (no suppliers linked yet)
   const { data } = await _sb.from('categorias').select('segmento').order('segmento');
   return (data || []).map(c => c.segmento).filter(Boolean);
 }
