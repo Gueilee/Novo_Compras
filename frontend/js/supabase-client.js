@@ -1651,6 +1651,7 @@ async function _salvarCadastroFornecedor(body) {
     telefone:  body.contato_comercial_tel   || null,
     cidade:    body.endereco_cidade         || null,
     estado:    body.endereco_uf             || null,
+    site:      body.site                    || null,
   };
   const { data: existing } = await _sb.from('fornecedores').select('cnpj').eq('cnpj', cnpj).maybeSingle();
   if (existing) {
@@ -1659,6 +1660,14 @@ async function _salvarCadastroFornecedor(body) {
   } else {
     const { error } = await _sb.from('fornecedores').insert(payload);
     if (error) _err(error);
+  }
+  // Sync junction table for segmentos
+  if (body.segmentos_interesse?.length) {
+    const { data: cats } = await _sb.from('categorias').select('id, segmento')
+      .in('segmento', body.segmentos_interesse);
+    await _sb.from('fornecedores_segmentos').delete().eq('cnpj_fornecedor', cnpj);
+    if (cats && cats.length)
+      await _sb.from('fornecedores_segmentos').insert(cats.map(c => ({ cnpj_fornecedor: cnpj, id_categoria: c.id })));
   }
   return { status: 'ok' };
 }

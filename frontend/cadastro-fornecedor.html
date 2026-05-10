@@ -485,17 +485,19 @@ let selectedSegs = new Set();
   const segs = [...new Set((data || []).map(c => c.segmento).filter(Boolean))].sort();
   const container = document.getElementById('segs-container');
 
-  if (!segs.length) {
-    container.innerHTML = `<div class="segs-loading" style="color:#aaa;">Nenhum segmento cadastrado ainda.</div>`;
-    return;
-  }
+  const outroChk = `
+    <label class="seg-chk" data-seg="Outros" onclick="toggleSeg(this)">
+      <input type="checkbox" value="Outros">
+      <div class="seg-chk-box"><i class="fa-solid fa-check"></i></div>
+      <span>Outros</span>
+    </label>`;
 
   container.innerHTML = `<div class="segs-grid">${segs.map(s => `
     <label class="seg-chk" data-seg="${s}" onclick="toggleSeg(this)">
       <input type="checkbox" value="${s}">
       <div class="seg-chk-box"><i class="fa-solid fa-check"></i></div>
       <span>${s}</span>
-    </label>`).join('')}</div>`;
+    </label>`).join('')}${outroChk}</div>`;
 })();
 
 function toggleSeg(el) {

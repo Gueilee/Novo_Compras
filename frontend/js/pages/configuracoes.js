@@ -160,6 +160,11 @@ window.Pages.configuracoes = {
       display:flex; gap:10px; justify-content:flex-end;
       flex-shrink:0;
     }
+    .fdrw-sec-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--brand); margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+    .fdrw-seg-lbl { display:flex; align-items:center; gap:8px; padding:8px 11px; border:1.5px solid var(--border); border-radius:8px; cursor:pointer; background:var(--bg); font-size:12.5px; color:#333; user-select:none; transition:all .15s; }
+    .fdrw-seg-lbl.on { border-color:var(--brand); background:#f0ecfa; }
+    .fdrw-seg-box { width:16px; height:16px; border:2px solid #d0c4f9; border-radius:4px; background:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#fff; font-size:9px; transition:all .15s; }
+    .fdrw-seg-lbl.on .fdrw-seg-box { background:var(--brand); border-color:var(--brand); }
 
     /* ── Toggle active ───────────────────────────────────────── */
     .cfg-toggle {
@@ -1401,63 +1406,166 @@ window.Pages.configuracoes = {
 
   async _editFornecedor(cnpj) {
     try {
-      const all = await Api.get(`/api/catalogo/fornecedores?cnpj=${cnpj}`);
-      const f = Array.isArray(all) ? all.find(x => (x.cnpj||'').replace(/\D/g,'') === cnpj) : null;
+      const res = await Api.get(`/api/catalogo/fornecedores?q=${cnpj}`);
+      const list = res?.fornecedores || (Array.isArray(res) ? res : []);
+      const f = list.find(x => (x.cnpj||'').replace(/\D/g,'') === cnpj) || list[0];
       this._openFornecedorDrawer(f || { cnpj });
     } catch { Toast.error('Erro ao carregar fornecedor'); }
   },
 
   _openFornecedorDrawer(f) {
     const isEdit = !!(f && f.cnpj);
+    const segsAtual = Array.isArray(f?.segmentos_interesse) ? f.segmentos_interesse : [];
+    const v = s => (s || '').toString().replace(/"/g, '&quot;');
+
+    const contactBlocks = [
+      { tipo: 'Comercial',   icon: 'fa-briefcase',          eid: 'fdrw-com-email', tid: 'fdrw-com-tel', ek: 'contato_comercial_email',  tk: 'contato_comercial_tel',  req: true,  fe: f?.email || '',    ft: f?.telefone || '' },
+      { tipo: 'Financeiro',  icon: 'fa-file-invoice-dollar', eid: 'fdrw-fin-email', tid: 'fdrw-fin-tel', ek: 'contato_financeiro_email', tk: 'contato_financeiro_tel', req: false, fe: '',                ft: '' },
+      { tipo: 'Fiscal/NF-e', icon: 'fa-file-circle-check',  eid: 'fdrw-fis-email', tid: 'fdrw-fis-tel', ek: 'contato_fiscal_email',     tk: 'contato_fiscal_tel',     req: false, fe: '',                ft: '' },
+    ].map(c => `
+      <div style="border:1px solid var(--border-subtle);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--bg);">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+          <i class="fa-solid ${c.icon}"></i> Contato ${c.tipo}${c.req ? ' <span style="color:#e53e3e">*</span>' : ''}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label class="form-label">E-mail${c.req ? ' *' : ''}</label>
+            <input class="form-control" id="${c.eid}" type="email" placeholder="${c.tipo.split('/')[0].toLowerCase()}@empresa.com"
+                   value="${v(f?.[c.ek] || c.fe)}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefone</label>
+            <input class="form-control" id="${c.tid}" type="tel" placeholder="(11) 99999-9999"
+                   value="${v(f?.[c.tk] || c.ft)}">
+          </div>
+        </div>
+      </div>`).join('');
+
     const root = document.createElement('div');
     root.id = 'cfg-drawer-root';
     root.innerHTML = `
       <div class="cfg-backdrop" id="cfg-backdrop">
-        <div class="cfg-drawer">
+        <div class="cfg-drawer" style="width:640px;">
           <div class="cfg-drw-hdr">
             <div class="cfg-drw-title">${isEdit ? 'Editar Fornecedor' : 'Novo Fornecedor'}</div>
             <button class="cfg-drw-close" id="cfg-drw-close"><i class="fa-solid fa-xmark"></i></button>
           </div>
-          <div class="cfg-drw-body">
-            <div class="form-group">
-              <label class="form-label form-label-required">CNPJ</label>
-              <input class="form-control" id="fdrw-cnpj" type="text" placeholder="00.000.000/0000-00"
-                     value="${f?.cnpj || ''}" ${isEdit ? 'readonly style="background:var(--bg);color:var(--text-muted);"' : ''}>
-            </div>
-            <div class="form-group">
-              <label class="form-label form-label-required">Razão Social</label>
-              <input class="form-control" id="fdrw-razao" type="text" placeholder="Nome da empresa"
-                     value="${f?.razao_social || f?.nome || ''}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Segmento / Categoria</label>
-              <input class="form-control" id="fdrw-segmento" type="text" placeholder="Ex: Informática, Limpeza..."
-                     value="${f?.segmento || f?.categoria || ''}">
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <div class="form-group">
-                <label class="form-label">Cidade</label>
-                <input class="form-control" id="fdrw-cidade" type="text" value="${f?.cidade || ''}">
+          <div class="cfg-drw-body" style="gap:0;">
+
+            <div style="margin-bottom:20px;">
+              <div class="fdrw-sec-title"><i class="fa-solid fa-id-card"></i> Dados da Empresa</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label form-label-required">CNPJ</label>
+                  <input class="form-control" id="fdrw-cnpj" type="text" placeholder="00.000.000/0000-00"
+                         value="${v(f?.cnpj)}" ${isEdit ? 'readonly style="background:var(--bg);color:var(--text-muted);"' : ''}>
+                </div>
+                <div class="form-group">
+                  <label class="form-label form-label-required">Razão Social</label>
+                  <input class="form-control" id="fdrw-razao" type="text" placeholder="Nome da empresa"
+                         value="${v(f?.razao_social || f?.nome)}">
+                </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">UF</label>
-                <input class="form-control" id="fdrw-estado" type="text" maxlength="2" placeholder="SP"
-                       value="${f?.estado || ''}" style="text-transform:uppercase;">
+              <div class="form-group" style="margin-top:12px;">
+                <label class="form-label">Site</label>
+                <input class="form-control" id="fdrw-site" type="url" placeholder="https://"
+                       value="${v(f?.site)}">
               </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">E-mail de Contato</label>
-              <input class="form-control" id="fdrw-email" type="email" value="${f?.email || ''}">
+
+            <div style="margin-bottom:20px;">
+              <div class="fdrw-sec-title"><i class="fa-solid fa-location-dot"></i> Endereço</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label">Logradouro</label>
+                  <input class="form-control" id="fdrw-logr" type="text" placeholder="Rua, Av., Travessa..."
+                         value="${v(f?.endereco_logradouro)}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Número</label>
+                  <input class="form-control" id="fdrw-num" type="text" placeholder="S/N"
+                         value="${v(f?.endereco_numero)}">
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+                <div class="form-group">
+                  <label class="form-label">Bairro</label>
+                  <input class="form-control" id="fdrw-bairro" type="text" placeholder="Bairro"
+                         value="${v(f?.endereco_bairro)}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Complemento</label>
+                  <input class="form-control" id="fdrw-compl" type="text" placeholder="Sala, andar..."
+                         value="${v(f?.endereco_complemento)}">
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 80px 120px;gap:12px;margin-top:12px;">
+                <div class="form-group">
+                  <label class="form-label form-label-required">Cidade</label>
+                  <input class="form-control" id="fdrw-cidade" type="text" placeholder="Cidade"
+                         value="${v(f?.cidade || f?.endereco_cidade)}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label form-label-required">UF</label>
+                  <input class="form-control" id="fdrw-estado" type="text" maxlength="2" placeholder="SP"
+                         value="${v(f?.estado || f?.endereco_uf)}" style="text-transform:uppercase;">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">CEP</label>
+                  <input class="form-control" id="fdrw-cep" type="text" placeholder="00000-000"
+                         value="${v(f?.endereco_cep)}">
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Telefone</label>
-              <input class="form-control" id="fdrw-tel" type="text" value="${f?.telefone || ''}">
+
+            <div style="margin-bottom:20px;">
+              <div class="fdrw-sec-title"><i class="fa-solid fa-address-book"></i> Contatos</div>
+              ${contactBlocks}
             </div>
-            <div class="form-group">
-              <label class="form-label">Site</label>
-              <input class="form-control" id="fdrw-site" type="url" placeholder="https://"
-                     value="${f?.site || ''}">
+
+            <div style="margin-bottom:20px;">
+              <div class="fdrw-sec-title"><i class="fa-solid fa-tags"></i> Segmentos de Atuação</div>
+              <div id="fdrw-segs-container">
+                <div style="font-size:13px;color:#999;text-align:center;padding:12px;">
+                  <i class="fa-solid fa-spinner fa-spin"></i> Carregando...
+                </div>
+              </div>
             </div>
+
+            <div style="margin-bottom:4px;">
+              <div class="fdrw-sec-title">
+                <i class="fa-solid fa-folder-open"></i> Documentação
+                <span style="font-size:10px;font-weight:400;color:#aaa;text-transform:none;letter-spacing:0;margin-left:4px;">(links — opcional)</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label">Cartão CNPJ (link)</label>
+                  <input class="form-control" id="fdrw-doc-cnpj" type="url" placeholder="https://"
+                         value="${v(f?.doc_cartao_cnpj)}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Alvará de Funcionamento (link)</label>
+                  <input class="form-control" id="fdrw-doc-alvara" type="url" placeholder="https://"
+                         value="${v(f?.doc_alvara_funcionamento)}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Alvará Sanitário (link)</label>
+                  <input class="form-control" id="fdrw-doc-sanitario" type="url" placeholder="https://"
+                         value="${v(f?.doc_alvara_sanitario)}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Certificado ISO 9001 (link)</label>
+                  <input class="form-control" id="fdrw-doc-iso" type="url" placeholder="https://"
+                         value="${v(f?.doc_iso_9001)}">
+                </div>
+                <div class="form-group" style="grid-column:1/-1;">
+                  <label class="form-label">Última Alteração Contratual (link)</label>
+                  <input class="form-control" id="fdrw-doc-alt" type="url" placeholder="https://"
+                         value="${v(f?.doc_ultima_alteracao)}">
+                </div>
+              </div>
+            </div>
+
           </div>
           <div class="cfg-drw-footer">
             <button class="btn btn-outline" id="fdrw-cancel">Cancelar</button>
@@ -1468,35 +1576,81 @@ window.Pages.configuracoes = {
         </div>
       </div>`;
     document.body.appendChild(root);
+
     const close = () => root.remove();
     document.getElementById('cfg-drw-close').addEventListener('click', close);
     document.getElementById('fdrw-cancel').addEventListener('click', close);
     document.getElementById('cfg-backdrop').addEventListener('click', e => { if (e.target.id === 'cfg-backdrop') close(); });
 
+    // Load segmentos async and build checkboxes
+    (async () => {
+      const container = document.getElementById('fdrw-segs-container');
+      if (!container) return;
+      try {
+        const cats = await Api.get('/api/categorias');
+        const segs = [...new Set((cats || []).map(c => c.segmento).filter(Boolean))].sort();
+        const allSegs = [...segs, 'Outros'];
+        container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:7px;">
+          ${allSegs.map(s => {
+            const on = segsAtual.includes(s);
+            return `<label class="fdrw-seg-lbl${on ? ' on' : ''}" data-seg="${s}">
+              <input type="checkbox" value="${s}" ${on ? 'checked' : ''} style="display:none;">
+              <div class="fdrw-seg-box">${on ? '<i class="fa-solid fa-check"></i>' : ''}</div>
+              <span>${s}</span>
+            </label>`;
+          }).join('')}
+        </div>`;
+        container.addEventListener('click', e => {
+          const lbl = e.target.closest('.fdrw-seg-lbl');
+          if (!lbl) return;
+          const on = lbl.classList.toggle('on');
+          lbl.querySelector('input').checked = on;
+          const box = lbl.querySelector('.fdrw-seg-box');
+          box.innerHTML = on ? '<i class="fa-solid fa-check"></i>' : '';
+        });
+      } catch {
+        if (container) container.innerHTML = `<div style="font-size:13px;color:#aaa;">Erro ao carregar segmentos.</div>`;
+      }
+    })();
+
     document.getElementById('fdrw-save').addEventListener('click', async () => {
-      const cnpj   = (document.getElementById('fdrw-cnpj').value || '').replace(/\D/g,'');
-      const razao  = document.getElementById('fdrw-razao').value.trim();
+      const cnpj  = (document.getElementById('fdrw-cnpj').value || '').replace(/\D/g,'');
+      const razao = document.getElementById('fdrw-razao').value.trim();
       if (!cnpj || cnpj.length < 14) { Toast.warning('CNPJ inválido', 'Informe o CNPJ completo.'); return; }
       if (!razao) { Toast.warning('Campo obrigatório', 'Informe a Razão Social.'); return; }
+
+      const selectedSegs = Array.from(document.querySelectorAll('#fdrw-segs-container .fdrw-seg-lbl.on'))
+                                .map(el => el.dataset.seg).filter(Boolean);
       const payload = {
-        cnpj, razao_social: razao,
-        segmento:  document.getElementById('fdrw-segmento').value.trim() || null,
-        cidade:    document.getElementById('fdrw-cidade').value.trim()   || null,
-        estado:    (document.getElementById('fdrw-estado').value.trim()  || '').toUpperCase() || null,
-        email:     document.getElementById('fdrw-email').value.trim()    || null,
-        telefone:  document.getElementById('fdrw-tel').value.trim()      || null,
-        site:      document.getElementById('fdrw-site').value.trim()     || null,
+        cnpj,
+        razao_social:             razao,
+        endereco_logradouro:      document.getElementById('fdrw-logr').value.trim()       || null,
+        endereco_numero:          document.getElementById('fdrw-num').value.trim()         || null,
+        endereco_complemento:     document.getElementById('fdrw-compl').value.trim()       || null,
+        endereco_bairro:          document.getElementById('fdrw-bairro').value.trim()      || null,
+        endereco_cidade:          document.getElementById('fdrw-cidade').value.trim()      || null,
+        endereco_uf:              (document.getElementById('fdrw-estado').value.trim() || '').toUpperCase() || null,
+        endereco_cep:             document.getElementById('fdrw-cep').value.replace(/\D/g,'') || null,
+        contato_comercial_email:  document.getElementById('fdrw-com-email').value.trim()  || null,
+        contato_comercial_tel:    document.getElementById('fdrw-com-tel').value.trim()    || null,
+        contato_financeiro_email: document.getElementById('fdrw-fin-email').value.trim()  || null,
+        contato_financeiro_tel:   document.getElementById('fdrw-fin-tel').value.trim()    || null,
+        contato_fiscal_email:     document.getElementById('fdrw-fis-email').value.trim()  || null,
+        contato_fiscal_tel:       document.getElementById('fdrw-fis-tel').value.trim()    || null,
+        segmentos_interesse:      selectedSegs,
+        doc_cartao_cnpj:          document.getElementById('fdrw-doc-cnpj').value.trim()      || null,
+        doc_alvara_funcionamento: document.getElementById('fdrw-doc-alvara').value.trim()    || null,
+        doc_alvara_sanitario:     document.getElementById('fdrw-doc-sanitario').value.trim() || null,
+        doc_iso_9001:             document.getElementById('fdrw-doc-iso').value.trim()       || null,
+        doc_ultima_alteracao:     document.getElementById('fdrw-doc-alt').value.trim()       || null,
+        site:                     document.getElementById('fdrw-site').value.trim()          || null,
       };
+
       const btn = document.getElementById('fdrw-save');
       btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
       try {
-        if (isEdit) {
-          await Api.put(`/api/catalogo/fornecedores/${cnpj}`, payload);
-          Toast.success('Fornecedor atualizado!', razao);
-        } else {
-          await Api.post('/api/catalogo/fornecedores', payload);
-          Toast.success('Fornecedor cadastrado!', razao);
-        }
+        await Api.post('/api/fornecedor/cadastro', payload);
+        Toast.success(isEdit ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!', razao);
         close();
         this._loadFornecedores();
       } catch (err) {
