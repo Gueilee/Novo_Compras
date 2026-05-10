@@ -4,7 +4,7 @@ window.Pages = window.Pages || {};
 window.Pages.aprovacoes = {
   title: 'Painel de Requisições',
   _todos: [],
-  _filtros: { busca: '', unidades: [] },
+  _filtros: { busca: '', unidades: [], compradores: [] },
 
   render() {
     return `
@@ -37,6 +37,7 @@ window.Pages.aprovacoes = {
                  oninput="Pages.aprovacoes._onBusca(this.value)">
         </div>
         <div id="aprov-unidade-wrap"></div>
+        <div id="aprov-comprador-wrap"></div>
         <button id="aprov-limpar-btn" class="btn btn-ghost btn-sm"
                 style="display:none;color:var(--accent);height:36px;"
                 onclick="Pages.aprovacoes._limparFiltros()">
@@ -241,7 +242,7 @@ window.Pages.aprovacoes = {
 
   /* ── init ──────────────────────────────────────────────────── */
   async init() {
-    this._filtros = { busca: '', unidades: [] };
+    this._filtros = { busca: '', unidades: [], compradores: [] };
     const bEl = document.getElementById('aprov-busca');
     if (bEl) bEl.value = '';
     await this._loadPendencias();
@@ -267,10 +268,18 @@ window.Pages.aprovacoes = {
 
       // Populate unidade multi-select
       const unidades = [...new Set(this._todos.map(p => p.unidade).filter(Boolean))].sort();
-      const wrap = document.getElementById('aprov-unidade-wrap');
-      if (wrap) {
-        wrap.innerHTML = msHtml('aprov-ms-unidade', unidades, this._filtros.unidades, 'Unidade',
+      const wrapU = document.getElementById('aprov-unidade-wrap');
+      if (wrapU) {
+        wrapU.innerHTML = msHtml('aprov-ms-unidade', unidades, this._filtros.unidades, 'Unidade',
           "Pages.aprovacoes._toggleFilter('unidades',");
+      }
+
+      // Populate comprador multi-select
+      const compradores = [...new Set(this._todos.map(p => p.comprador).filter(Boolean))].sort();
+      const wrapC = document.getElementById('aprov-comprador-wrap');
+      if (wrapC) {
+        wrapC.innerHTML = msHtml('aprov-ms-comprador', compradores, this._filtros.compradores, 'Responsável',
+          "Pages.aprovacoes._toggleFilter('compradores',");
       }
 
       this._renderLista();
@@ -290,12 +299,13 @@ window.Pages.aprovacoes = {
     const lista = document.getElementById('aprov-lista');
     if (!lista) return;
 
-    const { busca, unidades } = this._filtros;
+    const { busca, unidades, compradores } = this._filtros;
     const b = busca.toLowerCase();
 
     const itens = this._todos.filter(p => {
       if (b && !`#${p.id_pedido} ${p.solicitante || ''} ${p.comprador || ''} ${p.unidade || ''}`.toLowerCase().includes(b)) return false;
       if (unidades.length && !unidades.includes(p.unidade)) return false;
+      if (compradores.length && !compradores.includes(p.comprador)) return false;
       return true;
     });
 
@@ -342,9 +352,9 @@ window.Pages.aprovacoes = {
     else { const i = arr.indexOf(val); if (i > -1) arr.splice(i, 1); }
 
     const n = arr.length;
-    const ph = key === 'unidades' ? 'Unidade' : key;
+    const ph = key === 'unidades' ? 'Unidade' : key === 'compradores' ? 'Responsável' : key;
     const lbl = n === 0 ? ph : n === 1 ? arr[0] : `${n} selecionados`;
-    const msId = key === 'unidades' ? 'aprov-ms-unidade' : `aprov-ms-${key}`;
+    const msId = key === 'unidades' ? 'aprov-ms-unidade' : key === 'compradores' ? 'aprov-ms-comprador' : `aprov-ms-${key}`;
     const wrap = document.getElementById(msId);
     if (wrap) {
       const lblEl = wrap.querySelector('.ms-lbl');
@@ -363,14 +373,20 @@ window.Pages.aprovacoes = {
   },
 
   _limparFiltros() {
-    this._filtros = { busca: '', unidades: [] };
+    this._filtros = { busca: '', unidades: [], compradores: [] };
     const bEl = document.getElementById('aprov-busca');
     if (bEl) bEl.value = '';
     const unidades = [...new Set(this._todos.map(p => p.unidade).filter(Boolean))].sort();
-    const wrap = document.getElementById('aprov-unidade-wrap');
-    if (wrap) {
-      wrap.innerHTML = msHtml('aprov-ms-unidade', unidades, [], 'Unidade',
+    const wrapU = document.getElementById('aprov-unidade-wrap');
+    if (wrapU) {
+      wrapU.innerHTML = msHtml('aprov-ms-unidade', unidades, [], 'Unidade',
         "Pages.aprovacoes._toggleFilter('unidades',");
+    }
+    const compradores = [...new Set(this._todos.map(p => p.comprador).filter(Boolean))].sort();
+    const wrapC = document.getElementById('aprov-comprador-wrap');
+    if (wrapC) {
+      wrapC.innerHTML = msHtml('aprov-ms-comprador', compradores, [], 'Responsável',
+        "Pages.aprovacoes._toggleFilter('compradores',");
     }
     this._atualizarLimparBtn();
     this._renderLista();
@@ -378,7 +394,8 @@ window.Pages.aprovacoes = {
 
   _atualizarLimparBtn() {
     const btn = document.getElementById('aprov-limpar-btn');
-    if (btn) btn.style.display = (this._filtros.busca || this._filtros.unidades.length) ? '' : 'none';
+    const { busca, unidades, compradores } = this._filtros;
+    if (btn) btn.style.display = (busca || unidades.length || compradores.length) ? '' : 'none';
   },
 
   /* ── Build card HTML ───────────────────────────────────────── */
