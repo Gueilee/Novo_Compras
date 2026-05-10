@@ -42,7 +42,8 @@ const App = {
   navigate(pageId) {
     const page = window.Pages?.[pageId];
     if (!page) {
-      console.warn(`Page "${pageId}" not found`);
+      console.error(`Page "${pageId}" not found in window.Pages`, Object.keys(window.Pages || {}));
+      Toast.error('Página não encontrada', `Módulo "${pageId}" não carregou. Pressione Ctrl+Shift+R para forçar atualização.`);
       return;
     }
 
