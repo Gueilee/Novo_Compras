@@ -87,6 +87,8 @@ async function _route(method, path, body) {
   if (method === 'GET' && mDet) return _detalhesCompletos(+mDet[1]);
   if (full === 'GET /api/requisicoes/filtros')      return _filtrosRequisicoes();
   if (full === 'GET /api/requisicoes/por-unidade')  return _requisicoesPorUnidade();
+  const mReqItens = basePath.match(/^\/api\/requisicoes\/(\d+)\/itens$/);
+  if (method === 'PATCH' && mReqItens) return _atualizarItensRequisicao(+mReqItens[1], body);
   const mReqId = basePath.match(/^\/api\/requisicoes\/(\d+)$/);
   if (method === 'GET'    && mReqId) return _getRequisicao(+mReqId[1]);
   if (method === 'PATCH'  && mReqId) return _atualizarRequisicao(+mReqId[1], body);
@@ -1169,7 +1171,7 @@ async function _getRequisicao(id) {
     justificativa: req.justificativa, observacoes: req.observacoes,
     fornecedor: req.fornecedor, valor_fechado: req.valor_fechado,
     itens: (req.itens_requisicao || []).map(i => ({
-      descricao: i.descricao, quantidade: i.quantidade, segmento: i.segmento_historico
+      id: i.id, descricao: i.descricao, quantidade: i.quantidade, segmento: i.segmento_historico
     }))
   };
 }
@@ -1177,6 +1179,16 @@ async function _getRequisicao(id) {
 async function _atualizarRequisicao(id, body) {
   const { error } = await _sb.from('requisicoes').update(body).eq('id_sharepoint', id);
   if (error) _err(error);
+  return { status: 'ok' };
+}
+
+async function _atualizarItensRequisicao(reqId, body) {
+  const itens = body.itens || [];
+  const results = await Promise.all(
+    itens.map(it => _sb.from('itens_requisicao').update({ quantidade: it.quantidade }).eq('id', it.id))
+  );
+  const failed = results.find(r => r.error);
+  if (failed) _err(failed.error);
   return { status: 'ok' };
 }
 

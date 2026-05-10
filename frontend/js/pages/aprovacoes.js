@@ -340,6 +340,7 @@ window.Pages.aprovacoes = {
       const unid   = btn.dataset.unidade || '';
       const action = btn.dataset.aprovAction;
       if (action === 'detalhe')  this._openDetalhe(id);
+      if (action === 'editar')   this._openEditar(id);
       if (action === 'aprovar')  this.aprovar(id, unid);
       if (action === 'reprovar') this.reprovar(id);
     };
@@ -431,6 +432,10 @@ window.Pages.aprovacoes = {
           <button class="btn btn-outline btn-sm"
                   data-aprov-action="detalhe" data-id="${p.id_pedido}">
             <i class="fa-solid fa-magnifying-glass"></i> Ver Detalhes
+          </button>
+          <button class="btn btn-outline btn-sm"
+                  data-aprov-action="editar" data-id="${p.id_pedido}">
+            <i class="fa-solid fa-pen-to-square"></i> Editar
           </button>
           <button class="btn btn-danger btn-sm"
                   data-aprov-action="reprovar" data-id="${p.id_pedido}">
@@ -557,6 +562,10 @@ window.Pages.aprovacoes = {
 
           <div class="aprov-drw-footer">
             <button class="btn btn-outline" style="flex:1;" id="aprov-drw-cancel">Fechar</button>
+            <button class="btn btn-outline" style="flex:1;"
+                    id="aprov-drw-editar" ${isLoading ? 'disabled' : ''}>
+              <i class="fa-solid fa-pen-to-square"></i> Editar
+            </button>
             <button class="btn btn-danger" style="flex:1;"
                     id="aprov-drw-reprovar" data-id="${req.id}" ${isLoading ? 'disabled' : ''}>
               <i class="fa-solid fa-xmark"></i> Reprovar
@@ -580,6 +589,10 @@ window.Pages.aprovacoes = {
       if (e.target === document.getElementById('aprov-detail-backdrop')) close();
     });
 
+    document.getElementById('aprov-drw-editar')?.addEventListener('click', () => {
+      close();
+      this._openEditar(req.id);
+    });
     document.getElementById('aprov-drw-reprovar')?.addEventListener('click', () => {
       close();
       this.reprovar(req.id);
@@ -592,6 +605,141 @@ window.Pages.aprovacoes = {
 
   _closeDetalhe() {
     document.getElementById('aprov-detail-root')?.remove();
+  },
+
+  /* ── Edit drawer ───────────────────────────────────────────── */
+  async _openEditar(id) {
+    this._closeDetalhe();
+    this._buildEditarDrawer({ id, _loading: true });
+
+    let req;
+    try {
+      req = await Api.get(`/api/requisicoes/${id}`);
+    } catch {
+      Toast.error('Erro ao carregar requisição');
+      this._closeEditar();
+      return;
+    }
+    this._buildEditarDrawer(req);
+  },
+
+  _buildEditarDrawer(req) {
+    document.getElementById('aprov-edit-root')?.remove();
+
+    const isLoading = req._loading;
+    const itens = req.itens || [];
+
+    const itensHtml = isLoading
+      ? '<div style="padding:20px;text-align:center;"><div class="spinner"></div></div>'
+      : itens.map((it, i) => `
+          <div class="aprov-drw-item" style="align-items:center;gap:12px;">
+            <div class="aprov-drw-item-num">${i + 1}</div>
+            <div style="flex:1;min-width:0;">
+              <div class="aprov-drw-item-desc">${it.descricao}</div>
+              ${it.segmento ? `<div class="aprov-drw-item-seg">${it.segmento}</div>` : ''}
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+              <label style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Qtd:</label>
+              <input type="number" class="form-control aprov-edit-qty"
+                     data-item-id="${it.id}"
+                     value="${it.quantidade}" min="1"
+                     style="width:72px;height:34px;font-size:13px;font-weight:700;text-align:center;padding:0 8px;">
+            </div>
+          </div>`).join('')
+        || '<div style="padding:12px;font-size:12px;color:var(--text-muted);">Sem itens</div>';
+
+    const root = document.createElement('div');
+    root.id = 'aprov-edit-root';
+    root.innerHTML = `
+      <div class="aprov-backdrop" id="aprov-edit-backdrop">
+        <div class="aprov-drawer">
+
+          <div class="aprov-drw-hdr">
+            <div>
+              <div class="aprov-drw-title">Editar Requisição #${req.id}</div>
+              <div class="aprov-drw-sub">
+                ${isLoading ? 'Carregando...' : 'Ajuste as quantidades antes de aprovar'}
+              </div>
+            </div>
+            <button class="aprov-drw-close" id="aprov-edit-close-btn">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <div class="aprov-drw-body">
+            ${isLoading
+              ? '<div style="text-align:center;padding:60px;"><div class="spinner"></div></div>'
+              : `
+            <div>
+              <div class="aprov-drw-section-lbl">Itens da Requisição — ajuste as quantidades</div>
+              <div class="aprov-drw-items">
+                ${itensHtml}
+              </div>
+            </div>
+
+            <div>
+              <div class="aprov-drw-section-lbl" style="margin-bottom:8px;">Observação (opcional)</div>
+              <textarea id="aprov-edit-obs" class="form-control" rows="3"
+                placeholder="Descreva o motivo dos ajustes realizados..."
+                style="width:100%;resize:vertical;font-size:13px;box-sizing:border-box;"></textarea>
+            </div>
+            `}
+          </div>
+
+          <div class="aprov-drw-footer">
+            <button class="btn btn-outline" style="flex:1;" id="aprov-edit-cancel">Cancelar</button>
+            <button class="btn btn-success" style="flex:2;" id="aprov-edit-salvar" ${isLoading ? 'disabled' : ''}>
+              <i class="fa-solid fa-floppy-disk"></i> Salvar Alterações
+            </button>
+          </div>
+
+        </div>
+      </div>`;
+
+    document.body.appendChild(root);
+
+    const close = () => this._closeEditar();
+    document.getElementById('aprov-edit-close-btn')?.addEventListener('click', close);
+    document.getElementById('aprov-edit-cancel')?.addEventListener('click', close);
+    document.getElementById('aprov-edit-backdrop')?.addEventListener('click', e => {
+      if (e.target === document.getElementById('aprov-edit-backdrop')) close();
+    });
+
+    if (!isLoading) {
+      document.getElementById('aprov-edit-salvar')?.addEventListener('click', () => {
+        this._salvarEdicao(req.id);
+      });
+    }
+  },
+
+  _closeEditar() {
+    document.getElementById('aprov-edit-root')?.remove();
+  },
+
+  async _salvarEdicao(reqId) {
+    const inputs = document.querySelectorAll('.aprov-edit-qty');
+    const itens  = Array.from(inputs).map(inp => ({
+      id:         inp.dataset.itemId,
+      quantidade: Math.max(1, parseInt(inp.value) || 1)
+    }));
+
+    if (itens.some(it => !it.id)) {
+      Toast.error('Erro interno', 'IDs dos itens não encontrados. Tente reabrir a tela.');
+      return;
+    }
+
+    const btn = document.getElementById('aprov-edit-salvar');
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Salvando...'; }
+
+    try {
+      await Api.patch(`/api/requisicoes/${reqId}/itens`, { itens });
+      this._closeEditar();
+      Toast.success('Requisição atualizada!', `As quantidades da Req. #${reqId} foram ajustadas.`);
+      await this._loadPendencias();
+    } catch {
+      Toast.error('Erro ao salvar', 'Não foi possível atualizar as quantidades. Tente novamente.');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar Alterações'; }
+    }
   },
 
   /* ── Aprovar ───────────────────────────────────────────────── */
