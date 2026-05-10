@@ -1613,7 +1613,7 @@ async function _getCadastroFornecedor(path) {
   const cnpj = _normCnpj(params.get('cnpj') || '');
   if (!cnpj) return null;
   const { data } = await _sb.from('fornecedores')
-    .select('cnpj, razao_social, cadastro_completo, cadastrado_em, segmentos_interesse')
+    .select('*')
     .eq('cnpj', cnpj).maybeSingle();
   return data || null;
 }
@@ -1645,13 +1645,9 @@ async function _salvarCadastroFornecedor(body) {
     doc_ultima_alteracao:      body.doc_ultima_alteracao     || null,
     cadastro_completo: true,
     cadastrado_em: new Date().toISOString(),
-    // Mirror to main columns for backward compat
-    segmento:  (body.segmentos_interesse || [])[0] || null,
-    email:     body.contato_comercial_email || null,
-    telefone:  body.contato_comercial_tel   || null,
-    cidade:    body.endereco_cidade         || null,
-    estado:    body.endereco_uf             || null,
-    site:      body.site                    || null,
+    // Espelha nos campos legado (existem na tabela)
+    email:    body.contato_comercial_email || null,
+    telefone: body.contato_comercial_tel   || null,
   };
   const { data: existing } = await _sb.from('fornecedores').select('cnpj').eq('cnpj', cnpj).maybeSingle();
   if (existing) {

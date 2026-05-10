@@ -524,12 +524,12 @@
       </div>
       <div>
         <div class="pf-card-hdr-title">Ficha Cadastral de Fornecedor</div>
-        <div class="pf-card-hdr-sub">Primeiro acesso — preenchimento obrigatório e único</div>
+        <div class="pf-card-hdr-sub" id="cad-hdr-sub">Primeiro acesso — preenchimento obrigatório e único</div>
       </div>
     </div>
     <div class="pf-card-body">
 
-      <div class="pf-info-box" style="background:#f0ebff;border-color:#c4b5fd;">
+      <div class="pf-info-box" id="cad-info-box" style="background:#f0ebff;border-color:#c4b5fd;">
         <i class="fa-solid fa-circle-info" style="color:#6633ee;flex-shrink:0;"></i>
         <p style="color:#444;margin:0;">Este é seu <strong>primeiro acesso</strong> à plataforma. Preencha a ficha cadastral abaixo para liberar o envio de propostas. Este processo é feito <strong>somente uma vez</strong> e seus dados ficam salvos para as próximas cotações.</p>
       </div>
@@ -754,7 +754,10 @@
       </div>
 
       <button class="btn-pf btn-pf-primary" id="cad-btn-submit" onclick="salvarCadastro()">
-        <i class="fa-solid fa-check-circle"></i> Salvar Cadastro e Continuar
+        <i class="fa-solid fa-check-circle"></i> Salvar e Continuar
+      </button>
+      <button class="btn-pf" id="cad-btn-skip" style="display:none;background:#f5f0ff;color:#6633ee;border:1.5px solid #d0c4f9;margin-top:10px;" onclick="carregarRequisicao()">
+        <i class="fa-solid fa-forward"></i> Pular — meus dados já estão atualizados
       </button>
 
     </div>
@@ -992,6 +995,7 @@ let _razaoSocial = '';
 let _cotacaoExistente = null; // cotação anterior deste fornecedor para esta req
 let _docsUrls = {};           // {cartao_cnpj: url, ...} — uploads da ficha cadastral
 let _segmentosCadastro = [];  // categorias do banco para os checkboxes
+let _cadJaExiste = false;     // true quando o fornecedor já tem dados no banco
 
 /* ── UI helpers ─────────────────────────────────────────────── */
 function setState(s) {
@@ -1082,36 +1086,86 @@ async function verificarCadastro() {
   if (!cnpjClean) { await carregarRequisicao(); return; }
   try {
     const cadastro = await Api.get(`/api/fornecedor/cadastro?cnpj=${cnpjClean}`);
-    if (!cadastro || !cadastro.cadastro_completo) {
-      await abrirCadastro(cadastro);
-    } else {
+    const jaExiste = !!(cadastro && (cadastro.razao_social || cadastro.email));
+    // Fornecedor completo → vai direto para cotação; incompleto/novo → abre ficha
+    if (cadastro?.cadastro_completo && jaExiste) {
       await carregarRequisicao();
+    } else {
+      await abrirCadastro(cadastro, jaExiste);
     }
   } catch { setState('state-error'); }
 }
 
-async function abrirCadastro(dadosExistentes) {
+async function abrirCadastro(dadosExistentes, jaExiste) {
   try { _segmentosCadastro = await Api.get('/api/categorias'); } catch { _segmentosCadastro = []; }
   _docsUrls = {};
+  _cadJaExiste = !!jaExiste;
   setState('state-cadastro');
 
+  // Ajusta UI conforme se é novo ou já existe
+  const hdrSub  = document.getElementById('cad-hdr-sub');
+  const infoBox = document.getElementById('cad-info-box');
+  const skipBtn = document.getElementById('cad-btn-skip');
+  if (jaExiste) {
+    if (hdrSub) hdrSub.textContent = 'Seus dados foram pré-preenchidos — confirme ou atualize se necessário';
+    if (infoBox) {
+      infoBox.style.background = '#ecfdf5'; infoBox.style.borderColor = '#6ee7b7';
+      infoBox.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#059669;flex-shrink:0;"></i>
+        <p style="color:#444;margin:0;">Encontramos seu cadastro em nosso sistema. <strong>Revise as informações abaixo e atualize o que for necessário.</strong> Clique em "Salvar e Continuar" para atualizar, ou em "Pular" se as informações já estiverem corretas.</p>`;
+    }
+    if (skipBtn) skipBtn.style.display = '';
+  } else {
+    if (hdrSub) hdrSub.textContent = 'Primeiro acesso — preenchimento obrigatório e único';
+    if (infoBox) {
+      infoBox.style.background = '#f0ebff'; infoBox.style.borderColor = '#c4b5fd';
+      infoBox.innerHTML = `<i class="fa-solid fa-circle-info" style="color:#6633ee;flex-shrink:0;"></i>
+        <p style="color:#444;margin:0;">Este é seu <strong>primeiro acesso</strong> à plataforma. Preencha a ficha cadastral abaixo para liberar o envio de propostas. Este processo é feito <strong>somente uma vez</strong> e seus dados ficam salvos para as próximas cotações.</p>`;
+    }
+    if (skipBtn) skipBtn.style.display = 'none';
+  }
+
+  // CNPJ
   const cnpjClean = (CNPJ || '').replace(/\D/g,'');
   const cnpjFmt = cnpjClean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
   const cnpjEl = document.getElementById('cad-cnpj');
   if (cnpjEl) cnpjEl.value = cnpjFmt;
 
-  // Razão social — BrasilAPI
+  // Razão Social: usa DB se existir, senão busca BrasilAPI
   const razaoEl = document.getElementById('cad-razao');
   if (razaoEl) {
-    razaoEl.readOnly = true; razaoEl.value = ''; razaoEl.placeholder = 'Buscando...';
-    fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjClean}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        const nome = d?.razao_social || d?.nome_fantasia || '';
-        if (nome) { razaoEl.value = nome; razaoEl.readOnly = true; }
-        else       { razaoEl.readOnly = false; razaoEl.placeholder = 'Digite a razão social'; }
-      })
-      .catch(() => { razaoEl.readOnly = false; razaoEl.placeholder = 'Digite a razão social'; });
+    if (dadosExistentes?.razao_social) {
+      razaoEl.value = dadosExistentes.razao_social; razaoEl.readOnly = false;
+    } else {
+      razaoEl.readOnly = true; razaoEl.value = ''; razaoEl.placeholder = 'Buscando...';
+      fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjClean}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          const nome = d?.razao_social || d?.nome_fantasia || '';
+          if (nome) { razaoEl.value = nome; razaoEl.readOnly = true; }
+          else       { razaoEl.readOnly = false; razaoEl.placeholder = 'Digite a razão social'; }
+        })
+        .catch(() => { razaoEl.readOnly = false; razaoEl.placeholder = 'Digite a razão social'; });
+    }
+  }
+
+  // Pré-preenche todos os campos se o fornecedor já existe
+  const setV = (id, val) => { if (!val) return; const el = document.getElementById(id); if (el) el.value = val; };
+  if (dadosExistentes) {
+    const d = dadosExistentes;
+    const cep = d.endereco_cep ? String(d.endereco_cep).replace(/^(\d{5})(\d{3})$/, '$1-$2') : '';
+    setV('cad-cep',         cep);
+    setV('cad-logradouro',  d.endereco_logradouro);
+    setV('cad-numero',      d.endereco_numero);
+    setV('cad-complemento', d.endereco_complemento);
+    setV('cad-bairro',      d.endereco_bairro);
+    setV('cad-cidade',      d.cidade || d.endereco_cidade);
+    setV('cad-uf',          d.estado || d.endereco_uf);
+    setV('cad-com-email',   d.contato_comercial_email || d.email);
+    setV('cad-com-tel',     d.contato_comercial_tel   || d.telefone);
+    setV('cad-fin-email',   d.contato_financeiro_email);
+    setV('cad-fin-tel',     d.contato_financeiro_tel);
+    setV('cad-fis-email',   d.contato_fiscal_email);
+    setV('cad-fis-tel',     d.contato_fiscal_tel);
   }
 
   renderSegmentosCadastro(_segmentosCadastro, dadosExistentes?.segmentos_interesse || []);
@@ -1120,35 +1174,36 @@ async function abrirCadastro(dadosExistentes) {
 function renderSegmentosCadastro(cats, selecionados) {
   const wrap = document.getElementById('cad-segmentos-wrap');
   if (!wrap) return;
-  if (!cats.length) {
-    wrap.innerHTML = `<div style="font-size:13px;color:#aaa;padding:8px 0;">Nenhum segmento configurado. Preencha os demais campos e continue.</div>`;
-    return;
-  }
+
   const macros = [...new Set(cats.map(c => c.macro_categoria).filter(Boolean))].sort();
   const byMacro = {};
-  cats.forEach(c => { const m = c.macro_categoria || 'Outros'; if (!byMacro[m]) byMacro[m] = []; byMacro[m].push(c); });
+  cats.forEach(c => { const m = c.macro_categoria || 'Geral'; if (!byMacro[m]) byMacro[m] = []; byMacro[m].push(c); });
 
-  wrap.innerHTML = macros.map(m => `
+  const segChk = (id, seg, checked) => `<label id="cad-seg-lbl-${id}"
+    style="display:flex;align-items:center;gap:7px;background:${checked?'#ede9fe':'#f9f6ff'};
+           border:1.5px solid ${checked?'#6633ee':'#e8d9ff'};border-radius:8px;
+           padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:#333;transition:all .15s;"
+    onmouseenter="this.style.borderColor='#6633ee'"
+    onmouseleave="if(!document.getElementById('cad-seg-${id}').checked)this.style.borderColor='#e8d9ff';else this.style.borderColor='#6633ee'">
+    <input type="checkbox" id="cad-seg-${id}" value="${seg}"
+           ${checked?'checked':''} style="accent-color:#6633ee;width:14px;height:14px;"
+           onchange="const l=document.getElementById('cad-seg-lbl-${id}');l.style.background=this.checked?'#ede9fe':'#f9f6ff';l.style.borderColor=this.checked?'#6633ee':'#e8d9ff';">
+    ${seg}
+  </label>`;
+
+  const outrosChecked = selecionados.includes('Outros');
+  const outrosHtml = `<div style="margin-bottom:14px;">
+    <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#9b7cff;margin-bottom:8px;">Outros</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">${segChk('outros', 'Outros', outrosChecked)}</div>
+  </div>`;
+
+  wrap.innerHTML = (macros.length ? macros.map(m => `
     <div style="margin-bottom:14px;">
       <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#9b7cff;margin-bottom:8px;">${m}</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;">
-        ${byMacro[m].map(c => {
-          const checked = selecionados.includes(c.segmento);
-          return `<label id="cad-seg-lbl-${c.id}"
-            style="display:flex;align-items:center;gap:7px;background:${checked?'#ede9fe':'#f9f6ff'};
-                   border:1.5px solid ${checked?'#6633ee':'#e8d9ff'};border-radius:8px;
-                   padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:#333;
-                   transition:all .15s;"
-            onmouseenter="this.style.borderColor='#6633ee'"
-            onmouseleave="if(!document.getElementById('cad-seg-${c.id}').checked)this.style.borderColor='#e8d9ff';else this.style.borderColor='#6633ee'">
-            <input type="checkbox" id="cad-seg-${c.id}" value="${c.segmento}"
-                   ${checked?'checked':''} style="accent-color:#6633ee;width:14px;height:14px;"
-                   onchange="const l=document.getElementById('cad-seg-lbl-${c.id}');l.style.background=this.checked?'#ede9fe':'#f9f6ff';l.style.borderColor=this.checked?'#6633ee':'#e8d9ff';">
-            ${c.segmento}
-          </label>`;
-        }).join('')}
+        ${byMacro[m].map(c => segChk(c.id, c.segmento, selecionados.includes(c.segmento))).join('')}
       </div>
-    </div>`).join('');
+    </div>`).join('') : '') + outrosHtml;
 }
 
 async function buscarCEP() {
@@ -1204,21 +1259,27 @@ async function salvarCadastro() {
   const v = id => document.getElementById(id)?.value?.trim();
   const razao    = v('cad-razao');
   const comEmail = v('cad-com-email');
-  const finEmail = v('cad-fin-email');
-  const fisEmail = v('cad-fis-email');
   const cidade   = v('cad-cidade');
   const uf       = v('cad-uf');
 
   if (!razao)    { Toast.warning('Campo obrigatório', 'Informe a Razão Social.'); return; }
   if (!comEmail) { Toast.warning('Campo obrigatório', 'Informe o e-mail do contato comercial.'); return; }
-  if (!finEmail) { Toast.warning('Campo obrigatório', 'Informe o e-mail do contato financeiro.'); return; }
-  if (!fisEmail) { Toast.warning('Campo obrigatório', 'Informe o e-mail do contato fiscal.'); return; }
   if (!cidade)   { Toast.warning('Campo obrigatório', 'Informe a cidade.'); return; }
   if (!uf || uf.length !== 2) { Toast.warning('Campo obrigatório', 'Informe a UF com 2 letras.'); return; }
 
+  // Para novos fornecedores, financeiro e fiscal são obrigatórios
+  if (!_cadJaExiste) {
+    const finEmail = v('cad-fin-email');
+    const fisEmail = v('cad-fis-email');
+    if (!finEmail) { Toast.warning('Campo obrigatório', 'Informe o e-mail do contato financeiro.'); return; }
+    if (!fisEmail) { Toast.warning('Campo obrigatório', 'Informe o e-mail do contato fiscal.'); return; }
+  }
+
   const segmentos = [];
   document.querySelectorAll('[id^="cad-seg-"]:checked').forEach(el => { if (el.value) segmentos.push(el.value); });
-  if (!segmentos.length) { Toast.warning('Selecione ao menos um segmento', 'Indique em quais categorias deseja participar de cotações.'); return; }
+  if (!_cadJaExiste && !segmentos.length) {
+    Toast.warning('Selecione ao menos um segmento', 'Indique em quais categorias deseja participar de cotações.'); return;
+  }
 
   const btn = document.getElementById('cad-btn-submit');
   btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
@@ -1236,9 +1297,9 @@ async function salvarCadastro() {
       endereco_uf:               uf.toUpperCase(),
       contato_comercial_email:   comEmail,
       contato_comercial_tel:     v('cad-com-tel') || null,
-      contato_financeiro_email:  finEmail,
+      contato_financeiro_email:  v('cad-fin-email') || null,
       contato_financeiro_tel:    v('cad-fin-tel') || null,
-      contato_fiscal_email:      fisEmail,
+      contato_fiscal_email:      v('cad-fis-email') || null,
       contato_fiscal_tel:        v('cad-fis-tel') || null,
       segmentos_interesse:       segmentos,
       doc_cartao_cnpj:           _docsUrls['cartao_cnpj']  || null,
@@ -1247,12 +1308,12 @@ async function salvarCadastro() {
       doc_iso_9001:              _docsUrls['iso_9001']      || null,
       doc_ultima_alteracao:      _docsUrls['ult_alter']    || null,
     });
-    Toast.success('Cadastro salvo!', 'Bem-vindo(a) à plataforma Vendemmia!');
+    Toast.success('Cadastro salvo!', _cadJaExiste ? 'Dados atualizados com sucesso!' : 'Bem-vindo(a) à plataforma Vendemmia!');
     await carregarRequisicao();
   } catch (err) {
     Toast.error('Erro ao salvar cadastro', err.message || 'Verifique os dados e tente novamente.');
     btn.disabled = false;
-    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Salvar Cadastro e Continuar';
+    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Salvar e Continuar';
   }
 }
 
