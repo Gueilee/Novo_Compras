@@ -117,7 +117,43 @@ window.Pages.estoque = {
     .est-act-del     { color:var(--accent); }
     .est-act-del:hover     { background:var(--accent-surface); border-color:var(--accent); }
 
-    /* Drawer reuse from configuracoes */
+    /* ── Drawer / modal (self-contained — não depende de configuracoes.js) ── */
+    .cfg-backdrop {
+      position:fixed; inset:0; background:rgba(0,0,0,.4);
+      backdrop-filter:blur(2px); z-index:2000;
+      display:flex; justify-content:flex-end;
+      animation:estFadeIn .2s ease;
+    }
+    @keyframes estFadeIn  { from{opacity:0} to{opacity:1} }
+    @keyframes estSlideIn { from{transform:translateX(100%)} to{transform:translateX(0)} }
+
+    .cfg-drawer {
+      height:100vh; background:#fff; display:flex; flex-direction:column;
+      box-shadow:-8px 0 40px rgba(0,0,0,.18);
+      animation:estSlideIn .22s ease; overflow:hidden;
+    }
+    .cfg-drw-hdr {
+      padding:20px 24px 16px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+      flex-shrink:0; background:#fff;
+    }
+    .cfg-drw-title { font-size:16px; font-weight:800; color:var(--text); }
+    .cfg-drw-close {
+      width:32px; height:32px; border-radius:8px; border:1px solid var(--border);
+      background:none; cursor:pointer; display:flex; align-items:center;
+      justify-content:center; color:var(--text-muted); font-size:14px;
+      transition:background .15s; flex-shrink:0;
+    }
+    .cfg-drw-close:hover { background:var(--bg); color:var(--accent); }
+    .cfg-drw-body {
+      flex:1; overflow-y:auto; padding:20px 24px;
+      display:flex; flex-direction:column; gap:14px;
+    }
+    .cfg-drw-footer {
+      padding:16px 24px; border-top:1px solid var(--border);
+      display:flex; gap:10px; background:#fff; flex-shrink:0;
+    }
+    .cfg-drw-footer .btn { flex:1; justify-content:center; }
     </style>`;
   },
 
