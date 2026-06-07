@@ -8,6 +8,8 @@ const _SB_URL = 'https://ayuypxbipvuayyiatbir.supabase.co';
 const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dXlweGJpcHZ1YXl5aWF0YmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDg0MTQsImV4cCI6MjA5MjYyNDQxNH0.a_uCBEuB8oLX94d3n936HX6we9rLV_19hOfLfCpapmM';
 
 const _sb = supabase.createClient(_SB_URL, _SB_KEY);
+window._SHP_SB_URL = _SB_URL;
+window._SHP_SB_KEY = _SB_KEY;
 
 // ── Helpers ────────────────────────────────────────────────
 const _now = () => new Date().toLocaleString('pt-BR');
@@ -59,7 +61,7 @@ async function _route(method, path, body) {
   const mReqSrc = basePath.match(/^\/api\/sourcing\/requisicao\/(\d+)$/);
   if (method === 'GET' && mReqSrc) return _requisicaoParaFornecedor(+mReqSrc[1]);
   if (full === 'POST /api/cotacao/enviar') return _salvarCotacao(body);
-  if (full === 'POST /api/cotacao/disparar-email') return { status: 'ok' };
+  if (full === 'POST /api/cotacao/disparar-email') return _dispararEmailConvite(body);
   const mSel = basePath.match(/^\/api\/sourcing\/selecionar\/(\d+)$/);
   if (method === 'POST' && mSel) return _selecionarFornecedor(+mSel[1], body);
   const mComp = basePath.match(/^\/api\/cotacao\/comparativo\/(\d+)$/);
@@ -108,6 +110,7 @@ async function _route(method, path, body) {
   const mFornUp = basePath.match(/^\/api\/catalogo\/fornecedores\/(.+)$/);
   if (method === 'PUT'    && mFornUp) return _atualizarFornecedor(decodeURIComponent(mFornUp[1]), body);
   if (method === 'DELETE' && mFornUp) return _deletarFornecedor(decodeURIComponent(mFornUp[1]));
+  if (full === 'GET /api/catalogo-itens') return _catalogoItens(path);
   if (method === 'GET' && path.startsWith('/api/catalogo')) return _catalogoLista(path);
 
   // Contas Fixas (alias /api/contas-fixas ↔ /api/contratos)
@@ -186,6 +189,7 @@ async function _route(method, path, body) {
 
   // Controle de Estoque
   if (full === 'GET /api/estoque')           return _listarEstoque();
+  if (full === 'GET /api/estoque/busca')     return _buscarEstoque(path);
   if (full === 'POST /api/estoque/entrada')  return _entradaEstoque(body);
   if (full === 'POST /api/estoque/saida')    return _saidaEstoque(body);
   if (full === 'POST /api/estoque/ajuste')   return _ajusteEstoque(body);
@@ -446,10 +450,17 @@ async function _criarRequisicao(body) {
   if (body.itens?.length) {
     const itens = body.itens.map(i => ({
       id_requisicao: req.id_sharepoint, descricao: i.descricao,
-      quantidade: i.quantidade, segmento_historico: i.segmento
+      quantidade: i.quantidade, segmento_historico: i.segmento,
+      origem: i.origem || 'compra'
     }));
     const { error: eItens } = await _sb.from('itens_requisicao').insert(itens);
-    if (eItens) _err(eItens);
+    if (eItens) {
+      if (eItens.message?.includes('origem')) {
+        const { error: e2 } = await _sb.from('itens_requisicao')
+          .insert(itens.map(({ origem, ...r }) => r));
+        if (e2) _err(e2);
+      } else { _err(eItens); }
+    }
   }
   _logAtividade(req.id_sharepoint, 'Aguardando Aprovação', body.comprador, body.unidade).catch(() => {});
   return { id: req.id_sharepoint, id_pedido: req.id_sharepoint, status: 'ok' };
@@ -485,15 +496,39 @@ async function _aprovarRequisicao(id, body) {
 // ── Sourcing ───────────────────────────────────────────────
 async function _pedidosAprovados() {
   const { data, error } = await _sb.from('requisicoes')
-    .select('id_sharepoint, comprador, unidade, data_solicitacao, status, itens_requisicao(segmento_historico)')
-    .in('status', ['Aguardando Cotação', 'Em Cotação'])
+    .select('id_sharepoint, comprador, unidade, data_solicitacao, status, itens_requisicao(segmento_historico), lances_fornecedor(id, preco_unitario)')
+    .in('status', ['Aguardando Cotação', 'Em Cotação', 'Aprovado Gestor'])
     .order('id_sharepoint', { ascending: false });
   if (error) _err(error);
-  return (data || []).map(r => ({
-    id: r.id_sharepoint, solicitante: r.comprador, unidade: r.unidade,
-    data: r.data_solicitacao, status: r.status,
-    segmento: r.itens_requisicao?.[0]?.segmento_historico || ''
-  }));
+  return (data || []).map(r => {
+    const lances = r.lances_fornecedor || [];
+    return {
+      id: r.id_sharepoint, solicitante: r.comprador, unidade: r.unidade,
+      data: r.data_solicitacao, status: r.status,
+      segmento: r.itens_requisicao?.[0]?.segmento_historico || '',
+      convites_enviados:   lances.length,
+      propostas_recebidas: lances.filter(l => (l.preco_unitario || 0) > 0).length
+    };
+  });
+}
+
+async function _dispararEmailConvite(body) {
+  const cnpjN = _normCnpj(body.cnpj_fornecedor);
+  const reqId  = body.id_requisicao;
+  // Cria um lance com preco=0 como marcador de "convite enviado"
+  const { data: existing } = await _sb.from('lances_fornecedor')
+    .select('id').eq('id_requisicao', reqId).eq('cnpj_fornecedor', cnpjN).maybeSingle();
+  if (!existing) {
+    await _sb.from('lances_fornecedor').insert({
+      id_requisicao: reqId, cnpj_fornecedor: cnpjN,
+      preco_unitario: 0, data_resposta: _now()
+    });
+  }
+  // Avança status para "Em Cotação" (convites foram disparados)
+  await _sb.from('requisicoes')
+    .update({ status: 'Em Cotação', updated_at: new Date().toISOString() })
+    .eq('id_sharepoint', reqId);
+  return { status: 'ok' };
 }
 
 async function _fornecedoresPorSegmento(segmento) {
@@ -640,6 +675,13 @@ async function _comparativoCotacoes(id) {
   const { data: allForns } = await _sb.from('fornecedores').select('cnpj,razao_social,email,telefone');
   const fornMap = Object.fromEntries((allForns || []).map(f => [_normCnpj(f.cnpj), f]));
 
+  // Busca aprovação do gestor
+  const { data: reqData } = await _sb.from('requisicoes')
+    .select('aprovado_gestor_cnpj, aprovado_gestor_obs, aprovado_gestor_em')
+    .eq('id_sharepoint', id)
+    .maybeSingle();
+  const aprovadoCnpj = reqData?.aprovado_gestor_cnpj ? _normCnpj(reqData.aprovado_gestor_cnpj) : null;
+
   const seen = new Set();
   const result = [];
   for (const l of (lances || [])) {
@@ -647,6 +689,7 @@ async function _comparativoCotacoes(id) {
     seen.add(l.cnpj_fornecedor);
     const { data: itens } = await _sb.from('lances_fornecedor_itens').select('*').eq('id_lance', l.id);
     const forn = fornMap[l.cnpj_fornecedor];
+    const isGA = aprovadoCnpj !== null && _normCnpj(l.cnpj_fornecedor) === aprovadoCnpj;
     result.push({
       id: l.id,
       fornecedor: forn?.razao_social || _fmtCnpj(l.cnpj_fornecedor),
@@ -655,7 +698,9 @@ async function _comparativoCotacoes(id) {
       validade_dias: l.validade_dias || 15, observacoes: l.observacoes,
       frete_incluso: l.frete_incluso, imposto_incluso: l.imposto_incluso,
       selecionado: !!l.selecionado, email: forn?.email, telefone: forn?.telefone,
-      itens_precos: itens || []
+      itens_precos: itens || [],
+      aprovado_gestor: isGA,
+      aprovado_gestor_obs: isGA ? (reqData?.aprovado_gestor_obs || '') : null
     });
   }
   return result;
@@ -793,6 +838,8 @@ async function _detalhesCompletos(id) {
   const { data: allForns } = await _sb.from('fornecedores').select('cnpj,razao_social,email,telefone');
   const fornMap = Object.fromEntries((allForns || []).map(f => [_normCnpj(f.cnpj), f]));
 
+  const aprovadoCnpjDet = req.aprovado_gestor_cnpj ? _normCnpj(req.aprovado_gestor_cnpj) : null;
+
   const seen = new Set();
   const cotacoes = [];
   for (const l of (lancesRaw || [])) {
@@ -806,7 +853,8 @@ async function _detalhesCompletos(id) {
       data: l.data_resposta, selecionado: !!l.selecionado, observacoes: l.observacoes,
       frete_incluso: !!l.frete_incluso, imposto_incluso: !!l.imposto_incluso,
       arquivo_nome: l.arquivo_nome, arquivo_path: l.arquivo_path, validade_dias: l.validade_dias,
-      itens_precos: litens || []
+      itens_precos: litens || [],
+      aprovado_gestor: aprovadoCnpjDet !== null && _normCnpj(l.cnpj_fornecedor) === aprovadoCnpjDet
     });
   }
   return {
@@ -814,6 +862,7 @@ async function _detalhesCompletos(id) {
     setor: req.setor, data: req.data_solicitacao, status: req.status,
     justificativa: req.justificativa, fornecedor: req.fornecedor, valor_fechado: req.valor_fechado,
     observacoes: req.observacoes, comprador_responsavel: req.comprador,
+    aprovado_gestor_cnpj: req.aprovado_gestor_cnpj || null,
     itens: (itens || []).map(i => ({
       id: i.id, descricao: i.descricao, quantidade: i.quantidade,
       segmento: i.segmento_historico, unidade: i.unidade_medida || ''
@@ -1490,6 +1539,31 @@ async function _deletarCategoria(id) {
 // ── Controle de Estoque ───────────────────────────────────
 async function _listarEstoque() {
   const { data, error } = await _sb.from('controle_estoque').select('*').order('descricao');
+  if (error) _err(error);
+  return data || [];
+}
+
+async function _buscarEstoque(path) {
+  const params = new URLSearchParams(path.split('?')[1] || '');
+  const q = params.get('q') || '';
+  const { data, error } = await _sb.from('controle_estoque')
+    .select('id, descricao, saldo_atual, unidade_medida, estoque_minimo')
+    .ilike('descricao', `%${q}%`)
+    .order('descricao')
+    .limit(5);
+  if (error) _err(error);
+  return data || [];
+}
+
+async function _catalogoItens(path) {
+  const params = new URLSearchParams(path.split('?')[1] || '');
+  const q = params.get('q') || '';
+  const { data, error } = await _sb.from('catalogo_itens')
+    .select('id, descricao, unidade, segmento')
+    .ilike('descricao', `%${q}%`)
+    .eq('ativo', true)
+    .order('descricao')
+    .limit(12);
   if (error) _err(error);
   return data || [];
 }

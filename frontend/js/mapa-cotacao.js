@@ -9,6 +9,10 @@ window.MapaCotacao = {
     if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Gerando...`; }
 
     try {
+      // Passo 1: selecionar aprovadores antes de gerar
+      const aprovadores = await this._selecionarAprovadores();
+      if (aprovadores === null) return; // usuário cancelou
+
       const d = await Api.get(`/api/requisicoes/${idRequisicao}/detalhes-completos`);
       const cotacoes = (d.cotacoes || []).filter(c => c.preco_unitario > 0);
 
@@ -17,7 +21,7 @@ window.MapaCotacao = {
         return;
       }
 
-      const html = this._buildHtml(d, cotacoes);
+      const html = this._buildHtml(d, cotacoes, aprovadores);
       const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
       win.document.write(html);
       win.document.close();
@@ -31,12 +35,174 @@ window.MapaCotacao = {
     }
   },
 
+  // ── Estado interno do modal de aprovadores ─────────────────
+  _apr: { selecionados: [], busca: '', resolve: null, usuarios: [] },
+
+  async _selecionarAprovadores() {
+    const overlay = document.getElementById('modal-overlay');
+    if (!overlay) return [];
+
+    this._apr = { selecionados: [], busca: '', resolve: null, usuarios: [] };
+
+    // Carrega usuários em background — renderiza assim que chegar
+    Api.get('/api/usuarios').then(res => {
+      this._apr.usuarios = ((res.usuarios || res || [])).filter(u => u.ativo !== false && u.email);
+      this._renderModalAprovadores();
+    }).catch(() => {});
+
+    return new Promise(resolve => {
+      this._apr.resolve = resolve;
+      this._renderModalAprovadores();
+      overlay.classList.add('open');
+    });
+  },
+
+  _renderModalAprovadores() {
+    const overlay = document.getElementById('modal-overlay');
+    if (!overlay) return;
+    const { selecionados, busca, usuarios } = this._apr;
+    const b = busca.toLowerCase();
+    const filtrados = usuarios.filter(u =>
+      !b || (u.nome||'').toLowerCase().includes(b) || (u.email||'').toLowerCase().includes(b)
+    );
+    const esc = s => (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:500px;">
+        <div class="modal-header">
+          <div class="modal-icon" style="background:#f0ecfa;color:#6633ee;">
+            <i class="fa-solid fa-user-check"></i>
+          </div>
+          <div>
+            <div class="modal-title">Aprovadores do Mapa</div>
+            <div class="modal-subtitle">Selecione até 3 responsáveis pela aprovação</div>
+          </div>
+        </div>
+        <div class="modal-body">
+
+          <div style="position:relative;margin-bottom:10px;">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#bbb;font-size:12px;pointer-events:none;"></i>
+            <input type="text" class="form-control form-control-sm"
+                   placeholder="Buscar por nome ou e-mail..."
+                   style="padding-left:32px;" value="${esc(busca)}"
+                   oninput="MapaCotacao._filtrarAprovadores(this.value)">
+          </div>
+
+          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:12px;">
+            ${filtrados.length ? filtrados.map(u => {
+              const isSel = selecionados.some(s => s.email === u.email);
+              const disabled = !isSel && selecionados.length >= 3;
+              return `
+                <div onclick="${disabled ? '' : `MapaCotacao._toggleAprovador('${esc(u.email)}','${esc(u.nome||u.email)}','${esc(u.cargo||'')}');`}"
+                     style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:${disabled?'not-allowed':'pointer'};border-bottom:1px solid var(--border-subtle);background:${isSel?'#f9f7ff':'transparent'};opacity:${disabled?.45:1};">
+                  <div style="width:18px;height:18px;flex-shrink:0;border-radius:4px;border:2px solid ${isSel?'#6633ee':'#d1d5db'};background:${isSel?'#6633ee':'transparent'};display:flex;align-items:center;justify-content:center;">
+                    ${isSel ? '<i class="fa-solid fa-check" style="color:#fff;font-size:9px;"></i>' : ''}
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${u.nome||u.email}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">${u.email}${u.cargo?` · ${u.cargo}`:''}</div>
+                  </div>
+                  ${isSel ? '<i class="fa-solid fa-circle-check" style="color:#6633ee;font-size:14px;flex-shrink:0;"></i>' : ''}
+                </div>`;
+            }).join('') : `
+              <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">
+                <i class="fa-solid fa-magnifying-glass" style="opacity:.4;"></i>
+                <div style="margin-top:6px;">${busca ? 'Nenhum resultado' : 'Carregando usuários...'}</div>
+              </div>`}
+          </div>
+
+          <div style="margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px;">
+              Selecionados
+              <span style="color:${selecionados.length===3?'#dc2626':'var(--brand)'};">${selecionados.length}/3</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;">
+              ${selecionados.map(s => `
+                <span style="display:inline-flex;align-items:center;gap:5px;background:#f0ecfa;border:1.5px solid #c4b5fd;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;color:#5b21b6;">
+                  <i class="fa-solid fa-user" style="font-size:9px;"></i>
+                  ${s.nome||s.email}
+                  <button onclick="MapaCotacao._removeAprovador('${esc(s.email)}');"
+                          style="background:none;border:none;cursor:pointer;color:#9333ea;padding:0 0 0 3px;font-size:11px;line-height:1;">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </span>
+              `).join('') || `<span style="font-size:12px;color:var(--text-subtle);font-style:italic;">Nenhum aprovador selecionado</span>`}
+            </div>
+          </div>
+
+          <div style="border-top:1px solid var(--border);padding-top:12px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">
+              Adicionar e-mail externo <span style="font-weight:400;text-transform:none;">(opcional)</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <input id="apr-email-manual" type="email" class="form-control form-control-sm"
+                     placeholder="email@empresa.com.br" style="flex:1;"
+                     onkeydown="if(event.key==='Enter')MapaCotacao._addEmailManual()">
+              <button class="btn btn-outline btn-sm" onclick="MapaCotacao._addEmailManual()"
+                      style="white-space:nowrap;" ${selecionados.length>=3?'disabled':''}>
+                <i class="fa-solid fa-plus"></i> Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="MapaCotacao._confirmarAprovadores(null)">Cancelar</button>
+          <button class="btn btn-outline btn-sm" onclick="MapaCotacao._confirmarAprovadores('skip')"
+                  title="Gerar sem aprovadores definidos" style="color:var(--text-muted);">
+            <i class="fa-solid fa-forward"></i> Pular
+          </button>
+          <button class="btn btn-primary" onclick="MapaCotacao._confirmarAprovadores()">
+            <i class="fa-solid fa-file-pdf"></i> Gerar Mapa
+          </button>
+        </div>
+      </div>`;
+  },
+
+  _toggleAprovador(email, nome, cargo) {
+    const arr = this._apr.selecionados;
+    const idx = arr.findIndex(a => a.email === email);
+    if (idx >= 0) arr.splice(idx, 1);
+    else if (arr.length < 3) arr.push({ email, nome, cargo });
+    this._renderModalAprovadores();
+  },
+
+  _removeAprovador(email) {
+    this._apr.selecionados = this._apr.selecionados.filter(a => a.email !== email);
+    this._renderModalAprovadores();
+  },
+
+  _filtrarAprovadores(busca) {
+    this._apr.busca = busca;
+    this._renderModalAprovadores();
+  },
+
+  _addEmailManual() {
+    const input = document.getElementById('apr-email-manual');
+    const email = (input?.value || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) { Toast.warning('E-mail inválido', 'Informe um e-mail válido.'); return; }
+    if (this._apr.selecionados.some(a => a.email === email)) { Toast.warning('Já adicionado', 'Este e-mail já está na lista.'); return; }
+    if (this._apr.selecionados.length >= 3) { Toast.warning('Limite atingido', 'Máximo de 3 aprovadores por mapa.'); return; }
+    const nome = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    this._apr.selecionados.push({ email, nome, cargo: '' });
+    if (input) input.value = '';
+    this._renderModalAprovadores();
+  },
+
+  _confirmarAprovadores(action) {
+    document.getElementById('modal-overlay')?.classList.remove('open');
+    if (!this._apr.resolve) return;
+    if (action === null)    { this._apr.resolve(null); return; }   // cancelar → aborta gerar()
+    if (action === 'skip')  { this._apr.resolve([]);   return; }   // pular → gera sem aprovadores
+    this._apr.resolve([...this._apr.selecionados]);                 // confirma com selecionados
+  },
+
   _fmt(val) {
     if (val == null) return '—';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   },
 
-  _buildHtml(d, cotacoes) {
+  _buildHtml(d, cotacoes, aprovadores = []) {
     const hoje = new Date().toLocaleDateString('pt-BR', {
       day: '2-digit', month: 'long', year: 'numeric'
     });
@@ -154,6 +320,108 @@ window.MapaCotacao = {
         <td style="text-align:right;font-weight:700;color:#422c76;">${it.quantidade} ${it.unidade || ''}</td>
       </tr>`).join('');
 
+    /* ── Células de assinatura (dinâmicas por aprovadores) ── */
+    const assinaturaCells = aprovadores.length > 0
+      ? aprovadores.map(a => `
+          <td style="width:${Math.floor(100 / aprovadores.length)}%;padding:0 12px 0 0;">
+            <div class="assinatura-linha"></div>
+            <div class="assinatura-label">
+              ${a.nome || a.email}
+              ${a.cargo ? `<br><span style="font-size:6pt;color:#aaa;">${a.cargo}</span>` : ''}
+              <br><span style="font-size:6.5pt;color:#999;">${a.email}</span>
+            </div>
+          </td>`).join('')
+      : `<td><div class="assinatura-linha"></div><div class="assinatura-label">Requisitante: ${solicitante}</div></td>
+         <td><div class="assinatura-linha"></div><div class="assinatura-label">Comprador: ${compradorResp}</div></td>
+         <td><div class="assinatura-linha"></div><div class="assinatura-label">Aprovação / Data</div></td>`;
+
+    /* ── Seção de aprovação do gestor (interativa, no-print) ── */
+    const jaAprovadoCnpj = d.aprovado_gestor_cnpj ? d.aprovado_gestor_cnpj.replace(/\D/g, '') : null;
+    const aprBtnLabel = jaAprovadoCnpj ? 'Atualizar Aprovação' : 'Confirmar Aprovação e Notificar Comprador';
+    const aprSec = (() => {
+      if (cotacoes.length === 0) return '';
+      const fmt = v => this._fmt(v);
+      const radioCards = cotacoes.map(c => {
+        const cCnpj = (c.cnpj || '').replace(/\D/g, '');
+        const isSel  = jaAprovadoCnpj && cCnpj === jaAprovadoCnpj;
+        const isMenor = c.preco_unitario === menorPreco;
+        return `
+        <label class="apr-card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:2px solid ${isSel ? '#422c76' : '#e5e7eb'};border-radius:8px;cursor:pointer;background:${isSel ? '#f8f6ff' : '#fff'};margin-bottom:8px;transition:border-color .15s,background .15s;"
+               onclick="document.querySelectorAll('.apr-card').forEach(el=>Object.assign(el.style,{borderColor:'#e5e7eb',background:'#fff'}));Object.assign(this.style,{borderColor:'#422c76',background:'#f8f6ff'});">
+          <input type="radio" name="apr-forn" value="${c.cnpj}" ${isSel ? 'checked' : ''} style="width:18px;height:18px;accent-color:#422c76;flex-shrink:0;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13.5px;font-weight:700;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.nome}</div>
+            <div style="font-size:11.5px;color:#888;margin-top:2px;">${fmt(c.preco_unitario)} &nbsp;·&nbsp; ${c.prazo ?? '—'} dias &nbsp;·&nbsp; ${c.pagamento || '—'}</div>
+          </div>
+          ${isMenor ? '<span style="background:#f0fdf4;color:#059669;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0;">🏆 Menor Preço</span>' : ''}
+        </label>`;
+      }).join('');
+
+      return `
+<div class="no-print" id="apr-gestor-section" style="margin:16px 0;padding:20px 24px;background:#fff;border:2.5px solid #422c76;border-radius:12px;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <div style="width:32px;height:32px;background:#422c76;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0;">✓</div>
+    <div>
+      <div style="font-size:14px;font-weight:800;color:#422c76;">Aprovação do Gestor — Requisição #${d.id}</div>
+      <div style="font-size:12px;color:#888;margin-top:1px;">Selecione o fornecedor preferido e clique em confirmar para notificar o comprador.</div>
+    </div>
+  </div>
+  ${jaAprovadoCnpj ? `<div style="background:#f0fdf4;border:1px solid #059669;border-radius:8px;padding:9px 14px;margin-bottom:12px;font-size:12.5px;color:#065f46;">✅ <strong>Aprovação já registrada.</strong> Você pode selecionar novamente para alterar.</div>` : ''}
+  <div id="apr-body">
+    ${radioCards}
+    <textarea id="apr-obs" rows="2" placeholder="Observação para o comprador (opcional)..."
+      style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:6px;"></textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+      <button id="apr-btn" onclick="aprConfirmar(${d.id})"
+        style="display:inline-flex;align-items:center;gap:8px;background:#422c76;color:#fff;border:none;border-radius:8px;padding:11px 24px;font-size:13.5px;font-weight:700;cursor:pointer;"
+        onmouseover="this.style.background='#5b3fa8'" onmouseout="this.style.background='#422c76'">
+        ✓ ${aprBtnLabel}
+      </button>
+    </div>
+  </div>
+</div>
+<script>
+async function aprConfirmar(idReq) {
+  const radio = document.querySelector('input[name="apr-forn"]:checked');
+  if (!radio) { alert('Selecione o fornecedor preferido antes de confirmar.'); return; }
+  const cnpj = radio.value;
+  const obs  = (document.getElementById('apr-obs')?.value || '').trim();
+  const btn  = document.getElementById('apr-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Enviando...'; }
+  try {
+    const sbUrl = window.opener?._SHP_SB_URL;
+    const sbKey = window.opener?._SHP_SB_KEY;
+    if (!sbUrl || !sbKey) throw new Error('Abra o mapa pelo sistema SHP para habilitar a aprovação online.');
+    const r = await fetch(sbUrl + '/rest/v1/requisicoes?id_sharepoint=eq.' + idReq, {
+      method: 'PATCH',
+      headers: {
+        'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey,
+        'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        aprovado_gestor_cnpj: cnpj,
+        aprovado_gestor_obs:  obs || null,
+        aprovado_gestor_em:   new Date().toLocaleString('pt-BR'),
+        status: 'Aprovado Gestor',
+        updated_at: new Date().toISOString()
+      })
+    });
+    if (!r.ok) { const t = await r.text(); throw new Error('HTTP ' + r.status + ': ' + t); }
+    document.getElementById('apr-body').innerHTML = \`
+      <div style="background:#f0fdf4;border:2px solid #059669;border-radius:10px;padding:24px;text-align:center;">
+        <div style="font-size:44px;margin-bottom:8px;">✅</div>
+        <div style="font-size:15px;font-weight:800;color:#059669;margin-bottom:6px;">Aprovação Confirmada!</div>
+        <div style="font-size:13px;color:#555;">O comprador foi notificado. Status: <strong>"Aprovado Gestor"</strong>.</div>
+        <div style="margin-top:12px;font-size:12px;color:#888;">Você pode fechar esta janela.</div>
+      </div>\`;
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '✓ ${aprBtnLabel}'; }
+    alert('Erro ao registrar aprovação: ' + e.message);
+  }
+}
+</script>`;
+    })();
+
     /* ── Bloco de decisão ───────────────────────────────── */
     const decisaoBlock = selecionado
       ? `<div class="decisao-box decisao-ok">
@@ -164,16 +432,19 @@ window.MapaCotacao = {
             Prazo: <strong>${selecionado.prazo} dias úteis</strong> &nbsp;·&nbsp;
             Pgto: <strong>${selecionado.pagamento || '—'}</strong>
           </div>
+          ${aprovadores.length ? `<div style="margin-top:8px;font-size:7.5pt;color:#555;border-top:1px solid rgba(5,150,105,.2);padding-top:6px;">
+            <strong>Aprovadores:</strong> ${aprovadores.map(a => a.nome || a.email).join(' · ')}
+          </div>` : ''}
         </div>`
       : `<div class="decisao-box decisao-pending">
-          <div class="decisao-title">⏳ Aguardando Seleção</div>
-          <div class="decisao-sub">O requisitante deve avaliar as propostas e indicar o fornecedor preferido ao comprador responsável.</div>
+          <div class="decisao-title">⏳ Aguardando Aprovação</div>
+          <div class="decisao-sub">
+            ${aprovadores.length
+              ? `Mapa encaminhado para aprovação de <strong>${aprovadores.map(a => a.nome || a.email).join(', ')}</strong>.`
+              : 'O comprador responsável deve avaliar as propostas e indicar o fornecedor preferido.'}
+          </div>
           <table class="assinatura-table">
-            <tr>
-              <td><div class="assinatura-linha"></div><div class="assinatura-label">Requisitante: ${solicitante}</div></td>
-              <td><div class="assinatura-linha"></div><div class="assinatura-label">Comprador: ${compradorResp}</div></td>
-              <td><div class="assinatura-linha"></div><div class="assinatura-label">Aprovação / Data</div></td>
-            </tr>
+            <tr>${assinaturaCells}</tr>
           </table>
         </div>`;
 
@@ -558,6 +829,9 @@ window.MapaCotacao = {
 
   <!-- ══ DECISÃO / ASSINATURA ══════════════════════════════ -->
   ${decisaoBlock}
+
+  <!-- ══ APROVAÇÃO DO GESTOR (interativo, não impresso) ════ -->
+  ${aprSec}
 
   <!-- ══ RODAPÉ ════════════════════════════════════════════ -->
   <div class="page-footer">

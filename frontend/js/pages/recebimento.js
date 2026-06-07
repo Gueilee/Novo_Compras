@@ -295,7 +295,7 @@ window.Pages.recebimento = {
         </div>
         <div style="text-align:left;">
           <div style="font-size:14px;font-weight:700;color:var(--text);max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${file.name}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${(file.size/1024).toFixed(1)} KB · ${ext.toUpperCase()} · Pronto para envio</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px;" id="rec-file-status">${(file.size/1024).toFixed(1)} KB · ${ext.toUpperCase()} · Pronto para envio</div>
         </div>
         <button class="btn btn-ghost btn-sm" style="flex-shrink:0;border:1px solid var(--border);"
                 onclick="Pages.recebimento._clearFile(event)" title="Remover arquivo">
@@ -304,7 +304,79 @@ window.Pages.recebimento = {
       </div>`;
     area.style.borderColor = 'var(--success)';
     area.style.background  = 'var(--success-surface)';
-    area.onclick = null; // disable click-to-open while file is loaded
+    area.onclick = null;
+
+    // XML NF-e: extrai dados automaticamente
+    if (ext === 'xml') {
+      const statusEl = document.getElementById('rec-file-status');
+      if (statusEl) statusEl.innerHTML += ' &nbsp;·&nbsp; <span style="color:var(--brand);font-weight:700;"><i class="fa-solid fa-spinner fa-spin"></i> Lendo XML…</span>';
+      this._parseNFeXML(file)
+        .then(data => this._aplicarDadosXml(data))
+        .catch(() => Toast.warning('XML não reconhecido', 'O arquivo não parece ser um XML de NF-e válido.'));
+    }
+  },
+
+  _parseNFeXML(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const doc = new DOMParser().parseFromString(e.target.result, 'text/xml');
+          const get    = tag => doc.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
+          const getAll = tag => [...doc.getElementsByTagName(tag)].map(el => el.textContent?.trim() || '');
+
+          const nNF      = get('nNF');
+          const vNF      = parseFloat(get('vNF'))  || 0;
+          const qtdTotal = getAll('qCom').reduce((s, v) => s + (parseFloat(v) || 0), 0);
+          const xProd    = get('xProd');
+          const xFant    = get('xFant') || get('xNome'); // emitente fantasy name
+
+          if (!nNF && vNF === 0) { reject(new Error('Campos NF-e não encontrados')); return; }
+          resolve({ nNF, vNF, qtdTotal, xProd, xFant });
+        } catch(err) { reject(err); }
+      };
+      reader.onerror = reject;
+      reader.readAsText(file, 'UTF-8');
+    });
+  },
+
+  _aplicarDadosXml({ nNF, vNF, qtdTotal, xProd }) {
+    const mark = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el || val == null || val === '') return;
+      el.value = val;
+      el.style.borderColor = 'var(--success)';
+      el.style.background  = 'var(--success-surface, #f0fdf4)';
+      const parent = el.parentElement;
+      if (!parent.querySelector('.xml-chip')) {
+        const chip = document.createElement('div');
+        chip.className = 'xml-chip';
+        chip.style.cssText = 'font-size:10.5px;font-weight:700;color:var(--success-dark);margin-top:4px;display:flex;align-items:center;gap:4px;';
+        chip.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Extraído do XML';
+        parent.appendChild(chip);
+      }
+    };
+
+    if (nNF)       mark('rec-nf',    nNF);
+    if (qtdTotal)  mark('rec-qtd',   qtdTotal);
+    if (vNF)       mark('rec-valor', vNF);
+
+    // Pré-preenche estoque se o toggle estiver ativo
+    if (xProd) {
+      const descEl = document.getElementById('rec-est-desc');
+      if (descEl && !descEl.value) descEl.value = xProd;
+    }
+    if (qtdTotal) {
+      const estQtdEl = document.getElementById('rec-est-qtd');
+      if (estQtdEl && !estQtdEl.value) estQtdEl.value = qtdTotal;
+    }
+
+    const statusEl = document.getElementById('rec-file-status');
+    if (statusEl) statusEl.innerHTML = statusEl.innerHTML
+      .replace(/<span[^>]*>.*?<\/span>/, '')
+      + ` &nbsp;·&nbsp; <span style="color:var(--success-dark);font-weight:700;"><i class="fa-solid fa-circle-check"></i> Dados extraídos</span>`;
+
+    Toast.success('XML lido', `NF ${nNF ? '#' + nNF + ' — ' : ''}campos preenchidos automaticamente.`);
   },
 
   _clearFile(event) {
@@ -316,6 +388,15 @@ window.Pages.recebimento = {
     area.style.borderColor = 'var(--border)';
     area.style.background  = 'var(--bg)';
     area.onclick = () => document.getElementById('rec-nf-file').click();
+
+    // Reset XML auto-fill visual indicators
+    ['rec-nf', 'rec-qtd', 'rec-valor'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.borderColor = '';
+      el.style.background  = '';
+      el.parentElement?.querySelector('.xml-chip')?.remove();
+    });
   },
 
   async selecionarPO(id) {

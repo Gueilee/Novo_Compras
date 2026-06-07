@@ -71,13 +71,20 @@ window.Pages.sourcing = {
               <span id="sourcing-total-forn" class="badge badge-brand" style="display:none;"></span>
             </div>
             <div class="form-group mb-3">
-              <label class="form-label">Buscar por Segmento</label>
-              <div style="display:flex;gap:8px;">
-                <select class="form-control form-control-sm" id="sourcing-seg-input">
-                  <option value="">Selecione um segmento...</option>
+              <label class="form-label">Buscar Fornecedores</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <div style="position:relative;flex:1;min-width:150px;">
+                  <i class="fa-solid fa-building" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-subtle);font-size:11px;pointer-events:none;"></i>
+                  <input type="text" class="form-control form-control-sm" id="sourcing-text-input"
+                         style="padding-left:28px;" placeholder="Razão social ou CNPJ..."
+                         onkeydown="if(event.key==='Enter')Pages.sourcing.buscarFornecedores()">
+                </div>
+                <select class="form-control form-control-sm" id="sourcing-seg-input" style="flex:1;min-width:140px;">
+                  <option value="">Todos os segmentos</option>
                 </select>
-                <button class="btn btn-primary btn-sm" onclick="Pages.sourcing.buscarFornecedores()">
-                  <i class="fa-solid fa-magnifying-glass"></i>
+                <button class="btn btn-primary btn-sm" onclick="Pages.sourcing.buscarFornecedores()"
+                        style="white-space:nowrap;">
+                  <i class="fa-solid fa-magnifying-glass"></i> Buscar
                 </button>
               </div>
             </div>
@@ -144,6 +151,14 @@ window.Pages.sourcing = {
     .sou-pedido-row.selected { background:var(--brand-surface); box-shadow:inset 3px 0 0 var(--brand); }
     .sou-pedidos-table td { padding:11px 12px; font-size:13px; color:var(--text); vertical-align:middle; }
     .sou-row-id { font-weight:700; font-size:12.5px; color:var(--brand); }
+    .sou-badge { display:inline-flex; align-items:center; gap:4px; border-radius:8px; padding:2px 8px; font-size:11px; font-weight:700; white-space:nowrap; }
+    .sou-badge-aguardando { background:#fef3c7; color:#b45309; }
+    .sou-badge-retorno    { background:#fee2e2; color:#dc2626; }
+    .sou-badge-cotacao    { background:#ede9fe; color:#6d28d9; }
+    .sou-badge-proposta   { background:#d1fae5; color:#065f46; margin-left:5px; animation: sou-pulse 2s ease-in-out infinite; }
+    .sou-badge-gestor     { background:#d1fae5; color:#065f46; }
+    .row-gestor-aprov     { background:#f0fdf4 !important; box-shadow:inset 3px 0 0 #059669; }
+    @keyframes sou-pulse   { 0%,100%{opacity:1} 50%{opacity:.65} }
     </style>`;
   },
 
@@ -157,7 +172,7 @@ window.Pages.sourcing = {
       this._segmentos = data || [];
       const sel = document.getElementById('sourcing-seg-input');
       if (sel && this._segmentos.length) {
-        sel.innerHTML = '<option value="">Selecione um segmento...</option>' +
+        sel.innerHTML = '<option value="">Todos os segmentos</option>' +
           this._segmentos.map(s => `<option value="${s}">${s}</option>`).join('');
       }
     }).catch(() => {});
@@ -190,7 +205,13 @@ window.Pages.sourcing = {
     const { busca, statuses, compradores } = this._filtroSourcing;
     const b = busca.toLowerCase();
     const filtered = this._todosPedidos.filter(p => {
-      if (statuses.length && !statuses.includes(p.status)) return false;
+      if (statuses.length) {
+        const displayStatus = p.status === 'Aprovado Gestor' ? 'Aprovado Gestor'
+          : (p.propostas_recebidas || 0) > 0 ? 'Proposta Recebida'
+          : (p.convites_enviados || 0) > 0 ? 'Aguardando Retorno'
+          : 'Aguardando Cotação';
+        if (!statuses.includes(displayStatus)) return false;
+      }
       if (compradores.length && !compradores.includes(p.comprador)) return false;
       if (b && !`#${p.id} ${p.solicitante || ''} ${p.unidade || ''} ${p.comprador || ''}`.toLowerCase().includes(b)) return false;
       return true;
@@ -207,7 +228,7 @@ window.Pages.sourcing = {
                  value="${busca.replace(/"/g, '&quot;')}" id="sou-busca"
                  oninput="Pages.sourcing._onSouBusca(this.value)">
         </div>
-        ${msHtml('sou-ms-stat', ['Aguardando Cotação','Em Cotação'], statuses, 'Status', "Pages.sourcing._toggleSouStatus(")}
+        ${msHtml('sou-ms-stat', ['Aguardando Cotação','Aguardando Retorno','Proposta Recebida','Aprovado Gestor'], statuses, 'Status', "Pages.sourcing._toggleSouStatus(")}
         ${compradoresOpts.length ? msHtml('sou-ms-comp', compradoresOpts, compradores, 'Responsável', "Pages.sourcing._toggleSouComprador(") : ''}
         <span class="sou-filter-count">${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}</span>
       </div>`;
@@ -232,10 +253,19 @@ window.Pages.sourcing = {
           </thead>
           <tbody>
             ${filtered.map(p => {
-              const emCotacao = p.status === 'Em Cotação';
-              const badge = emCotacao
-                ? `<span style="background:#ede9fe;color:#6d28d9;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;">Em Cotação</span>`
-                : `<span style="background:#fef3c7;color:#d97706;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;">Aguardando Cotação</span>`;
+              const badge = (() => {
+                if (p.status === 'Aprovado Gestor')
+                  return `<span class="sou-badge sou-badge-gestor"><i class="fa-solid fa-thumbs-up"></i> Aprovado Gestor</span>`;
+                if ((p.propostas_recebidas || 0) > 0) {
+                  const n = p.propostas_recebidas;
+                  return `<span class="sou-badge sou-badge-cotacao"><i class="fa-solid fa-check-circle"></i> Em Cotação</span>` +
+                         `<span class="sou-badge sou-badge-proposta"><i class="fa-solid fa-bell"></i> ${n} proposta${n > 1 ? 's' : ''}</span>`;
+                }
+                if ((p.convites_enviados || 0) > 0) {
+                  return `<span class="sou-badge sou-badge-retorno"><i class="fa-solid fa-clock"></i> Aguardando Retorno</span>`;
+                }
+                return `<span class="sou-badge sou-badge-aguardando"><i class="fa-solid fa-hourglass-half"></i> Aguardando Cotação</span>`;
+              })();
               const isSel = this._pedidoSelecionado === p.id;
               return `
                 <tr class="sou-pedido-row${isSel ? ' selected' : ''}" id="pedido-row-${p.id}"
@@ -289,7 +319,7 @@ window.Pages.sourcing = {
     // Popula segmentos no select
     const segSel = document.getElementById('sourcing-seg-input');
     if (segSel && this._segmentos.length) {
-      segSel.innerHTML = '<option value="">Selecione um segmento...</option>' +
+      segSel.innerHTML = '<option value="">Todos os segmentos</option>' +
         this._segmentos.map(s => `<option value="${s}">${s}</option>`).join('');
     }
 
@@ -350,44 +380,77 @@ window.Pages.sourcing = {
   },
 
   async buscarFornecedores() {
-    const seg = document.getElementById('sourcing-seg-input')?.value;
-    if (!seg) { Toast.warning('Selecione um segmento', 'Escolha um segmento para buscar fornecedores.'); return; }
+    const seg  = document.getElementById('sourcing-seg-input')?.value || '';
+    const text = (document.getElementById('sourcing-text-input')?.value || '').trim();
+
+    if (!seg && !text) {
+      Toast.warning('Preencha ao menos um campo', 'Informe o segmento ou o nome/CNPJ do fornecedor.');
+      return;
+    }
 
     this._segmentoAtual = seg;
     const container = document.getElementById('sourcing-fornecedores');
     container.innerHTML = `<div class="loading-center"><div class="spinner"></div><span>Buscando...</span></div>`;
 
     try {
-      const d = await Api.get(`/fornecedores/${encodeURIComponent(seg)}`);
+      let fornecedores = [];
+      let historicoPrecos = [];
 
+      if (seg) {
+        // Busca por segmento (retorna histórico de preços também)
+        const d = await Api.get(`/fornecedores/${encodeURIComponent(seg)}`);
+        fornecedores   = d.fornecedores || [];
+        historicoPrecos = d.historico_precos || [];
+
+        // Filtra por texto se também preenchido
+        if (text) {
+          const tLow     = text.toLowerCase();
+          const cnpjOnly = text.replace(/\D/g, '');
+          fornecedores = fornecedores.filter(f => {
+            const razaoLow  = (f.razao_social || '').toLowerCase();
+            const cnpjClean = (f.cnpj || '').replace(/\D/g, '');
+            return razaoLow.includes(tLow) || (cnpjOnly.length >= 4 && cnpjClean.includes(cnpjOnly));
+          });
+        }
+      } else {
+        // Busca livre por razão social / CNPJ
+        const d = await Api.get(`/api/catalogo/fornecedores?q=${encodeURIComponent(text)}`);
+        fornecedores = d.fornecedores || (Array.isArray(d) ? d : []);
+      }
+
+      const total = fornecedores.length;
       const totalEl = document.getElementById('sourcing-total-forn');
       if (totalEl) {
-        totalEl.textContent = `${d.total_fornecedores} fornecedor${d.total_fornecedores !== 1 ? 'es' : ''}`;
+        totalEl.textContent = `${total} fornecedor${total !== 1 ? 'es' : ''}`;
         totalEl.style.display = '';
       }
 
-      if (!d.fornecedores || d.fornecedores.length === 0) {
+      if (!total) {
+        const descText = seg && text ? `segmento "${seg}" com o termo "${text}"`
+          : seg ? `segmento "${seg}"`
+          : `"${text}"`;
         container.innerHTML = `
           <div class="empty-state" style="padding:20px 0;">
             <div class="empty-icon"><i class="fa-solid fa-truck-ramp-box"></i></div>
             <p class="empty-title">Nenhum fornecedor encontrado</p>
-            <p class="empty-desc">Não há fornecedores homologados para o segmento "${seg}".</p>
+            <p class="empty-desc">Não há fornecedores homologados para ${descText}.</p>
           </div>`;
         return;
       }
 
-      container.innerHTML = d.fornecedores.map(f => {
-        const cnpjClean = f.cnpj.replace(/\W/g, '');
+      container.innerHTML = fornecedores.map(f => {
+        const cnpjClean = (f.cnpj || '').replace(/\W/g, '');
+        const esc = s => (s || '').replace(/'/g, "\\'");
         return `
         <div class="supplier-card mb-2">
           <div class="supplier-card-header">
             <div>
-              <div class="supplier-name">${f.razao_social}</div>
-              <div class="supplier-cnpj">${f.cnpj}</div>
+              <div class="supplier-name">${f.razao_social || '—'}</div>
+              <div class="supplier-cnpj">${f.cnpj || '—'}</div>
             </div>
             <div id="btn-invite-${cnpjClean}">
               <button class="btn btn-primary btn-sm"
-                      onclick="Pages.sourcing.enviarConvite('${f.cnpj}', '${f.razao_social.replace(/'/g,"\\'")}')"
+                      onclick="Pages.sourcing.enviarConvite('${f.cnpj}', '${esc(f.razao_social)}')"
                       title="Convidar para cotação">
                 <i class="fa-solid fa-paper-plane"></i> Convidar
               </button>
@@ -401,13 +464,13 @@ window.Pages.sourcing = {
         </div>`;
       }).join('');
 
-      // Histórico de preços
-      if (d.historico_precos?.length > 0) {
+      // Histórico de preços (disponível apenas na busca por segmento)
+      if (historicoPrecos.length > 0) {
         const histEl = document.getElementById('sourcing-historico');
         const listEl = document.getElementById('sourcing-hist-lista');
         if (histEl && listEl) {
           histEl.style.display = '';
-          listEl.innerHTML = d.historico_precos.map(h => `
+          listEl.innerHTML = historicoPrecos.map(h => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);font-size:12px;">
               <div>
                 <div style="font-weight:600;">${h.item || '—'}</div>
@@ -430,13 +493,24 @@ window.Pages.sourcing = {
       return;
     }
 
-    // Registra convite no backend
+    // Registra convite no backend (cria lance placeholder + avança status)
     try {
       await Api.post('/api/cotacao/disparar-email', {
         id_requisicao: this._pedidoSelecionado, cnpj_fornecedor: cnpj,
         preco_unitario: 0, prazo_entrega: 0
       });
     } catch { /* não bloqueia */ }
+
+    // Atualiza localmente o contador de convites na lista de pedidos
+    const pidx = this._todosPedidos.findIndex(p => p.id === this._pedidoSelecionado);
+    if (pidx >= 0) {
+      const p = this._todosPedidos[pidx];
+      this._todosPedidos[pidx] = {
+        ...p, status: 'Em Cotação',
+        convites_enviados: (p.convites_enviados || 0) + 1
+      };
+      this._renderPedidosList();
+    }
 
     // Monta a URL do portal
     const base = window.location.href.replace(/\/[^/]*(\?.*)?$/, '/');
@@ -540,8 +614,23 @@ window.Pages.sourcing = {
       if (actionsEl) actionsEl.style.display = 'flex';
       const menorPreco = comPreco[0].preco;
       const jaTemSelecionado = comPreco.some(l => l.selecionado);
+      const gestorAprov = comPreco.find(l => l.aprovado_gestor) || null;
+      const gaEscCnpj = (gestorAprov?.cnpj || '').replace(/'/g, "\\'");
+      const gaEscNome = (gestorAprov?.fornecedor || '').replace(/'/g, "\\'");
 
       el.innerHTML = `
+        ${gestorAprov && !jaTemSelecionado ? `
+        <div style="margin-bottom:12px;background:#f0fdf4;border:1.5px solid #059669;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <i class="fa-solid fa-thumbs-up" style="color:#059669;font-size:18px;flex-shrink:0;"></i>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:700;color:#065f46;">Aprovado pelo Gestor: ${gestorAprov.fornecedor}</div>
+            ${gestorAprov.aprovado_gestor_obs ? `<div style="font-size:12px;color:#555;margin-top:2px;">Obs: ${gestorAprov.aprovado_gestor_obs}</div>` : ''}
+          </div>
+          <button class="btn btn-success btn-sm" style="white-space:nowrap;flex-shrink:0;"
+                  onclick="Pages.sourcing.selecionarFornecedor(${id},'${gaEscCnpj}','${gaEscNome}')">
+            <i class="fa-solid fa-file-invoice"></i> Gerar Pedido de Compras
+          </button>
+        </div>` : ''}
         <div class="table-wrapper" style="overflow-x:auto;">
           <table class="table" style="min-width:580px;">
             <thead>
@@ -559,15 +648,17 @@ window.Pages.sourcing = {
                 const variacao = i === 0 ? 0 : ((l.preco - menorPreco) / menorPreco * 100).toFixed(1);
                 const isMelhor = i === 0;
                 const isSel    = l.selecionado;
+                const isGA     = !!l.aprovado_gestor;
                 return `
-                <tr class="${isSel ? 'row-winner' : isMelhor ? '' : ''}">
+                <tr class="${isSel ? 'row-winner' : isGA && !isSel ? 'row-gestor-aprov' : ''}">
                   <td>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                      ${isSel ? '<i class="fa-solid fa-circle-check" style="color:var(--success-dark);font-size:16px;"></i>' : isMelhor ? '🏆' : ''}
+                      ${isSel ? '<i class="fa-solid fa-circle-check" style="color:var(--success-dark);font-size:16px;"></i>' : isGA ? '<i class="fa-solid fa-thumbs-up" style="color:#059669;font-size:16px;"></i>' : isMelhor ? '🏆' : ''}
                       <div>
                         <span class="td-bold">${l.fornecedor}</span>
                         ${isSel ? '<span class="badge badge-success" style="margin-left:6px;font-size:10px;">Selecionado</span>' : ''}
-                        ${isMelhor && !isSel ? '<span class="badge badge-brand" style="margin-left:6px;font-size:10px;">Melhor Preço</span>' : ''}
+                        ${isGA && !isSel ? '<span class="sou-badge sou-badge-gestor" style="margin-left:6px;padding:2px 6px;font-size:10px;"><i class="fa-solid fa-thumbs-up"></i> Aprovado Gestor</span>' : ''}
+                        ${isMelhor && !isSel && !isGA ? '<span class="badge badge-brand" style="margin-left:6px;font-size:10px;">Melhor Preço</span>' : ''}
                       </div>
                     </div>
                     ${l.observacoes ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;padding-left:24px;"><i class="fa-solid fa-comment-dots"></i> ${l.observacoes}</div>` : ''}
@@ -590,11 +681,15 @@ window.Pages.sourcing = {
                     </button>
                     ${isSel
                       ? `<span style="font-size:12px;color:var(--success-dark);font-weight:700;"><i class="fa-solid fa-check"></i> PO Gerada</span>`
-                      : !jaTemSelecionado
+                      : isGA && !jaTemSelecionado
                         ? `<button class="btn btn-success btn-sm" onclick="Pages.sourcing.selecionarFornecedor(${id},'${l.cnpj}','${(l.fornecedor||'').replace(/'/g,"\\'")}')">
-                             <i class="fa-solid fa-check-double"></i> Selecionar
+                             <i class="fa-solid fa-file-invoice"></i> Gerar Pedido de Compras
                            </button>`
-                        : ''}
+                        : !jaTemSelecionado
+                          ? `<button class="btn btn-success btn-sm" onclick="Pages.sourcing.selecionarFornecedor(${id},'${l.cnpj}','${(l.fornecedor||'').replace(/'/g,"\\'")}')">
+                               <i class="fa-solid fa-check-double"></i> Selecionar
+                             </button>`
+                          : ''}
                   </td>
                 </tr>`;
               }).join('')}
@@ -611,6 +706,12 @@ window.Pages.sourcing = {
           <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="App.navigate('recebimento')">
             <i class="fa-solid fa-arrow-right"></i> Ir para Conciliação
           </button>
+        </div>` : gestorAprov ? `
+        <div style="margin-top:12px;background:#f0fdf4;border:1px solid #059669;border-radius:8px;padding:12px 14px;">
+          <div style="font-size:12px;color:var(--text-muted);">
+            <i class="fa-solid fa-thumbs-up" style="color:#059669;"></i>
+            Gestor aprovou <strong>${gestorAprov.fornecedor}</strong>. Clique em <strong>Gerar Pedido de Compras</strong> para emitir a PO.
+          </div>
         </div>` : `
         <div style="margin-top:12px;background:var(--brand-surface);border:1px solid var(--brand-light);border-radius:8px;padding:12px 14px;">
           <div style="font-size:12px;color:var(--text-muted);">

@@ -170,6 +170,35 @@ window.Pages.intake = {
         border-color: var(--brand);
         background: var(--brand-surface, rgba(66,44,118,.06));
       }
+      .in-autocomplete-wrap { position: relative; }
+      .in-catalog-dropdown {
+        display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+        background: #fff; border: 1.5px solid var(--brand); border-radius: 8px;
+        box-shadow: 0 6px 22px rgba(0,0,0,.14); z-index: 1000;
+        max-height: 240px; overflow-y: auto;
+      }
+      .in-cat-item { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; }
+      .in-cat-item:hover { background: #f5f2ff; }
+      .in-cat-item-name { font-size: 13px; font-weight: 600; color: var(--text); }
+      .in-cat-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+      .in-cat-free { padding: 8px 12px; cursor: pointer; font-size: 12px; color: var(--text-muted);
+        display: flex; align-items: center; gap: 6px; }
+      .in-cat-free:hover { background: var(--bg); }
+      .in-detail-row > td { border-top: 0 !important; padding: 0 8px 10px !important; }
+      .in-detail-panel {
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        padding: 7px 12px; background: #f9f7ff; border-radius: 8px; border: 1px solid #e4dafb;
+      }
+      .in-stock-info { display: flex; align-items: center; gap: 6px; font-size: 12.5px; min-width: 0; }
+      .in-origem-group { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+      .in-btn-origem {
+        display: flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px;
+        border: 1.5px solid var(--border); background: var(--bg); font-size: 12px;
+        cursor: pointer; color: var(--text-muted); transition: all .15s; white-space: nowrap;
+      }
+      .in-btn-origem:hover { border-color: var(--brand); color: var(--brand); }
+      .in-btn-origem.active[data-origem="compra"]  { background: #fff7ed; border-color: #f59e0b; color: #92400e; font-weight: 600; }
+      .in-btn-origem.active[data-origem="estoque"] { background: #f0fdf4; border-color: #10b981; color: #065f46; font-weight: 600; }
     </style>`;
   },
 
@@ -296,12 +325,17 @@ window.Pages.intake = {
       `<option value="${c}">${c}</option>`
     ).join('');
 
-    const tr = document.createElement('tr');
-    tr.dataset.id = id;
-    tr.innerHTML = `
+    // ── Linha principal ───────────────────────────────────────
+    const trMain = document.createElement('tr');
+    trMain.dataset.id = id;
+    trMain.dataset.origem = 'compra';
+    trMain.innerHTML = `
       <td>
-        <input type="text" class="form-control form-control-sm in-desc"
-               placeholder="Descreva o item detalhadamente..." style="min-width:200px;">
+        <div class="in-autocomplete-wrap">
+          <input type="text" class="form-control form-control-sm in-desc"
+                 placeholder="Busque na lista ou descreva o item..." style="min-width:200px;" autocomplete="off">
+          <div class="in-catalog-dropdown"></div>
+        </div>
       </td>
       <td>
         <input type="number" class="form-control form-control-sm in-qtd"
@@ -335,11 +369,58 @@ window.Pages.intake = {
         </button>
       </td>
     `;
-    tbody.appendChild(tr);
 
-    // Show/hide custom category input
-    const seg = tr.querySelector('.in-seg');
-    const segNova = tr.querySelector('.in-seg-nova');
+    // ── Linha de detalhe: estoque + origem ────────────────────
+    const trDetail = document.createElement('tr');
+    trDetail.dataset.detailFor = id;
+    trDetail.className = 'in-detail-row';
+    trDetail.style.display = 'none';
+    trDetail.innerHTML = `
+      <td colspan="5">
+        <div class="in-detail-panel">
+          <div class="in-stock-info">
+            <span class="in-stock-text" style="color:var(--text-muted);">
+              <i class="fa-solid fa-circle-notch fa-spin" style="font-size:11px;color:var(--brand);"></i>
+              Verificando estoque...
+            </span>
+          </div>
+          <div class="in-origem-group">
+            <span style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;">Origem:</span>
+            <button class="in-btn-origem active" data-origem="compra"
+                    onclick="Pages.intake._setOrigem(this, '${id}')">
+              <i class="fa-solid fa-cart-shopping"></i> Nova Compra
+            </button>
+            <button class="in-btn-origem" data-origem="estoque"
+                    onclick="Pages.intake._setOrigem(this, '${id}')">
+              <i class="fa-solid fa-warehouse"></i> Usar Estoque
+            </button>
+          </div>
+        </div>
+      </td>
+    `;
+
+    tbody.appendChild(trMain);
+    tbody.appendChild(trDetail);
+
+    // ── Autocomplete ──────────────────────────────────────────
+    const descInput = trMain.querySelector('.in-desc');
+    const dropdown  = trMain.querySelector('.in-catalog-dropdown');
+    let _deb = null;
+
+    descInput.addEventListener('input', () => {
+      clearTimeout(_deb);
+      const q = descInput.value.trim();
+      if (q.length < 2) { dropdown.style.display = 'none'; return; }
+      _deb = setTimeout(() => this._buscaCatalogo(q, dropdown, trMain, trDetail, id), 280);
+    });
+
+    descInput.addEventListener('blur', () => {
+      setTimeout(() => { dropdown.style.display = 'none'; }, 200);
+    });
+
+    // ── Categoria nova ────────────────────────────────────────
+    const seg    = trMain.querySelector('.in-seg');
+    const segNova = trMain.querySelector('.in-seg-nova');
     seg.addEventListener('change', () => {
       const isNova = seg.value === '__nova__';
       segNova.style.display = isNova ? 'block' : 'none';
@@ -347,11 +428,15 @@ window.Pages.intake = {
     });
 
     this._updateItemsVisibility();
-    if (!noFocus) tr.querySelector('.in-desc').focus();
+    if (!noFocus) descInput.focus();
   },
 
   removerLinha(btn) {
-    btn.closest('tr').remove();
+    const trMain = btn.closest('tr');
+    const rowId  = trMain.dataset.id;
+    const trDetail = document.querySelector(`tr[data-detail-for="${rowId}"]`);
+    trMain.remove();
+    if (trDetail) trDetail.remove();
     this._updateItemsVisibility();
   },
 
@@ -374,9 +459,9 @@ window.Pages.intake = {
     if (!comprador)    { Toast.warning('Campo obrigatório', 'Informe o nome do solicitante.'); return; }
     if (!justificativa){ Toast.warning('Campo obrigatório', 'Informe a justificativa da solicitação.'); return; }
 
-    const rows = document.querySelectorAll('#intake-items-body tr');
+    const rows = document.querySelectorAll('#intake-items-body tr[data-id]');
     const itens = Array.from(rows).map(tr => {
-      const segSel = tr.querySelector('.in-seg');
+      const segSel  = tr.querySelector('.in-seg');
       const segNova = tr.querySelector('.in-seg-nova');
       const segmento = segSel?.value === '__nova__'
         ? (segNova?.value?.trim().toUpperCase() || '')
@@ -384,7 +469,8 @@ window.Pages.intake = {
       return {
         descricao:  tr.querySelector('.in-desc')?.value?.trim() || '',
         quantidade: parseFloat(tr.querySelector('.in-qtd')?.value) || 0,
-        segmento
+        segmento,
+        origem: tr.dataset.origem || 'compra'
       };
     }).filter(i => i.descricao && i.quantidade > 0);
 
@@ -478,5 +564,116 @@ window.Pages.intake = {
         </button>
       </div>
     `).join('');
+  },
+
+  // ── Catálogo de itens ─────────────────────────────────────
+  async _buscaCatalogo(q, dropdown, trMain, trDetail, rowId) {
+    try {
+      const items = await Api.get(`/api/catalogo-itens?q=${encodeURIComponent(q)}`);
+      if (!Array.isArray(items) || !items.length) { dropdown.style.display = 'none'; return; }
+
+      const esc = s => (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      dropdown.innerHTML = items.map(item => `
+        <div class="in-cat-item"
+             data-id="${item.id}"
+             data-desc="${esc(item.descricao)}"
+             data-unidade="${esc(item.unidade || 'UN')}"
+             data-segmento="${esc((item.segmento || '').toUpperCase())}">
+          <div class="in-cat-item-name">${esc(item.descricao)}</div>
+          <div class="in-cat-item-meta">${item.unidade || 'UN'}${item.segmento ? ` &nbsp;•&nbsp; ${item.segmento}` : ''}</div>
+        </div>
+      `).join('') + `
+        <div class="in-cat-free">
+          <i class="fa-solid fa-pencil" style="font-size:10px;"></i>
+          Descrever "${q.length > 28 ? q.slice(0, 28) + '…' : q}" manualmente
+        </div>`;
+      dropdown.style.display = 'block';
+
+      dropdown.querySelectorAll('.in-cat-item').forEach(el => {
+        el.addEventListener('mousedown', e => {
+          e.preventDefault();
+          this._selecionarCatalogo(el.dataset, trMain, trDetail, rowId);
+          dropdown.style.display = 'none';
+        });
+      });
+      dropdown.querySelector('.in-cat-free')?.addEventListener('mousedown', e => {
+        e.preventDefault();
+        dropdown.style.display = 'none';
+        trMain.querySelector('.in-desc').focus();
+      });
+    } catch {
+      dropdown.style.display = 'none';
+    }
+  },
+
+  _selecionarCatalogo(data, trMain, trDetail, rowId) {
+    trMain.querySelector('.in-desc').value = data.desc || '';
+    trMain.dataset.catalogId = data.id || '';
+
+    // Unidade
+    const und    = trMain.querySelector('.in-und');
+    const undVal = (data.unidade || 'UN').toUpperCase();
+    [...und.options].forEach(o => { if (o.value === undVal) o.selected = true; });
+
+    // Categoria
+    const seg    = trMain.querySelector('.in-seg');
+    const segVal = (data.segmento || '').toUpperCase();
+    if (segVal) {
+      const opt = [...seg.options].find(o => o.value === segVal);
+      if (opt) {
+        opt.selected = true;
+      } else {
+        const novaOpt = [...seg.options].find(o => o.value === '__nova__');
+        if (novaOpt) {
+          novaOpt.selected = true;
+          const segNova = trMain.querySelector('.in-seg-nova');
+          if (segNova) { segNova.style.display = 'block'; segNova.value = segVal; }
+        }
+      }
+    }
+
+    // Mostrar painel de estoque/origem
+    trDetail.style.display = '';
+    this._checkEstoque(data.desc || '', rowId);
+  },
+
+  async _checkEstoque(descricao, rowId) {
+    const trDetail = document.querySelector(`tr[data-detail-for="${rowId}"]`);
+    if (!trDetail) return;
+    const textEl = trDetail.querySelector('.in-stock-text');
+    if (!textEl) return;
+
+    textEl.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin" style="font-size:11px;color:var(--brand);"></i> Verificando estoque...`;
+
+    try {
+      const res   = await Api.get(`/api/estoque/busca?q=${encodeURIComponent(descricao)}`);
+      const items = Array.isArray(res) ? res : [];
+      const total  = items.reduce((s, r) => s + (parseFloat(r.saldo_atual) || 0), 0);
+      const unid   = items[0]?.unidade_medida || 'UN';
+
+      trDetail.dataset.estoqueId    = items[0]?.id || '';
+      trDetail.dataset.estoqueSaldo = total;
+
+      if (!items.length) {
+        textEl.innerHTML = `<i class="fa-solid fa-box-open" style="color:var(--text-muted);"></i> <span style="color:var(--text-muted);">Não cadastrado no estoque</span>`;
+      } else if (total <= 0) {
+        textEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <span style="color:#b45309;font-weight:600;">Estoque zerado</span>`;
+      } else {
+        const abaixoMin = items[0]?.estoque_minimo && total <= items[0].estoque_minimo
+          ? ` <span style="color:#f59e0b;font-size:10.5px;">(abaixo do mínimo)</span>` : '';
+        textEl.innerHTML = `<i class="fa-solid fa-warehouse" style="color:#10b981;"></i> <span style="color:#065f46;font-weight:600;">${total} ${unid}</span><span style="color:var(--text-muted);"> em estoque${abaixoMin}</span>`;
+      }
+    } catch {
+      textEl.innerHTML = `<i class="fa-solid fa-circle-question" style="color:var(--text-muted);"></i> <span style="color:var(--text-muted);">Estoque não verificado</span>`;
+    }
+  },
+
+  _setOrigem(btn, rowId) {
+    const trMain   = document.querySelector(`tr[data-id="${rowId}"]`);
+    const trDetail = document.querySelector(`tr[data-detail-for="${rowId}"]`);
+    if (!trMain || !trDetail) return;
+    trDetail.querySelectorAll('.in-btn-origem').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    trMain.dataset.origem = btn.dataset.origem;
   }
 };
