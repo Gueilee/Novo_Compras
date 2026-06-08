@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Compras Vendemmia</title>
-  <!-- Guard: redireciona para login se nÃ£o autenticado -->
+  <!-- Guard: redireciona para login se não autenticado -->
   <script>
     if (!localStorage.getItem('shp_user_email')) {
       window.location.replace('login.html');
@@ -44,7 +44,7 @@
 
     <!-- Logo -->
     <div class="sidebar-logo" onclick="App.navigate('home')"
-         style="cursor:pointer;" title="Ir para InÃ­cio">
+         style="cursor:pointer;" title="Ir para Início">
       <img src="img/logo.png" alt="Vendemmia"
            onerror="this.outerHTML='<span style=font-size:16px;font-weight:800;color:var(--brand);letter-spacing:-0.5px>Vendemmia</span>'">
     </div>
@@ -55,51 +55,51 @@
       <!-- Home -->
       <div class="nav-item active" id="nav-home" onclick="App.navigate('home')">
         <i class="fa-solid fa-house"></i>
-        <span>InÃ­cio</span>
+        <span>Início</span>
       </div>
 
-      <!-- InteligÃªncia & Dados -->
-      <span class="nav-group-label">InteligÃªncia & Dados</span>
+      <!-- Inteligência & Dados -->
+      <span class="nav-group-label">Inteligência & Dados</span>
 
       <div class="nav-item" id="nav-dashboard" onclick="App.navigate('dashboard')">
         <i class="fa-solid fa-chart-pie"></i>
-        <span>Dashboard AnalÃ­tico</span>
+        <span>Dashboard Analítico</span>
       </div>
 
-      <!-- OperaÃ§Ã£o de Compras -->
-      <span class="nav-group-label">OperaÃ§Ã£o de Compras</span>
+      <!-- Operação de Compras -->
+      <span class="nav-group-label">Operação de Compras</span>
 
       <div class="nav-item" id="nav-intake" onclick="App.navigate('intake')">
         <i class="fa-solid fa-file-invoice"></i>
-        <span>Nova RequisiÃ§Ã£o</span>
+        <span>Nova Requisição</span>
       </div>
 
       <div class="nav-item" id="nav-aprovacoes" onclick="App.navigate('aprovacoes')">
         <i class="fa-solid fa-user-shield"></i>
-        <span>Painel de RequisiÃ§Ãµes</span>
+        <span>Painel de Requisições</span>
       </div>
 
       <div class="nav-item" id="nav-sourcing" onclick="App.navigate('sourcing')">
         <i class="fa-solid fa-magnifying-glass-chart"></i>
-        <span>Fornecedores & CotaÃ§Ã£o</span>
+        <span>Fornecedores & Cotação</span>
       </div>
 
       <div class="nav-item" id="nav-entregas" onclick="App.navigate('entregas')">
         <i class="fa-solid fa-truck-ramp-box"></i>
-        <span>ConfirmaÃ§Ã£o de Entrega</span>
+        <span>Confirmação de Entrega</span>
       </div>
 
       <div class="nav-item" id="nav-recebimento" onclick="App.navigate('recebimento')">
         <i class="fa-solid fa-boxes-stacked"></i>
-        <span>ConciliaÃ§Ã£o</span>
+        <span>Conciliação</span>
       </div>
 
-      <!-- Compras EstratÃ©gicas -->
-      <span class="nav-group-label">Compras EstratÃ©gicas</span>
+      <!-- Compras Estratégicas -->
+      <span class="nav-group-label">Compras Estratégicas</span>
 
       <div class="nav-item" id="nav-catalogo" onclick="App.navigate('catalogo')">
         <i class="fa-solid fa-book-open"></i>
-        <span>CatÃ¡logo de Itens</span>
+        <span>Catálogo de Itens</span>
       </div>
 
       <div class="nav-item" id="nav-contratos" onclick="App.navigate('contratos')">
@@ -109,7 +109,7 @@
 
       <div class="nav-item" id="nav-consulta" onclick="App.navigate('consulta')">
         <i class="fa-solid fa-magnifying-glass-arrow-right"></i>
-        <span>Consulta de RequisiÃ§Ãµes</span>
+        <span>Consulta de Requisições</span>
       </div>
 
       <div class="nav-item" id="nav-estoque" onclick="App.navigate('estoque')">
@@ -136,11 +136,11 @@
     <!-- HEADER -->
     <header class="header">
       <div class="header-breadcrumb">
-        <div class="header-page-title" id="header-page-title">Dashboard AnalÃ­tico</div>
+        <div class="header-page-title" id="header-page-title">Dashboard Analítico</div>
         <div class="header-breadcrumb-path" id="header-breadcrumb-path">
           <span>SHP</span>
           <i class="fa-solid fa-chevron-right" style="font-size:9px;opacity:0.5;"></i>
-          <span style="color:var(--text);font-weight:600;">Dashboard AnalÃ­tico</span>
+          <span style="color:var(--text);font-weight:600;">Dashboard Analítico</span>
         </div>
       </div>
 
@@ -152,7 +152,7 @@
         </div>
 
         <!-- Notifications -->
-        <button class="notif-btn" id="notif-btn" title="NotificaÃ§Ãµes" onclick="toggleNotifPanel(event)">
+        <button class="notif-btn" id="notif-btn" title="Notificações" onclick="toggleNotifPanel(event)">
           <i class="fa-solid fa-bell"></i>
           <span class="notif-count hidden" id="header-notif-count">0</span>
         </button>
@@ -192,7 +192,7 @@
 <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• NOTIFICATION PANEL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="notif-panel" class="floating-panel" style="display:none;width:340px;">
   <div class="fp-header">
-    <span><i class="fa-solid fa-bell" style="color:var(--brand);margin-right:7px;"></i>NotificaÃ§Ãµes</span>
+    <span><i class="fa-solid fa-bell" style="color:var(--brand);margin-right:7px;"></i>Notificações</span>
     <button class="fp-close" onclick="closeNotifPanel()"><i class="fa-solid fa-xmark"></i></button>
   </div>
   <div id="notif-panel-body" class="fp-body">
@@ -208,10 +208,10 @@
   </div>
   <div class="fp-menu">
     <button class="fp-menu-item" onclick="closeUserMenu();App.navigate('configuracoes')">
-      <i class="fa-solid fa-gear"></i> ConfiguraÃ§Ãµes
+      <i class="fa-solid fa-gear"></i> Configurações
     </button>
     <button class="fp-menu-item" onclick="closeUserMenu();Pages.configuracoes._tabTarget='orcamento';App.navigate('configuracoes')">
-      <i class="fa-solid fa-sack-dollar"></i> OrÃ§amento por Unidade
+      <i class="fa-solid fa-sack-dollar"></i> Orçamento por Unidade
     </button>
     <div style="height:1px;background:var(--border-subtle);margin:4px 0;"></div>
     <button class="fp-menu-item fp-menu-danger" onclick="closeUserMenu();confirmarSaida()">
@@ -352,7 +352,7 @@
     const ok = await Modal.confirm({
       icon: 'warning',
       title: 'Sair do sistema?',
-      body: 'VocÃª serÃ¡ redirecionado para a tela de login.<br>Certifique-se de que salvou tudo antes de continuar.',
+      body: 'Você será redirecionado para a tela de login.<br>Certifique-se de que salvou tudo antes de continuar.',
       confirmText: 'Sair',
       confirmClass: 'btn-danger',
       cancelText: 'Cancelar',
