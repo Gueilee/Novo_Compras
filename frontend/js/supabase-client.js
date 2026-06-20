@@ -361,7 +361,7 @@ async function _savingDashboard(path) {
 
   // 1. Requisições concluídas com valor fechado
   let q = _sb.from('requisicoes')
-    .select('id_sharepoint, comprador, unidade, data_solicitacao, fornecedor, valor_fechado, status')
+    .select('id_sharepoint, comprador, unidade, data_solicitacao, fornecedor, valor_fechado, status, preco_negociado_final')
     .in('status', ['Aguardando Entrega', 'Recebido', 'Concluído'])
     .not('valor_fechado', 'is', null)
     .gt('valor_fechado', 0)
@@ -397,7 +397,11 @@ async function _savingDashboard(path) {
     const selLance  = reqLances.find(l => l.selecionado);
     if (!selLance) continue;
 
-    const precoFinal = selLance.preco_unitario;
+    // preço efetivo: usa preco_negociado_final (desconto adicional via Conciliação) se disponível
+    const precoLance = selLance.preco_unitario;
+    const precoFinal = (r.preco_negociado_final && r.preco_negociado_final > 0 && r.preco_negociado_final < precoLance)
+      ? r.preco_negociado_final
+      : precoLance;
     const maxQuote   = Math.max(...reqLances.map(l => l.preco_unitario));
     // baseline: preco_original gravado (negociação real) ou max das cotações (saving de mercado)
     const baseline   = (selLance.preco_original && selLance.preco_original > precoFinal)
@@ -875,13 +879,28 @@ async function _realizarMatch(id, body) {
   const qtdRec = Math.round(body.qtd_recebida * 1000) / 1000;
   if (Math.abs(qtdRec - qtdEsp) > 0.001)
     divergencias.push(`Quantidade divergente: recebido ${qtdRec} vs esperado ${qtdEsp}`);
-  if (po.valor_esperado > 0 && Math.abs(body.valor_nf - po.valor_esperado) > 0.01)
+
+  // Desconto adicional informado pelo comprador — pula verificação de valor divergente
+  const temNegociacao = body.preco_negociado_final && body.preco_negociado_final > 0;
+  if (!temNegociacao && po.valor_esperado > 0 && Math.abs(body.valor_nf - po.valor_esperado) > 0.01)
     divergencias.push(`Valor divergente: NF R$ ${body.valor_nf.toFixed(2)} vs PO R$ ${po.valor_esperado.toFixed(2)}`);
+
   const aprovado = divergencias.length === 0;
   if (aprovado) {
-    await _sb.from('requisicoes').update({ status: 'Concluído', valor_fechado: body.valor_nf, updated_at: new Date().toISOString() }).eq('id_sharepoint', id);
+    const upd = { status: 'Concluído', valor_fechado: body.valor_nf, updated_at: new Date().toISOString() };
+    if (temNegociacao) upd.preco_negociado_final = body.preco_negociado_final;
+    await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
     _logBuscaReq(id, 'Concluído').catch(() => {});
   }
+
+  // Monta detalhes de aprovação incluindo saving se houver
+  const detalheAprovado = [`Quantidade OK: ${qtdRec} un.`, `Valor da NF: R$ ${body.valor_nf.toFixed(2)}`];
+  if (aprovado && temNegociacao && po.valor_esperado > 0) {
+    const savAmt = po.valor_esperado - body.preco_negociado_final;
+    if (savAmt > 0)
+      detalheAprovado.push(`Desconto adicional registrado: R$ ${savAmt.toFixed(2)} economizados vs PO de R$ ${po.valor_esperado.toFixed(2)} (${(savAmt / po.valor_esperado * 100).toFixed(1)}%)`);
+  }
+
   // Busca fornecedor da requisição para passagem ao estoque
   let fornecedor = null;
   try {
@@ -891,7 +910,7 @@ async function _realizarMatch(id, body) {
   return {
     status: aprovado ? 'APROVADO' : 'BLOQUEADO',
     mensagem: aprovado ? 'Todos os dados conferem. Pagamento liberado.' : 'Divergências encontradas. Pagamento bloqueado.',
-    detalhes: aprovado ? [`Quantidade OK: ${qtdRec} un.`, `Valor OK: R$ ${body.valor_nf.toFixed(2)}`] : divergencias,
+    detalhes: aprovado ? detalheAprovado : divergencias,
     preco_unitario: po.preco_unitario || null,
     fornecedor,
   };
