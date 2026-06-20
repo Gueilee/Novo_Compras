@@ -21,6 +21,7 @@ const App = {
     contratos:      'Gestão de Contas Fixas',
     consulta:       'Consulta de Requisições',
     estoque:        'Controle de Estoque',
+    fornecedores:   'Gestão de Fornecedores',
     configuracoes:  'Configurações',
   },
 
@@ -38,6 +39,7 @@ const App = {
     contratos:      'Compras Estratégicas & Fixas',
     consulta:       'Compras Estratégicas',
     estoque:        'Compras Estratégicas',
+    fornecedores:   'Compras Estratégicas',
     configuracoes:  'Administração',
   },
 

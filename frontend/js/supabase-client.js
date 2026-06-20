@@ -206,6 +206,9 @@ async function _route(method, path, body) {
   if (method === 'DELETE' && mEstItem) return _deletarItemEstoque(+mEstItem[1]);
   if (method === 'PATCH'  && mEstItem) return _atualizarItemEstoque(+mEstItem[1], body);
 
+  // Gestão de Fornecedores (SPA interna)
+  if (method === 'GET' && path.startsWith('/api/fornecedores/lista')) return _listarFornecedoresGestao(path);
+
   // Portal fornecedor — minha cotação existente
   if (method === 'GET' && path.startsWith('/api/cotacao/minha')) return _minhaCotacao(path);
 
@@ -1902,6 +1905,19 @@ async function _getCadastroFornecedor(path) {
     .select('*')
     .eq('cnpj', cnpj).maybeSingle();
   return data || null;
+}
+
+async function _listarFornecedoresGestao(path) {
+  const { data, error } = await _sb
+    .from('fornecedores')
+    .select('id,cnpj,razao_social,email,telefone,contato_comercial_email,contato_comercial_tel,contato_financeiro_email,contato_financeiro_tel,contato_fiscal_email,contato_fiscal_tel,segmentos_interesse,endereco_logradouro,endereco_numero,endereco_bairro,endereco_cidade,endereco_uf,cadastro_completo')
+    .order('razao_social', { ascending: true })
+    .limit(2000);
+  if (error) _err(error);
+  const fornecedores  = data || [];
+  const total         = fornecedores.length;
+  const cadastrados   = fornecedores.filter(f => f.cadastro_completo === true).length;
+  return { fornecedores, total, cadastrados };
 }
 
 async function _salvarCadastroFornecedor(body) {
