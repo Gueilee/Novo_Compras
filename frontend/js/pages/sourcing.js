@@ -11,6 +11,7 @@ window.Pages.sourcing = {
   _segmentos: [],
   _todosPedidos: [],
   _filtroSourcing: { busca: '', statuses: [], compradores: [] },
+  _ultimaVerificacaoEstoque: null,
 
   render() {
     return `
@@ -59,6 +60,9 @@ window.Pages.sourcing = {
 
         <!-- Detalhe do pedido selecionado -->
         <div id="sourcing-req-detail" class="card mb-4" style="background:var(--brand-surface);border:1.5px solid var(--brand-light);"></div>
+
+        <!-- Verificação de estoque (preenchido via JS após selecionar pedido) -->
+        <div id="sourcing-estoque-check"></div>
 
         <div class="grid-2">
           <!-- Fornecedores -->
@@ -328,6 +332,7 @@ window.Pages.sourcing = {
       const req = await Api.get(`/api/sourcing/requisicao/${id}`);
       this._pedidoInfo = req;
       this._renderReqDetail(req);
+      this._verificarEstoqueAsync(id);
     } catch {
       document.getElementById('sourcing-req-detail').innerHTML = `
         <div style="padding:16px;">
@@ -377,6 +382,187 @@ window.Pages.sourcing = {
           </div>
         </div>` : ''}
       </div>`;
+  },
+
+  /* ── Verificação de Estoque ──────────────────────────────── */
+
+  async _verificarEstoqueAsync(id) {
+    const el = document.getElementById('sourcing-estoque-check');
+    if (el) {
+      el.innerHTML = `
+        <div style="padding:10px 16px;background:#f8fafc;border:1px solid #e2e8f0;
+                    border-radius:10px;display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <i class="fa-solid fa-circle-notch fa-spin" style="color:#94a3b8;font-size:12px;"></i>
+          <span style="font-size:12px;color:#94a3b8;">Verificando disponibilidade em estoque...</span>
+        </div>`;
+    }
+    try {
+      const v = await Api.get(`/api/sourcing/verificar-estoque/${id}`);
+      this._renderBlocoEstoque(id, v);
+    } catch {
+      if (el) el.innerHTML = '';
+    }
+  },
+
+  _renderBlocoEstoque(idReq, v) {
+    const el = document.getElementById('sourcing-estoque-check');
+    if (!el) return;
+    this._ultimaVerificacaoEstoque = v;
+
+    // Nenhum item em estoque — mensagem compacta
+    if (!v.temEstoque) {
+      el.innerHTML = `
+        <div style="padding:10px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
+                    display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+          <i class="fa-solid fa-warehouse" style="color:#94a3b8;font-size:14px;"></i>
+          <span style="font-size:13px;color:#64748b;">
+            Nenhum item encontrado em estoque — prossiga com a cotação.
+          </span>
+        </div>`;
+      return;
+    }
+
+    // Todos os itens suficientes — banner verde com ação
+    if (v.todosSuficientes) {
+      el.innerHTML = `
+        <div style="background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:14px;
+                    padding:20px 24px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+            <div style="width:42px;height:42px;background:#059669;border-radius:10px;
+                        display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="fa-solid fa-boxes-stacked" style="color:#fff;font-size:18px;"></i>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:15px;font-weight:800;color:#065f46;">
+                Estoque Disponível — Compra Desnecessária
+              </div>
+              <div style="font-size:12.5px;color:#047857;margin-top:3px;">
+                Todos os itens desta requisição estão disponíveis em estoque
+              </div>
+            </div>
+            <button onclick="Pages.sourcing._ignorarEstoque()"
+                    style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:4px;">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;">
+            ${v.itens.map(i => `
+              <div style="display:flex;align-items:center;gap:10px;background:#fff;
+                          border:1px solid #a7f3d0;border-radius:9px;padding:10px 14px;flex-wrap:wrap;">
+                <i class="fa-solid fa-circle-check" style="color:#059669;font-size:14px;flex-shrink:0;"></i>
+                <span style="font-size:13px;font-weight:600;color:#1e293b;flex:1;min-width:120px;">${i.descricao}</span>
+                <span style="font-size:12px;color:#64748b;">
+                  Pedido: <strong>${i.quantidade_pedida} ${i.unidade}</strong>
+                </span>
+                <span style="color:#cbd5e1;font-size:11px;">·</span>
+                <span style="font-size:12px;font-weight:700;color:#059669;">
+                  Em estoque: ${i.saldo} ${i.unidade}
+                </span>
+              </div>`).join('')}
+          </div>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <button onclick="Pages.sourcing.usarEstoque(${idReq})"
+                    style="height:42px;padding:0 22px;border-radius:9px;background:#059669;color:#fff;
+                           border:none;font-size:14px;font-weight:700;cursor:pointer;
+                           display:flex;align-items:center;gap:8px;transition:background .15s;"
+                    onmouseover="this.style.background='#047857'" onmouseout="this.style.background='#059669'">
+              <i class="fa-solid fa-boxes-stacked"></i> Usar Estoque e Concluir Requisição
+            </button>
+            <button onclick="Pages.sourcing._ignorarEstoque()"
+                    style="height:42px;padding:0 18px;border-radius:9px;background:#fff;
+                           color:#64748b;border:1px solid #e2e8f0;font-size:14px;cursor:pointer;">
+              Prosseguir com Cotação
+            </button>
+          </div>
+        </div>`;
+      return;
+    }
+
+    // Estoque parcial — aviso amarelo
+    el.innerHTML = `
+      <div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:14px;
+                  padding:18px 22px;margin-bottom:4px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+          <div style="width:38px;height:38px;background:#f59e0b;border-radius:9px;
+                      display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="fa-solid fa-triangle-exclamation" style="color:#fff;font-size:15px;"></i>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:800;color:#92400e;">Estoque Parcialmente Disponível</div>
+            <div style="font-size:12px;color:#b45309;margin-top:2px;">
+              Alguns itens disponíveis, mas insuficientes para atender toda a requisição
+            </div>
+          </div>
+          <button onclick="Pages.sourcing._ignorarEstoque()"
+                  style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:4px;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+          ${v.itens.map(i => {
+            const ok = i.status === 'OK';
+            const ins = i.status === 'INSUFICIENTE';
+            const icon  = ok ? 'fa-circle-check'       : ins ? 'fa-exclamation-triangle'  : 'fa-times-circle';
+            const cor   = ok ? '#059669'               : ins ? '#d97706'                  : '#dc2626';
+            const label = ok ? `Em estoque: ${i.saldo} ${i.unidade}`
+                        : ins ? `Estoque: ${i.saldo} ${i.unidade} — faltam ${i.quantidade_pedida - i.saldo}`
+                        : 'Sem estoque cadastrado';
+            return `
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;
+                          background:#fff;border-radius:8px;flex-wrap:wrap;">
+                <i class="fa-solid ${icon}" style="color:${cor};font-size:13px;flex-shrink:0;"></i>
+                <span style="font-size:12.5px;font-weight:600;color:#1e293b;flex:1;min-width:100px;">${i.descricao}</span>
+                <span style="font-size:12px;color:#64748b;">Pedido: ${i.quantidade_pedida} ${i.unidade}</span>
+                <span style="font-size:12px;font-weight:600;color:${cor};">${label}</span>
+              </div>`;
+          }).join('')}
+        </div>
+
+        <div style="font-size:12px;color:#92400e;padding:10px 14px;
+                    background:rgba(245,158,11,.12);border-radius:8px;">
+          <i class="fa-solid fa-circle-info" style="margin-right:5px;"></i>
+          Estoque insuficiente para atender todos os itens. Prossiga com a cotação para adquirir os itens em falta.
+        </div>
+      </div>`;
+  },
+
+  _ignorarEstoque() {
+    const el = document.getElementById('sourcing-estoque-check');
+    if (el) el.innerHTML = '';
+  },
+
+  async usarEstoque(idReq) {
+    const v = this._ultimaVerificacaoEstoque;
+    if (!v || !v.todosSuficientes) return;
+    const itens = v.itens.filter(i => i.status === 'OK');
+    if (!itens.length) return;
+
+    const lista = itens.map(i => `• ${i.quantidade_pedida} ${i.unidade} — ${i.descricao}`).join('\n');
+    if (!confirm(`Confirmar uso do estoque para a Requisição #${idReq}?\n\n${lista}\n\nOs itens serão descontados do estoque e a requisição será concluída sem passar pelo processo de compra.`)) return;
+
+    try {
+      await Api.post(`/api/sourcing/usar-estoque/${idReq}`, {
+        itens: itens.map(i => ({ id_item: i.id_item, quantidade: i.quantidade_pedida, descricao: i.descricao })),
+        registrado_por: localStorage.getItem('shp_user_email') || null
+      });
+
+      Toast.success('Requisição atendida por estoque!', 'Os itens foram descontados e a requisição foi concluída.');
+
+      // Fecha workspace e atualiza lista
+      const ws = document.getElementById('sourcing-workspace');
+      if (ws) ws.style.display = 'none';
+      this._pedidoSelecionado = null;
+      this._ultimaVerificacaoEstoque = null;
+
+      const pos = await Api.get('/api/sourcing/pedidos-aprovados');
+      this._todosPedidos = pos;
+      this._renderPedidosList();
+    } catch (e) {
+      Toast.error('Erro ao usar estoque', e.message || 'Verifique a API.');
+    }
   },
 
   async buscarFornecedores() {

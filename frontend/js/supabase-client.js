@@ -72,6 +72,10 @@ async function _route(method, path, body) {
   const mLanceUp = basePath.match(/^\/api\/cotacao\/lance\/(\d+)$/);
   if (method === 'PATCH' && mLanceUp) return _atualizarLance(+mLanceUp[1], body);
   if (method === 'GET' && path.startsWith('/api/cotacao/historico')) return _historicoCotacoes(path);
+  const mEstoque = basePath.match(/^\/api\/sourcing\/verificar-estoque\/(\d+)$/);
+  if (method === 'GET' && mEstoque) return _verificarEstoque(+mEstoque[1]);
+  const mUsarEst = basePath.match(/^\/api\/sourcing\/usar-estoque\/(\d+)$/);
+  if (method === 'POST' && mUsarEst) return _usarEstoque(+mUsarEst[1], body);
 
   // Entregas (Confirmação de Recebimento)
   if (full === 'GET /api/entregas/pendentes') return _entregasPendentes();
@@ -747,6 +751,77 @@ async function _salvarCotacao(body) {
     );
   }
   return { status: 'ok' };
+}
+
+/* ── Estoque: verificação e baixa ───────────────────────────────── */
+
+async function _verificarEstoque(id) {
+  const { data: itens } = await _sb.from('itens_requisicao')
+    .select('descricao, quantidade').eq('id_requisicao', id);
+  if (!itens || !itens.length) return { itens: [], temEstoque: false, todosSuficientes: false };
+
+  const { data: estoqueItems } = await _sb.from('controle_estoque')
+    .select('id, descricao, saldo_atual, unidade_medida').gt('saldo_atual', 0).order('descricao');
+
+  const resultado = itens.map(item => {
+    const descLow = (item.descricao || '').toLowerCase().trim();
+    const match = (estoqueItems || []).find(e => {
+      const eLow = (e.descricao || '').toLowerCase().trim();
+      return eLow === descLow || eLow.includes(descLow) || descLow.includes(eLow);
+    });
+    if (!match) {
+      return { descricao: item.descricao, quantidade_pedida: item.quantidade, saldo: 0,
+               id_item: null, status: 'SEM_ESTOQUE', unidade: 'un' };
+    }
+    return {
+      descricao: item.descricao, quantidade_pedida: item.quantidade,
+      saldo: match.saldo_atual, id_item: match.id, unidade: match.unidade_medida || 'un',
+      status: match.saldo_atual >= item.quantidade ? 'OK' : 'INSUFICIENTE'
+    };
+  });
+
+  return {
+    itens: resultado,
+    temEstoque: resultado.some(r => r.status !== 'SEM_ESTOQUE'),
+    todosSuficientes: resultado.every(r => r.status === 'OK')
+  };
+}
+
+async function _usarEstoque(id, body) {
+  const itens = body.itens || [];
+  const registradoPor = body.registrado_por || null;
+
+  for (const item of itens) {
+    if (!item.id_item || !item.quantidade) continue;
+
+    // Busca saldo atual
+    const { data: est } = await _sb.from('controle_estoque')
+      .select('saldo_atual').eq('id', item.id_item).single();
+    if (!est) continue;
+
+    const novoSaldo = (est.saldo_atual || 0) - item.quantidade;
+
+    // Atualiza saldo
+    await _sb.from('controle_estoque')
+      .update({ saldo_atual: novoSaldo })
+      .eq('id', item.id_item);
+
+    // Registra movimentação de saída
+    await _sb.from('movimentacoes_estoque').insert({
+      id_item: item.id_item,
+      tipo: 'SAIDA',
+      quantidade: item.quantidade,
+      saldo_apos: novoSaldo,
+      id_requisicao: id,
+      registrado_por: registradoPor,
+      observacoes: `Atendimento direto por estoque — Req. #${id}`
+    });
+  }
+
+  // Marca requisição como Concluída
+  await _sb.from('requisicoes').update({ status: 'Concluido' }).eq('id', id);
+
+  return { status: 'ok', requisicao: id, itens_baixados: itens.length };
 }
 
 async function _selecionarFornecedor(id, body) {
