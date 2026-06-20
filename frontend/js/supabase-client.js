@@ -42,6 +42,9 @@ async function _route(method, path, body) {
   // Dashboard
   if (full === 'GET /dashboard-dados') return _dashboardDados(path);
 
+  // Saving
+  if (full === 'GET /api/saving/dashboard') return _savingDashboard(path);
+
   // Formulário de Intake
   if (full === 'GET /api/opcoes-formulario') return _opcoesFormulario();
 
@@ -344,6 +347,120 @@ async function _dashboardDados(path = '') {
   };
 }
 
+// ── Saving Dashboard ───────────────────────────────────────
+async function _savingDashboard(path) {
+  const qp         = new URLSearchParams((path || '').split('?')[1] || '');
+  const filterComp = qp.get('comprador') || '';
+  const filterUnit = qp.get('unidade')   || '';
+
+  const _empty = () => ({
+    pedidos: [], compradores: [],
+    kpis: { total_saving: 0, pct_saving: 0, count: 0, melhor_comprador: '—' },
+    opts: { compradores: [], unidades: [] }
+  });
+
+  // 1. Requisições concluídas com valor fechado
+  let q = _sb.from('requisicoes')
+    .select('id_sharepoint, comprador, unidade, data_solicitacao, fornecedor, valor_fechado, status')
+    .in('status', ['Aguardando Entrega', 'Recebido', 'Concluído'])
+    .not('valor_fechado', 'is', null)
+    .gt('valor_fechado', 0)
+    .order('id_sharepoint', { ascending: false });
+  if (filterComp) q = q.eq('comprador', filterComp);
+  if (filterUnit)  q = q.eq('unidade',   filterUnit);
+
+  const { data: reqs, error } = await q;
+  if (error) _err(error);
+  if (!reqs || !reqs.length) return _empty();
+
+  // 2. Todos os lances das requisições encontradas
+  const ids = reqs.map(r => r.id_sharepoint);
+  const { data: lances } = await _sb.from('lances_fornecedor')
+    .select('id_requisicao, preco_unitario, preco_original, selecionado')
+    .in('id_requisicao', ids)
+    .gt('preco_unitario', 0);
+
+  // 3. Agrupa lances por requisição
+  const byReq = {};
+  for (const l of (lances || [])) {
+    if (!byReq[l.id_requisicao]) byReq[l.id_requisicao] = [];
+    byReq[l.id_requisicao].push(l);
+  }
+
+  // 4. Calcula saving por requisição
+  const pedidos = [];
+  let totalSaving = 0, totalBase = 0;
+
+  for (const r of reqs) {
+    const reqLances = byReq[r.id_sharepoint] || [];
+    if (!reqLances.length) continue;
+    const selLance  = reqLances.find(l => l.selecionado);
+    if (!selLance) continue;
+
+    const precoFinal = selLance.preco_unitario;
+    const maxQuote   = Math.max(...reqLances.map(l => l.preco_unitario));
+    // baseline: preco_original gravado (negociação real) ou max das cotações (saving de mercado)
+    const baseline   = (selLance.preco_original && selLance.preco_original > precoFinal)
+      ? selLance.preco_original
+      : maxQuote;
+
+    const savingAbs = baseline > precoFinal ? +(baseline - precoFinal).toFixed(2) : 0;
+    if (savingAbs <= 0) continue;
+
+    const savingPct = +(savingAbs / baseline * 100).toFixed(2);
+    totalSaving += savingAbs;
+    totalBase   += baseline;
+
+    pedidos.push({
+      id:          r.id_sharepoint,
+      comprador:   r.comprador  || '—',
+      unidade:     r.unidade    || '—',
+      data:        r.data_solicitacao,
+      fornecedor:  r.fornecedor || '—',
+      status:      r.status,
+      n_cotacoes:  reqLances.length,
+      preco_base:  +baseline.toFixed(2),
+      preco_final: +precoFinal.toFixed(2),
+      saving_abs:  savingAbs,
+      saving_pct:  savingPct
+    });
+  }
+
+  // 5. Agrega por comprador
+  const byComp = {};
+  for (const p of pedidos) {
+    if (!byComp[p.comprador]) byComp[p.comprador] = { nome: p.comprador, saving: 0, base: 0, count: 0 };
+    byComp[p.comprador].saving += p.saving_abs;
+    byComp[p.comprador].base   += p.preco_base;
+    byComp[p.comprador].count++;
+  }
+  const compradores = Object.values(byComp)
+    .map(c => ({ ...c, pct: c.base > 0 ? +(c.saving / c.base * 100).toFixed(1) : 0 }))
+    .sort((a, b) => b.saving - a.saving);
+
+  // 6. Opções de filtro (dataset completo, não filtrado)
+  const { data: allFin } = await _sb.from('requisicoes')
+    .select('comprador, unidade')
+    .in('status', ['Aguardando Entrega', 'Recebido', 'Concluído']);
+  const opts = {
+    compradores: [...new Set((allFin || []).map(r => r.comprador).filter(Boolean))].sort(),
+    unidades:    [...new Set((allFin || []).map(r => r.unidade).filter(Boolean))].sort()
+  };
+
+  const pctTotal = totalBase > 0 ? +(totalSaving / totalBase * 100).toFixed(1) : 0;
+
+  return {
+    pedidos, compradores,
+    kpis: {
+      total_saving:     +totalSaving.toFixed(2),
+      pct_saving:       pctTotal,
+      count:            pedidos.length,
+      melhor_comprador: compradores[0]?.nome || '—'
+    },
+    opts
+  };
+}
+
 // ── Orçamentos (listagem completa — consumido calculado de requisições) ────
 async function _listarOrcamentos() {
   const [{ data: orcs }, { data: reqs }] = await Promise.all([
@@ -604,7 +721,8 @@ async function _salvarCotacao(body) {
   } else {
     const { data: novo, error } = await _sb.from('lances_fornecedor').insert({
       id_requisicao: body.id_requisicao, cnpj_fornecedor: cnpjN,
-      preco_unitario: body.preco_unitario, prazo_entrega_dias: body.prazo_entrega,
+      preco_unitario: body.preco_unitario, preco_original: body.preco_unitario,
+      prazo_entrega_dias: body.prazo_entrega,
       pagamento: body.pagamento, validade_dias: body.validade_dias,
       observacoes: body.observacoes, frete_incluso: body.frete_incluso,
       imposto_incluso: body.imposto_incluso, data_resposta: _now()

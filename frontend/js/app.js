@@ -10,6 +10,7 @@ const App = {
   _pageTitles: {
     home:           'Início',
     dashboard:      'Dashboard Analítico',
+    saving:         'Painel de Saving',
     pedidos:        'Requisições',
     intake:         'Nova Requisição',
     aprovacoes:     'Painel de Requisições',
@@ -26,6 +27,7 @@ const App = {
   _pageSubtitles: {
     home:           'SHP — Sistema de Compras',
     dashboard:      'Inteligência & Dados',
+    saving:         'Inteligência & Dados',
     pedidos:        'Inteligência & Dados',
     intake:         'Operação de Compras',
     aprovacoes:     'Operação de Compras',

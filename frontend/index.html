@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <!-- Design System -->
-  <link rel="stylesheet" href="css/design-system.css?v=16">
+  <link rel="stylesheet" href="css/design-system.css?v=17">
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -64,6 +64,11 @@
       <div class="nav-item" id="nav-dashboard" onclick="App.navigate('dashboard')">
         <i class="fa-solid fa-chart-pie"></i>
         <span>Dashboard Analítico</span>
+      </div>
+
+      <div class="nav-item" id="nav-saving" onclick="App.navigate('saving')">
+        <i class="fa-solid fa-arrow-trend-down"></i>
+        <span>Painel de Saving</span>
       </div>
 
       <!-- Operação de Compras -->
@@ -322,29 +327,30 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <!-- Utilities (must load first) -->
-<script src="js/utils.js?v=16"></script>
+<script src="js/utils.js?v=17"></script>
 <!-- Supabase data layer (overrides Api from utils.js) -->
-<script src="js/supabase-client.js?v=16"></script>
-<script src="js/mapa-cotacao.js?v=16"></script>
-<script src="js/po-compra.js?v=16"></script>
+<script src="js/supabase-client.js?v=17"></script>
+<script src="js/mapa-cotacao.js?v=17"></script>
+<script src="js/po-compra.js?v=17"></script>
 
 <!-- Page modules -->
-<script src="js/pages/home.js?v=16"></script>
-<script src="js/pages/dashboard.js?v=16"></script>
-<script src="js/pages/pedidos.js?v=16"></script>
-<script src="js/pages/intake.js?v=16"></script>
-<script src="js/pages/aprovacoes.js?v=16"></script>
-<script src="js/pages/sourcing.js?v=16"></script>
-<script src="js/pages/entregas.js?v=16"></script>
-<script src="js/pages/recebimento.js?v=16"></script>
-<script src="js/pages/catalogo.js?v=16"></script>
-<script src="js/pages/contratos.js?v=16"></script>
-<script src="js/pages/consulta.js?v=16"></script>
-<script src="js/pages/estoque.js?v=16"></script>
-<script src="js/pages/configuracoes.js?v=16"></script>
+<script src="js/pages/home.js?v=17"></script>
+<script src="js/pages/dashboard.js?v=17"></script>
+<script src="js/pages/pedidos.js?v=17"></script>
+<script src="js/pages/intake.js?v=17"></script>
+<script src="js/pages/aprovacoes.js?v=17"></script>
+<script src="js/pages/sourcing.js?v=17"></script>
+<script src="js/pages/entregas.js?v=17"></script>
+<script src="js/pages/recebimento.js?v=17"></script>
+<script src="js/pages/catalogo.js?v=17"></script>
+<script src="js/pages/contratos.js?v=17"></script>
+<script src="js/pages/consulta.js?v=17"></script>
+<script src="js/pages/estoque.js?v=17"></script>
+<script src="js/pages/saving.js?v=17"></script>
+<script src="js/pages/configuracoes.js?v=17"></script>
 
 <!-- App router (must load last) -->
-<script src="js/app.js?v=16"></script>
+<script src="js/app.js?v=17"></script>
 
 <!-- Logout com modal moderno -->
 <script>
