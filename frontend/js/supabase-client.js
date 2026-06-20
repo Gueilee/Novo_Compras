@@ -1910,7 +1910,7 @@ async function _getCadastroFornecedor(path) {
 async function _listarFornecedoresGestao(path) {
   const { data, error } = await _sb
     .from('fornecedores')
-    .select('id,cnpj,razao_social,email,telefone,contato_comercial_email,contato_comercial_tel,contato_financeiro_email,contato_financeiro_tel,contato_fiscal_email,contato_fiscal_tel,segmentos_interesse,endereco_logradouro,endereco_numero,endereco_bairro,endereco_cidade,endereco_uf,cadastro_completo')
+    .select('cnpj,razao_social,email,telefone,contato_comercial_email,contato_comercial_tel,contato_financeiro_email,contato_financeiro_tel,contato_fiscal_email,contato_fiscal_tel,segmentos_interesse,endereco_logradouro,endereco_numero,endereco_bairro,endereco_cidade,endereco_uf,cadastro_completo')
     .order('razao_social', { ascending: true })
     .limit(2000);
   if (error) _err(error);
