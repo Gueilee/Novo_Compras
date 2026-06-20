@@ -24,7 +24,7 @@ let _fUnit   = '';
    RENDER — skeleton (chamado pelo router, síncrono)
 ══════════════════════════════════════════════════════════ */
 function render() {
-  document.getElementById('page-content').innerHTML = `
+  return `
 <style>
 /* ── Saving — hero ─────────────────────────────────── */
 .sav-hero {
