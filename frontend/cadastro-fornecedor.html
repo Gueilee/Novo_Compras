@@ -215,6 +215,41 @@
       font-size: 13px; color: #999; padding: 20px 0; text-align: center;
     }
 
+    /* ── Doc upload zones ──────────────────────────────────── */
+    .doc-zone-wrap { display: flex; flex-direction: column; gap: 5px; }
+    .doc-zone-wrap > label {
+      font-size: 11.5px; font-weight: 700; color: #555;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+    .doc-zone {
+      position: relative; border: 1.5px dashed #c9c0e8; border-radius: 9px;
+      background: #faf9fd; padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px;
+      cursor: pointer; transition: all .15s; overflow: hidden; min-height: 54px;
+    }
+    .doc-zone:hover { border-color: #6633ee; background: #f5f0ff; }
+    .doc-zone.has-file { border-color: #6633ee; border-style: solid; background: #f5f0ff; }
+    .doc-zone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      width: 100%; height: 100%; font-size: 0;
+    }
+    .doc-zone-icon {
+      width: 32px; height: 32px; background: #ede9fe; border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      color: #6633ee; font-size: 13px; flex-shrink: 0; transition: background .15s;
+    }
+    .doc-zone.has-file .doc-zone-icon { background: #6633ee; color: #fff; }
+    .doc-zone-body { flex: 1; min-width: 0; }
+    .doc-zone-label { font-size: 12.5px; font-weight: 600; color: #444; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-zone.has-file .doc-zone-label { color: #422c76; }
+    .doc-zone-hint { font-size: 11px; color: #aaa; margin-top: 1px; }
+    .doc-zone.has-file .doc-zone-hint { color: #7c5cbf; }
+    .doc-existing {
+      display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+      font-size: 11px; color: #6633ee; text-decoration: none;
+    }
+    .doc-existing:hover { text-decoration: underline; }
+
     /* ── Error alert ─────────────────────────────────────────── */
     .alert-error {
       background: #fff5f5; border: 1.5px solid #fed7d7; border-radius: 10px;
@@ -390,29 +425,75 @@
     <div class="sec">
       <div class="sec-title">
         <div class="sec-title-icon"><i class="fa-solid fa-folder-open"></i></div>
-        Documentação <span style="font-size:10px;font-weight:400;color:#aaa;margin-left:6px;text-transform:none;letter-spacing:0;">(links para acesso aos documentos — opcional)</span>
+        Documentação <span style="font-size:10px;font-weight:400;color:#aaa;margin-left:6px;text-transform:none;letter-spacing:0;">(opcional — PDF, JPG ou PNG, máx. 10 MB)</span>
       </div>
       <div class="field-grid grid-2">
-        <div class="field">
-          <label>Cartão CNPJ (link)</label>
-          <input type="url" id="f-doc-cnpj" placeholder="https://drive.google.com/...">
+
+        <div class="doc-zone-wrap">
+          <label>Cartão CNPJ</label>
+          <div class="doc-zone" id="zone-doc-cnpj">
+            <input type="file" id="f-doc-cnpj" accept=".pdf,.jpg,.jpeg,.png" onchange="fileSelected(this,'zone-doc-cnpj')">
+            <div class="doc-zone-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+            <div class="doc-zone-body">
+              <div class="doc-zone-label">Clique para anexar</div>
+              <div class="doc-zone-hint">PDF, JPG ou PNG</div>
+            </div>
+          </div>
+          <div id="link-doc-cnpj"></div>
         </div>
-        <div class="field">
-          <label>Alvará de Funcionamento (link)</label>
-          <input type="url" id="f-doc-alvara" placeholder="https://drive.google.com/...">
+
+        <div class="doc-zone-wrap">
+          <label>Alvará de Funcionamento</label>
+          <div class="doc-zone" id="zone-doc-alvara">
+            <input type="file" id="f-doc-alvara" accept=".pdf,.jpg,.jpeg,.png" onchange="fileSelected(this,'zone-doc-alvara')">
+            <div class="doc-zone-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+            <div class="doc-zone-body">
+              <div class="doc-zone-label">Clique para anexar</div>
+              <div class="doc-zone-hint">PDF, JPG ou PNG</div>
+            </div>
+          </div>
+          <div id="link-doc-alvara"></div>
         </div>
-        <div class="field">
-          <label>Alvará Sanitário (link)</label>
-          <input type="url" id="f-doc-sanitario" placeholder="https://drive.google.com/...">
+
+        <div class="doc-zone-wrap">
+          <label>Alvará Sanitário</label>
+          <div class="doc-zone" id="zone-doc-sanitario">
+            <input type="file" id="f-doc-sanitario" accept=".pdf,.jpg,.jpeg,.png" onchange="fileSelected(this,'zone-doc-sanitario')">
+            <div class="doc-zone-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+            <div class="doc-zone-body">
+              <div class="doc-zone-label">Clique para anexar</div>
+              <div class="doc-zone-hint">PDF, JPG ou PNG</div>
+            </div>
+          </div>
+          <div id="link-doc-sanitario"></div>
         </div>
-        <div class="field">
-          <label>Certificado ISO 9001 (link)</label>
-          <input type="url" id="f-doc-iso" placeholder="https://drive.google.com/...">
+
+        <div class="doc-zone-wrap">
+          <label>Certificado ISO 9001</label>
+          <div class="doc-zone" id="zone-doc-iso">
+            <input type="file" id="f-doc-iso" accept=".pdf,.jpg,.jpeg,.png" onchange="fileSelected(this,'zone-doc-iso')">
+            <div class="doc-zone-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+            <div class="doc-zone-body">
+              <div class="doc-zone-label">Clique para anexar</div>
+              <div class="doc-zone-hint">PDF, JPG ou PNG</div>
+            </div>
+          </div>
+          <div id="link-doc-iso"></div>
         </div>
-        <div class="field" style="grid-column:1/-1;">
-          <label>Última Alteração Contratual (link)</label>
-          <input type="url" id="f-doc-alt" placeholder="https://drive.google.com/...">
+
+        <div class="doc-zone-wrap" style="grid-column:1/-1;">
+          <label>Última Alteração Contratual</label>
+          <div class="doc-zone" id="zone-doc-alt">
+            <input type="file" id="f-doc-alt" accept=".pdf,.jpg,.jpeg,.png" onchange="fileSelected(this,'zone-doc-alt')">
+            <div class="doc-zone-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+            <div class="doc-zone-body">
+              <div class="doc-zone-label">Clique para anexar</div>
+              <div class="doc-zone-hint">PDF, JPG ou PNG</div>
+            </div>
+          </div>
+          <div id="link-doc-alt"></div>
         </div>
+
       </div>
     </div>
 
@@ -518,11 +599,18 @@ if (_urlCnpj) {
       fill('f-fin-tel',   forn.contato_financeiro_tel);
       fill('f-fis-email', forn.contato_fiscal_email);
       fill('f-fis-tel',   forn.contato_fiscal_tel);
-      fill('f-doc-cnpj',      forn.doc_cartao_cnpj);
-      fill('f-doc-alvara',    forn.doc_alvara_funcionamento);
-      fill('f-doc-sanitario', forn.doc_alvara_sanitario);
-      fill('f-doc-iso',       forn.doc_iso_9001);
-      fill('f-doc-alt',       forn.doc_ultima_alteracao);
+      // Mostrar links de docs já existentes
+      showExistingDoc('link-doc-cnpj',      forn.doc_cartao_cnpj,          'Cartão CNPJ atual');
+      showExistingDoc('link-doc-alvara',    forn.doc_alvara_funcionamento,  'Alvará atual');
+      showExistingDoc('link-doc-sanitario', forn.doc_alvara_sanitario,      'Alvará Sanitário atual');
+      showExistingDoc('link-doc-iso',       forn.doc_iso_9001,              'ISO 9001 atual');
+      showExistingDoc('link-doc-alt',       forn.doc_ultima_alteracao,      'Alteração atual');
+      // Guardar URLs existentes para preservar se não houver novo upload
+      _existingDocs.cnpj      = forn.doc_cartao_cnpj          || null;
+      _existingDocs.alvara    = forn.doc_alvara_funcionamento  || null;
+      _existingDocs.sanitario = forn.doc_alvara_sanitario      || null;
+      _existingDocs.iso       = forn.doc_iso_9001              || null;
+      _existingDocs.alt       = forn.doc_ultima_alteracao      || null;
       // pré-marcar segmentos
       if (forn.segmentos_interesse?.length) {
         const interval = setInterval(() => {
@@ -557,19 +645,13 @@ let selectedSegs = new Set();
   const segs = [...new Set((data || []).map(c => c.segmento).filter(Boolean))].sort();
   const container = document.getElementById('segs-container');
 
-  const outroChk = `
-    <label class="seg-chk" data-seg="Outros" onclick="toggleSeg(this)">
-      <input type="checkbox" value="Outros">
-      <div class="seg-chk-box"><i class="fa-solid fa-check"></i></div>
-      <span>Outros</span>
-    </label>`;
-
-  container.innerHTML = `<div class="segs-grid">${segs.map(s => `
-    <label class="seg-chk" data-seg="${s}" onclick="toggleSeg(this)">
-      <input type="checkbox" value="${s}">
+  const mkSeg = s => `
+    <div class="seg-chk" data-seg="${s}" onclick="toggleSeg(this)">
       <div class="seg-chk-box"><i class="fa-solid fa-check"></i></div>
       <span>${s}</span>
-    </label>`).join('')}${outroChk}</div>`;
+    </div>`;
+
+  container.innerHTML = `<div class="segs-grid">${segs.map(mkSeg).join('')}${mkSeg('Outros')}</div>`;
 })();
 
 function toggleSeg(el) {
@@ -581,6 +663,47 @@ function toggleSeg(el) {
     selectedSegs.add(seg);
     el.classList.add('checked');
   }
+}
+
+/* ── Doc upload helpers ─────────────────────────────────── */
+let _existingDocs = {};
+
+function fileSelected(input, zoneId) {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return;
+  if (input.files && input.files[0]) {
+    const f = input.files[0];
+    zone.querySelector('.doc-zone-label').textContent = f.name;
+    zone.querySelector('.doc-zone-hint').textContent  = (f.size / 1048576).toFixed(1) + ' MB';
+    zone.classList.add('has-file');
+    zone.querySelector('.doc-zone-icon i').className = 'fa-solid fa-file-check';
+  } else {
+    zone.querySelector('.doc-zone-label').textContent = 'Clique para anexar';
+    zone.querySelector('.doc-zone-hint').textContent  = 'PDF, JPG ou PNG';
+    zone.classList.remove('has-file');
+    zone.querySelector('.doc-zone-icon i').className = 'fa-solid fa-file-arrow-up';
+  }
+}
+
+function showExistingDoc(containerId, url, label) {
+  if (!url) return;
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = `<a class="doc-existing" href="${url}" target="_blank" rel="noopener">
+    <i class="fa-solid fa-link" style="font-size:10px;"></i> ${label} (clique para ver)
+  </a>`;
+}
+
+async function uploadDoc(inputId, cnpj, docKey) {
+  const input = document.getElementById(inputId);
+  if (!input || !input.files || !input.files[0]) return null;
+  const file = input.files[0];
+  if (file.size > 10 * 1048576) throw new Error(`Arquivo "${file.name}" excede 10 MB.`);
+  const ext  = file.name.split('.').pop().toLowerCase();
+  const path = `fornecedores/${cnpj}/${docKey}.${ext}`;
+  const { error } = await _sb.storage.from('uploads').upload(path, file, { upsert: true });
+  if (error) throw error;
+  return _sb.storage.from('uploads').getPublicUrl(path).data.publicUrl;
 }
 
 /* ── Validation helpers ─────────────────────────────────── */
@@ -622,6 +745,25 @@ async function submitForm() {
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner-sm"></div> Enviando...';
 
+  // Upload de documentos (apenas os que tiverem arquivo selecionado)
+  let urlDocCnpj, urlAlvara, urlSanitario, urlIso, urlAlt;
+  try {
+    btn.innerHTML = '<div class="spinner-sm"></div> Enviando arquivos...';
+    [urlDocCnpj, urlAlvara, urlSanitario, urlIso, urlAlt] = await Promise.all([
+      uploadDoc('f-doc-cnpj',      cnpjRaw, 'cartao-cnpj'),
+      uploadDoc('f-doc-alvara',    cnpjRaw, 'alvara-funcionamento'),
+      uploadDoc('f-doc-sanitario', cnpjRaw, 'alvara-sanitario'),
+      uploadDoc('f-doc-iso',       cnpjRaw, 'iso-9001'),
+      uploadDoc('f-doc-alt',       cnpjRaw, 'ultima-alteracao'),
+    ]);
+    btn.innerHTML = '<div class="spinner-sm"></div> Salvando...';
+  } catch(uploadErr) {
+    showAlert('Erro no upload: ' + uploadErr.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Cadastro';
+    return;
+  }
+
   const body = {
     cnpj: cnpjRaw,
     razao_social:             razao,
@@ -639,11 +781,12 @@ async function submitForm() {
     contato_fiscal_email:     document.getElementById('f-fis-email').value.trim() || null,
     contato_fiscal_tel:       document.getElementById('f-fis-tel').value.trim()   || null,
     segmentos_interesse:      [...selectedSegs],
-    doc_cartao_cnpj:          document.getElementById('f-doc-cnpj').value.trim()      || null,
-    doc_alvara_funcionamento: document.getElementById('f-doc-alvara').value.trim()    || null,
-    doc_alvara_sanitario:     document.getElementById('f-doc-sanitario').value.trim() || null,
-    doc_iso_9001:             document.getElementById('f-doc-iso').value.trim()       || null,
-    doc_ultima_alteracao:     document.getElementById('f-doc-alt').value.trim()       || null,
+    // Usa URL do novo upload se houver; caso contrário mantém URL existente
+    doc_cartao_cnpj:          urlDocCnpj   || _existingDocs.cnpj      || null,
+    doc_alvara_funcionamento: urlAlvara    || _existingDocs.alvara    || null,
+    doc_alvara_sanitario:     urlSanitario || _existingDocs.sanitario || null,
+    doc_iso_9001:             urlIso       || _existingDocs.iso       || null,
+    doc_ultima_alteracao:     urlAlt       || _existingDocs.alt       || null,
   };
 
   try {
