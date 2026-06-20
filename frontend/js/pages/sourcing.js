@@ -627,18 +627,29 @@ window.Pages.sourcing = {
       container.innerHTML = fornecedores.map(f => {
         const cnpjClean = (f.cnpj || '').replace(/\W/g, '');
         const esc = s => (s || '').replace(/'/g, "\\'");
+        const cadastrado = !!f.cadastro_completo;
+        const statusBadge = cadastrado
+          ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-radius:5px;padding:2px 8px;font-size:10.5px;font-weight:700;">
+               <i class="fa-solid fa-circle-check" style="font-size:9px;"></i> Cadastrado
+             </span>`
+          : `<span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#92400e;border-radius:5px;padding:2px 8px;font-size:10.5px;font-weight:700;">
+               <i class="fa-solid fa-clock" style="font-size:9px;"></i> Cadastro Pendente
+             </span>`;
         return `
         <div class="supplier-card mb-2">
           <div class="supplier-card-header">
-            <div>
+            <div style="flex:1;min-width:0;">
               <div class="supplier-name">${f.razao_social || '—'}</div>
-              <div class="supplier-cnpj">${f.cnpj || '—'}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                <div class="supplier-cnpj">${f.cnpj || '—'}</div>
+                ${statusBadge}
+              </div>
             </div>
             <div id="btn-invite-${cnpjClean}">
               <button class="btn btn-primary btn-sm"
-                      onclick="Pages.sourcing.enviarConvite('${f.cnpj}', '${esc(f.razao_social)}')"
-                      title="Convidar para cotação">
-                <i class="fa-solid fa-paper-plane"></i> Convidar
+                      onclick="Pages.sourcing.enviarConvite('${f.cnpj}', '${esc(f.razao_social)}', ${cadastrado})"
+                      title="Gerar link de convite">
+                <i class="fa-solid fa-link"></i> Links
               </button>
             </div>
           </div>
@@ -673,89 +684,117 @@ window.Pages.sourcing = {
     }
   },
 
-  async enviarConvite(cnpj, nome) {
-    if (!this._pedidoSelecionado) {
-      Toast.warning('Selecione um pedido primeiro');
-      return;
-    }
-
-    // Registra convite no backend (cria lance placeholder + avança status)
-    try {
-      await Api.post('/api/cotacao/disparar-email', {
-        id_requisicao: this._pedidoSelecionado, cnpj_fornecedor: cnpj,
-        preco_unitario: 0, prazo_entrega: 0
-      });
-    } catch { /* não bloqueia */ }
-
-    // Atualiza localmente o contador de convites na lista de pedidos
-    const pidx = this._todosPedidos.findIndex(p => p.id === this._pedidoSelecionado);
-    if (pidx >= 0) {
-      const p = this._todosPedidos[pidx];
-      this._todosPedidos[pidx] = {
-        ...p, status: 'Em Cotação',
-        convites_enviados: (p.convites_enviados || 0) + 1
-      };
-      this._renderPedidosList();
-    }
-
-    // Monta a URL do portal
+  async enviarConvite(cnpj, nome, cadastrado) {
     const base = window.location.href.replace(/\/[^/]*(\?.*)?$/, '/');
-    const portalUrl = `${base}fornecedor.html?id=${this._pedidoSelecionado}&cnpj=${encodeURIComponent(cnpj)}`;
+    const urlCadastro = `${base}cadastro-fornecedor.html?cnpj=${encodeURIComponent(cnpj)}`;
+    let urlCotacao = null;
 
-    // Atualiza botão
-    const cnpjClean = cnpj.replace(/\W/g, '');
-    const btnEl = document.getElementById(`btn-invite-${cnpjClean}`);
-    if (btnEl) btnEl.innerHTML = `<span class="badge badge-success"><i class="fa-solid fa-check"></i> Convidado</span>`;
+    if (this._pedidoSelecionado) {
+      urlCotacao = `${base}fornecedor.html?id=${this._pedidoSelecionado}&cnpj=${encodeURIComponent(cnpj)}`;
 
-    // Modal com link do portal
-    this._mostrarModalConvite(nome, portalUrl, cnpj);
+      // Registra convite no backend (cria lance placeholder + avança status)
+      try {
+        await Api.post('/api/cotacao/disparar-email', {
+          id_requisicao: this._pedidoSelecionado, cnpj_fornecedor: cnpj,
+          preco_unitario: 0, prazo_entrega: 0
+        });
+      } catch { /* não bloqueia */ }
+
+      // Atualiza localmente o contador de convites na lista de pedidos
+      const pidx = this._todosPedidos.findIndex(p => p.id === this._pedidoSelecionado);
+      if (pidx >= 0) {
+        const p = this._todosPedidos[pidx];
+        this._todosPedidos[pidx] = {
+          ...p, status: 'Em Cotação',
+          convites_enviados: (p.convites_enviados || 0) + 1
+        };
+        this._renderPedidosList();
+      }
+
+      const urlCadastroComReq = `${base}cadastro-fornecedor.html?cnpj=${encodeURIComponent(cnpj)}&next_req=${this._pedidoSelecionado}`;
+
+      // Atualiza botão
+      const cnpjClean = cnpj.replace(/\W/g, '');
+      const btnEl = document.getElementById(`btn-invite-${cnpjClean}`);
+      if (btnEl) btnEl.innerHTML = `<span class="badge badge-success"><i class="fa-solid fa-check"></i> Link Gerado</span>`;
+
+      this._mostrarModalConvite(nome, urlCotacao, urlCadastroComReq, cnpj, !!cadastrado);
+    } else {
+      // Sem pedido selecionado: só mostra link de cadastro
+      this._mostrarModalConvite(nome, null, urlCadastro, cnpj, !!cadastrado);
+    }
   },
 
-  _mostrarModalConvite(nome, url, cnpj) {
+  _mostrarModalConvite(nome, urlCotacao, urlCadastro, cnpj, cadastrado) {
+    const _cp = (url, btnId) =>
+      `navigator.clipboard.writeText('${url.replace(/'/g,"\\'")}');` +
+      `document.getElementById('${btnId}').innerHTML='<i class=\\'fa-solid fa-check\\'></i> Copiado!';` +
+      `setTimeout(()=>document.getElementById('${btnId}').innerHTML='<i class=\\'fa-solid fa-copy\\'></i> Copiar',2000)`;
+
+    const linkRow = (url, btnId, label, cor) => `
+      <div style="background:#fff;border:1.5px solid ${cor};border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${cor};margin-bottom:8px;">
+          ${label}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;font-size:11px;color:#555;word-break:break-all;font-family:monospace;line-height:1.4;">${url}</div>
+          <button id="${btnId}" class="btn btn-sm" style="flex-shrink:0;background:${cor};color:#fff;border:none;"
+                  onclick="${_cp(url, btnId)}">
+            <i class="fa-solid fa-copy"></i> Copiar
+          </button>
+        </div>
+      </div>`;
+
+    const bannerStatus = urlCotacao
+      ? (cadastrado
+          ? `<div style="background:#dcfce7;border:1px solid #6ee7b7;border-radius:8px;padding:10px 13px;display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12.5px;color:#166534;">
+               <i class="fa-solid fa-circle-check"></i>
+               <span>Fornecedor já cadastrado — o link de cotação levará diretamente ao formulário de proposta.</span>
+             </div>`
+          : `<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 13px;display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12.5px;color:#92400e;">
+               <i class="fa-solid fa-triangle-exclamation"></i>
+               <span>Cadastro pendente — envie primeiro o link de cadastro para que o fornecedor se registre, depois envie o link de cotação.</span>
+             </div>`)
+      : `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12.5px;color:#1e40af;">
+           <i class="fa-solid fa-circle-info"></i>
+           <span>Nenhuma requisição selecionada. Selecione um pedido para gerar também o link de cotação.</span>
+         </div>`;
+
     document.getElementById('modal-overlay').innerHTML = `
-      <div class="modal" style="max-width:540px;">
+      <div class="modal" style="max-width:560px;">
         <div class="modal-header">
           <div class="modal-icon modal-icon-success">
-            <i class="fa-solid fa-paper-plane"></i>
+            <i class="fa-solid fa-link"></i>
           </div>
           <div>
-            <div class="modal-title">Convite Gerado!</div>
+            <div class="modal-title">Links de Convite</div>
             <div class="modal-subtitle">${nome}</div>
           </div>
         </div>
         <div class="modal-body">
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
-            Compartilhe o link abaixo com o fornecedor. Ele abrirá o portal e poderá preencher a proposta com todos os detalhes da requisição.
-          </p>
+          ${bannerStatus}
 
-          <!-- Link do portal -->
-          <div style="background:var(--surface);border:1.5px solid var(--brand);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-            <i class="fa-solid fa-link" style="color:var(--brand);flex-shrink:0;"></i>
-            <div style="flex:1;font-size:12px;color:var(--text);word-break:break-all;font-family:monospace;">${url}</div>
-            <button class="btn btn-primary btn-sm" style="flex-shrink:0;"
-                    onclick="navigator.clipboard.writeText('${url.replace(/'/g,"\\'")}');this.innerHTML='<i class=\\'fa-solid fa-check\\'></i> Copiado!';setTimeout(()=>this.innerHTML='<i class=\\'fa-solid fa-copy\\'></i> Copiar',2000);">
-              <i class="fa-solid fa-copy"></i> Copiar
-            </button>
-          </div>
+          ${urlCotacao ? linkRow(urlCotacao, 'btn-cp-cotacao',
+            '<i class="fa-solid fa-file-invoice"></i> Link de Cotação — fornecedor já cadastrado',
+            '#6633ee') : ''}
 
-          <!-- Botão de teste -->
-          <div style="background:var(--warning-surface);border:1px solid var(--warning);border-radius:8px;padding:12px 14px;">
-            <div style="font-size:11px;font-weight:700;color:var(--warning-dark);margin-bottom:6px;">
-              <i class="fa-solid fa-flask"></i> MODO DE TESTE
-            </div>
-            <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
-              Para simular o fornecedor preenchendo a proposta, abra o portal agora e preencha os campos. Após enviar, a proposta aparecerá no Mapa Comparativo.
-            </p>
-            <a href="${url}" target="_blank" class="btn btn-warning btn-sm btn-block">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir Portal do Fornecedor (Simulação)
-            </a>
+          ${linkRow(urlCadastro, 'btn-cp-cadastro',
+            '<i class="fa-solid fa-user-plus"></i> Link de Cadastro / Atualização de Dados',
+            '#0ea5e9')}
+
+          <div style="font-size:11.5px;color:var(--text-muted);line-height:1.65;padding:10px 13px;background:var(--surface);border-radius:8px;">
+            <strong>Como usar:</strong>
+            <ul style="margin:6px 0 0 16px;padding:0;">
+              ${urlCotacao ? `<li>Fornecedor <strong>já cadastrado</strong>: envie o link roxo — vai direto para o formulário de cotação.</li>` : ''}
+              <li>Fornecedor <strong>novo ou para atualizar dados</strong>: envie o link azul — ele completa o cadastro e é redirecionado à cotação automaticamente.</li>
+            </ul>
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline" onclick="Modal.close()">Fechar</button>
-          <button class="btn btn-primary" onclick="Modal.close();setTimeout(()=>Pages.sourcing.carregarMapa(Pages.sourcing._pedidoSelecionado),500);">
-            <i class="fa-solid fa-rotate-right"></i> Ver Mapa Comparativo
-          </button>
+          ${urlCotacao ? `<a href="${urlCotacao}" target="_blank" class="btn btn-primary">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Testar Portal
+          </a>` : ''}
         </div>
       </div>`;
     document.getElementById('modal-overlay').classList.add('open');

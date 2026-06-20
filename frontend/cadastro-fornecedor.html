@@ -460,6 +460,11 @@ const normCnpj = s => (s || '').replace(/\D/g, '');
 const fmtCnpj  = s => s.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 const fmtCep   = s => s.replace(/^(\d{5})(\d{3})$/, '$1-$2');
 
+/* ── URL params: pré-preenchimento via link ─────────────── */
+const _params  = new URLSearchParams(location.search);
+const _urlCnpj = _params.get('cnpj') || '';
+const _nextReq = _params.get('next_req') || '';
+
 /* ── CNPJ mask ─────────────────────────────────────────── */
 document.getElementById('f-cnpj').addEventListener('input', function() {
   let v = this.value.replace(/\D/g, '').slice(0, 14);
@@ -476,6 +481,73 @@ document.getElementById('f-cep').addEventListener('input', function() {
   if (v.length > 5) v = v.replace(/^(\d{5})(\d{0,3})/, '$1-$2');
   this.value = v;
 });
+
+/* ── Pré-preenche CNPJ quando vem pelo link ──────────────── */
+if (_urlCnpj) {
+  const cnpjInput = document.getElementById('f-cnpj');
+  const clean = normCnpj(_urlCnpj).slice(0, 14);
+  // aplica máscara
+  let v = clean;
+  if (v.length > 12) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, '$1.$2.$3/$4-$5');
+  else if (v.length > 8) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{0,4})/, '$1.$2.$3/$4');
+  else if (v.length > 5) v = v.replace(/^(\d{2})(\d{3})(\d{0,3})/, '$1.$2.$3');
+  else if (v.length > 2) v = v.replace(/^(\d{2})(\d{0,3})/, '$1.$2');
+  cnpjInput.value = v;
+  cnpjInput.readOnly = true;
+  cnpjInput.style.background = '#f0ecfa';
+  cnpjInput.style.color = '#6633ee';
+  cnpjInput.style.fontWeight = '700';
+
+  // busca dados existentes + razão social
+  (async () => {
+    // 1. Tenta pré-preencher pelo banco
+    const { data: forn } = await _sb.from('fornecedores').select('*').eq('cnpj', clean).maybeSingle();
+    if (forn) {
+      const fill = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+      fill('f-razao',    forn.razao_social);
+      fill('f-logr',     forn.endereco_logradouro);
+      fill('f-num',      forn.endereco_numero);
+      fill('f-compl',    forn.endereco_complemento);
+      fill('f-bairro',   forn.endereco_bairro);
+      fill('f-cidade',   forn.endereco_cidade);
+      fill('f-uf',       forn.endereco_uf);
+      fill('f-cep',      forn.endereco_cep ? fmtCep(forn.endereco_cep) : '');
+      fill('f-com-email', forn.contato_comercial_email || forn.email);
+      fill('f-com-tel',   forn.contato_comercial_tel  || forn.telefone);
+      fill('f-fin-email', forn.contato_financeiro_email);
+      fill('f-fin-tel',   forn.contato_financeiro_tel);
+      fill('f-fis-email', forn.contato_fiscal_email);
+      fill('f-fis-tel',   forn.contato_fiscal_tel);
+      fill('f-doc-cnpj',      forn.doc_cartao_cnpj);
+      fill('f-doc-alvara',    forn.doc_alvara_funcionamento);
+      fill('f-doc-sanitario', forn.doc_alvara_sanitario);
+      fill('f-doc-iso',       forn.doc_iso_9001);
+      fill('f-doc-alt',       forn.doc_ultima_alteracao);
+      // pré-marcar segmentos
+      if (forn.segmentos_interesse?.length) {
+        const interval = setInterval(() => {
+          const items = document.querySelectorAll('.seg-chk');
+          if (!items.length) return;
+          clearInterval(interval);
+          items.forEach(el => {
+            if (forn.segmentos_interesse.includes(el.dataset.seg)) { el.click(); }
+          });
+        }, 200);
+      }
+    }
+    // 2. Fallback: BrasilAPI para razão social
+    if (!forn?.razao_social) {
+      try {
+        const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
+        if (r.ok) {
+          const d = await r.json();
+          const el = document.getElementById('f-razao');
+          if (el && !el.value) el.value = d.razao_social || d.nome_fantasia || '';
+        }
+      } catch {}
+    }
+  })();
+}
 
 /* ── Load segmentos ─────────────────────────────────────── */
 let selectedSegs = new Set();
@@ -607,8 +679,22 @@ async function submitForm() {
 
     /* Show success */
     document.getElementById('form-wrap').style.display = 'none';
-    document.getElementById('success-msg').innerHTML =
-      `Dados de <strong>${razao}</strong> salvos com sucesso!<br>Nossa equipe de compras entrará em contato quando houver oportunidades de cotação nos seus segmentos de atuação.`;
+    const cnpjFmt = fmtCnpj(cnpjRaw);
+    if (_nextReq) {
+      // Redireciona para a cotação após 1.5s
+      const portalUrl = `fornecedor.html?id=${_nextReq}&cnpj=${encodeURIComponent(cnpjFmt)}`;
+      document.getElementById('success-msg').innerHTML =
+        `Cadastro de <strong>${razao}</strong> salvo com sucesso!<br><br>
+         Você será redirecionado para a cotação em instantes...
+         <br><br>
+         <a href="${portalUrl}" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#422c76,#6633ee);color:#fff;border-radius:10px;padding:12px 22px;font-weight:700;font-size:14px;text-decoration:none;">
+           <i class="fa-solid fa-file-invoice" style="font-size:16px;"></i> Acessar Cotação Agora
+         </a>`;
+      setTimeout(() => { window.location.href = portalUrl; }, 2500);
+    } else {
+      document.getElementById('success-msg').innerHTML =
+        `Dados de <strong>${razao}</strong> salvos com sucesso!<br>Nossa equipe de compras entrará em contato quando houver oportunidades de cotação nos seus segmentos de atuação.`;
+    }
     const ss = document.getElementById('success-screen');
     ss.style.display = 'block';
     window.scrollTo({ top: 0, behavior: 'smooth' });
