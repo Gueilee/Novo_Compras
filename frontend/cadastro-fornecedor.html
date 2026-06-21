@@ -651,7 +651,19 @@ let selectedSegs = new Set();
       <span>${s}</span>
     </div>`;
 
-  container.innerHTML = `<div class="segs-grid">${segs.map(mkSeg).join('')}${mkSeg('Outros')}</div>`;
+  container.innerHTML = `
+    <div class="segs-grid">${segs.map(mkSeg).join('')}${mkSeg('Outros')}</div>
+    <div id="outros-input-wrap" style="display:none;margin-top:12px;">
+      <input type="text" id="f-outros-seg"
+             placeholder="Descreva o segmento de atuação da sua empresa..."
+             style="width:100%;height:40px;padding:0 13px;border:1.5px solid #6633ee;border-radius:9px;font-size:13.5px;font-family:'Inter',sans-serif;color:#1a1a2e;background:#faf9fd;outline:none;transition:border-color .15s,box-shadow .15s;"
+             onfocus="this.style.boxShadow='0 0 0 3px rgba(102,51,238,.12)'"
+             onblur="this.style.boxShadow='none'">
+      <div style="font-size:11px;color:#999;margin-top:5px;padding-left:2px;">
+        <i class="fa-solid fa-circle-info" style="color:#a78bfa;margin-right:3px;"></i>
+        Este campo é obrigatório quando "Outros" está selecionado.
+      </div>
+    </div>`;
 })();
 
 function toggleSeg(el) {
@@ -659,9 +671,20 @@ function toggleSeg(el) {
   if (selectedSegs.has(seg)) {
     selectedSegs.delete(seg);
     el.classList.remove('checked');
+    if (seg === 'Outros') {
+      const wrap = document.getElementById('outros-input-wrap');
+      if (wrap) wrap.style.display = 'none';
+    }
   } else {
     selectedSegs.add(seg);
     el.classList.add('checked');
+    if (seg === 'Outros') {
+      const wrap = document.getElementById('outros-input-wrap');
+      if (wrap) {
+        wrap.style.display = 'block';
+        setTimeout(() => document.getElementById('f-outros-seg')?.focus(), 50);
+      }
+    }
   }
 }
 
@@ -741,6 +764,18 @@ async function submitForm() {
   const comEmail = required('f-com-email', 'O e-mail comercial é obrigatório para contato.');
   if (!comEmail) return;
 
+  // Segmentos: substitui "Outros" pelo texto digitado
+  let _segsFinais = [...selectedSegs];
+  if (_segsFinais.includes('Outros')) {
+    const outrosText = (document.getElementById('f-outros-seg')?.value || '').trim();
+    if (!outrosText) {
+      document.getElementById('f-outros-seg')?.focus();
+      showAlert('Você selecionou "Outros" — descreva o segmento de atuação no campo indicado.');
+      return;
+    }
+    _segsFinais = _segsFinais.filter(s => s !== 'Outros').concat([outrosText]);
+  }
+
   const btn = document.getElementById('btn-submit');
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner-sm"></div> Enviando...';
@@ -780,7 +815,7 @@ async function submitForm() {
     contato_financeiro_tel:   document.getElementById('f-fin-tel').value.trim()   || null,
     contato_fiscal_email:     document.getElementById('f-fis-email').value.trim() || null,
     contato_fiscal_tel:       document.getElementById('f-fis-tel').value.trim()   || null,
-    segmentos_interesse:      [...selectedSegs],
+    segmentos_interesse:      _segsFinais,
     // Usa URL do novo upload se houver; caso contrário mantém URL existente
     doc_cartao_cnpj:          urlDocCnpj   || _existingDocs.cnpj      || null,
     doc_alvara_funcionamento: urlAlvara    || _existingDocs.alvara    || null,
