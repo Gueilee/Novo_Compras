@@ -1086,12 +1086,13 @@ async function verificarCadastro() {
   if (!cnpjClean) { await carregarRequisicao(); return; }
   try {
     const cadastro = await Api.get(`/api/fornecedor/cadastro?cnpj=${cnpjClean}`);
-    const jaExiste = !!(cadastro && (cadastro.razao_social || cadastro.email));
-    // Fornecedor completo → vai direto para cotação; incompleto/novo → abre ficha
-    if (cadastro?.cadastro_completo && jaExiste) {
+    if (cadastro) {
+      // Fornecedor existe no banco → vai direto para cotação
       await carregarRequisicao();
     } else {
-      await abrirCadastro(cadastro, jaExiste);
+      // Fornecedor não cadastrado → redireciona para tela de cadastro
+      const base = window.location.href.replace(/[^/]*$/, '');
+      window.location.href = `${base}cadastro-fornecedor.html?cnpj=${cnpjClean}${REQ_ID ? '&next_req=' + REQ_ID : ''}`;
     }
   } catch { setState('state-error'); }
 }
