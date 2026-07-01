@@ -17,7 +17,8 @@ window.Pages.atribuicao = {
 
   // ── Constantes ────────────────────────────────────────────
 
-  _GESTORAS: ['Janaina Ferreira', 'Paola Schreiber'],
+  _GESTORAS:       ['Janaina Ferreira', 'Paola Schreiber'],
+  _GESTORAS_EMAILS: ['gppereira@vendemmia.com.br'],   // acesso adicional por email
 
   _COMPRADORES: [
     'Ana Paula Alves',
@@ -274,7 +275,8 @@ window.Pages.atribuicao = {
     } catch {}
 
     this._userNome  = perfil.nome || '';
-    this._isGestora = this._GESTORAS.includes(this._userNome);
+    this._isGestora = this._GESTORAS.includes(this._userNome)
+      || this._GESTORAS_EMAILS.includes((email || '').toLowerCase());
 
     const main   = document.getElementById('atrib-main');
     const denied = document.getElementById('atrib-access-denied');
