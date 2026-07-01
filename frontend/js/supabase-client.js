@@ -72,6 +72,9 @@ async function _route(method, path, body) {
   if (full === 'POST /api/cotacao/disparar-email') return _dispararEmailConvite(body);
   const mSel = basePath.match(/^\/api\/sourcing\/selecionar\/(\d+)$/);
   if (method === 'POST' && mSel) return _selecionarFornecedor(+mSel[1], body);
+  const mDescComp = basePath.match(/^\/api\/sourcing\/desconto-comprador\/(\d+)$/);
+  if (method === 'GET'  && mDescComp) return _getDescontoComprador(+mDescComp[1]);
+  if (method === 'POST' && mDescComp) return _salvarDescontoComprador(+mDescComp[1], body);
   const mComp = basePath.match(/^\/api\/cotacao\/comparativo\/(\d+)$/);
   if (method === 'GET' && mComp) return _comparativoCotacoes(+mComp[1]);
   const mLanceUp = basePath.match(/^\/api\/cotacao\/lance\/(\d+)$/);
@@ -875,17 +878,54 @@ async function _selecionarFornecedor(id, body) {
   const lance = lances?.[0];
 
   // Nome do fornecedor comparando CNPJ normalizado
-  const { data: allForns } = await _sb.from('fornecedores').select('cnpj,razao_social');
+  const [{ data: allForns }, { data: reqAtual }] = await Promise.all([
+    _sb.from('fornecedores').select('cnpj,razao_social'),
+    _sb.from('requisicoes').select('preco_negociado_final').eq('id_sharepoint', id).single()
+  ]);
   const fornRec = (allForns || []).find(f => _normCnpj(f.cnpj) === cnpjN);
   const nomeForn = fornRec?.razao_social || cnpjFmt;
 
+  // Usa preco_negociado_final (desconto adicional do comprador) se disponível e menor
+  const precoLance = lance?.preco_unitario || 0;
+  const precoNeg   = reqAtual?.preco_negociado_final;
+  const valorFechado = (precoNeg && precoNeg > 0 && precoNeg < precoLance)
+    ? precoNeg : precoLance;
+
   await _sb.from('requisicoes').update({
     status: 'Aguardando Entrega', fornecedor: nomeForn,
-    valor_fechado: lance?.preco_unitario || 0,
+    valor_fechado: valorFechado,
     updated_at: new Date().toISOString()
   }).eq('id_sharepoint', id);
   _logBuscaReq(id, 'Aguardando Entrega').catch(() => {});
   return { status: 'ok', fornecedor: nomeForn };
+}
+
+async function _getDescontoComprador(id) {
+  const { data: lances } = await _sb.from('lances_fornecedor')
+    .select('preco_unitario').eq('id_requisicao', id).gt('preco_unitario', 0);
+  const melhorPreco = lances?.length ? Math.min(...lances.map(l => l.preco_unitario)) : null;
+
+  const { data: req } = await _sb.from('requisicoes')
+    .select('desconto_comprador_tipo,desconto_comprador_valor,preco_negociado_final')
+    .eq('id_sharepoint', id).single();
+
+  return {
+    tipo:               req?.desconto_comprador_tipo  || null,
+    valor:              req?.desconto_comprador_valor  || null,
+    preco_negociado_final: req?.preco_negociado_final || null,
+    melhor_preco:       melhorPreco
+  };
+}
+
+async function _salvarDescontoComprador(id, body) {
+  const { tipo, valor, preco_negociado_final } = body;
+  await _sb.from('requisicoes').update({
+    desconto_comprador_tipo:  tipo  || null,
+    desconto_comprador_valor: valor || null,
+    preco_negociado_final:    preco_negociado_final || null,
+    updated_at: new Date().toISOString()
+  }).eq('id_sharepoint', id);
+  return { status: 'ok' };
 }
 
 async function _comparativoCotacoes(id) {
@@ -1105,6 +1145,9 @@ async function _detalhesCompletos(id) {
     setor: req.setor, data: req.data_solicitacao, status: req.status,
     justificativa: req.justificativa, fornecedor: req.fornecedor, valor_fechado: req.valor_fechado,
     observacoes: req.observacoes, comprador_responsavel: req.comprador,
+    preco_negociado_final:    req.preco_negociado_final    || null,
+    desconto_comprador_tipo:  req.desconto_comprador_tipo  || null,
+    desconto_comprador_valor: req.desconto_comprador_valor || null,
     aprovado_gestor_cnpj: req.aprovado_gestor_cnpj || null,
     itens: (itens || []).map(i => ({
       id: i.id, descricao: i.descricao, quantidade: i.quantidade,

@@ -805,7 +805,10 @@ window.Pages.sourcing = {
     el.innerHTML = `<div class="loading-center"><div class="spinner"></div><span>Carregando cotações...</span></div>`;
 
     try {
-      const lances = await Api.get(`/api/cotacao/comparativo/${id}`);
+      const [lances, descComp] = await Promise.all([
+        Api.get(`/api/cotacao/comparativo/${id}`),
+        Api.get(`/api/sourcing/desconto-comprador/${id}`).catch(() => ({}))
+      ]);
       // Filtra lances com preço real (> 0)
       const comPreco = lances.filter(l => l.preco > 0);
 
@@ -838,6 +841,8 @@ window.Pages.sourcing = {
       const actionsEl = document.getElementById('mapa-actions');
       if (actionsEl) actionsEl.style.display = 'flex';
       const menorPreco = comPreco[0].preco;
+      this._mapaUltimoMenorPreco = menorPreco;
+      this._dcTipoAtual = descComp?.tipo || '%';
       const jaTemSelecionado = comPreco.some(l => l.selecionado);
       const gestorAprov = comPreco.find(l => l.aprovado_gestor) || null;
       const gaEscCnpj = (gestorAprov?.cnpj || '').replace(/'/g, "\\'");
@@ -921,6 +926,7 @@ window.Pages.sourcing = {
             </tbody>
           </table>
         </div>
+        ${this._htmlDescontoComprador(id, menorPreco, descComp, jaTemSelecionado)}
         ${jaTemSelecionado ? `
         <div style="margin-top:12px;background:var(--success-surface);border:1px solid var(--success);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
           <i class="fa-solid fa-circle-check" style="color:var(--success-dark);font-size:20px;"></i>
@@ -1069,5 +1075,165 @@ window.Pages.sourcing = {
 
   emitirPO(id, cnpj) {
     window.open(`/frontend/fornecedor.html?id=${id}&cnpj=${cnpj}`, '_blank');
-  }
+  },
+
+  _htmlDescontoComprador(idReq, menorPreco, descComp, jaTemSelecionado) {
+    if (!menorPreco || menorPreco <= 0) return '';
+    const fmt = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+    const tipo   = descComp?.tipo  || '%';
+    const valor  = descComp?.valor || '';
+    const pnf    = descComp?.preco_negociado_final;
+    const temDesc = valor > 0;
+
+    // Se já tem desconto salvo, calcula preview
+    const precoFinalSalvo = temDesc && pnf ? fmt(pnf) : null;
+    const savingComprador = temDesc && pnf ? fmt(menorPreco - pnf) : null;
+
+    if (jaTemSelecionado && temDesc && pnf) {
+      return `
+      <div style="margin-top:14px;background:#f0fdf4;border:1.5px solid #059669;border-radius:10px;padding:14px 16px;">
+        <div style="font-size:12px;font-weight:700;color:#065f46;margin-bottom:6px;">
+          <i class="fa-solid fa-tags"></i> Desconto Adicional Registrado
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);">
+          Desconto de <strong>${tipo === '%' ? valor + '%' : fmt(valor)}</strong> aplicado sobre o melhor preço ${fmt(menorPreco)}.
+          Preço negociado: <strong style="color:#059669;">${precoFinalSalvo}</strong> · Saving comprador: <strong>${savingComprador}</strong>
+        </div>
+      </div>`;
+    }
+
+    return `
+    <div id="desconto-comprador-panel" style="margin-top:14px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <i class="fa-solid fa-percent" style="color:var(--brand);font-size:14px;"></i>
+        <span style="font-size:13px;font-weight:700;color:var(--text);">Desconto Adicional do Comprador</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">(opcional — antes de gerar o mapa)</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0;">
+          <button id="dc-btn-pct" onclick="Pages.sourcing._setDcTipo('%')"
+            style="padding:6px 14px;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:background .15s;
+            background:${tipo === '%' ? 'var(--brand)' : 'var(--bg)'};
+            color:${tipo === '%' ? '#fff' : 'var(--text-muted)'};">
+            % Percentual
+          </button>
+          <button id="dc-btn-val" onclick="Pages.sourcing._setDcTipo('R$')"
+            style="padding:6px 14px;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:background .15s;
+            background:${tipo === 'R$' ? 'var(--brand)' : 'var(--bg)'};
+            color:${tipo === 'R$' ? '#fff' : 'var(--text-muted)'};">
+            R$ Valor fixo
+          </button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:140px;">
+          <span id="dc-prefix" style="font-size:12px;font-weight:700;color:var(--text-muted);">
+            ${tipo === 'R$' ? 'R$' : '%'}
+          </span>
+          <input id="dc-valor" type="number" min="0" step="0.01" value="${valor || ''}"
+            placeholder="0,00"
+            oninput="Pages.sourcing._atualizarPreviewDesconto(${idReq}, ${menorPreco})"
+            style="width:110px;height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;
+            font-size:13px;font-weight:700;font-family:var(--font);background:var(--bg);color:var(--text);outline:none;">
+        </div>
+        <button onclick="Pages.sourcing._salvarDescontoCompradorUI(${idReq}, ${menorPreco})"
+          style="height:34px;padding:0 16px;background:var(--brand);color:#fff;border:none;border-radius:8px;
+          font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;">
+          <i class="fa-solid fa-floppy-disk"></i> Salvar Desconto
+        </button>
+        ${temDesc ? `
+        <button onclick="Pages.sourcing._limparDescontoComprador(${idReq})"
+          style="height:34px;padding:0 12px;background:transparent;color:var(--text-muted);border:1.5px solid var(--border);
+          border-radius:8px;font-size:12px;cursor:pointer;" title="Remover desconto">
+          <i class="fa-solid fa-xmark"></i>
+        </button>` : ''}
+      </div>
+      <div id="dc-preview" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:18px;">
+        ${precoFinalSalvo
+          ? `Sobre o melhor preço <strong>${fmt(menorPreco)}</strong> → preço negociado <strong style="color:var(--success-dark);">${precoFinalSalvo}</strong> · saving <strong>${savingComprador}</strong>`
+          : `Informe o desconto para ver o preço negociado.`}
+      </div>
+    </div>`;
+  },
+
+  _dcTipoAtual: '%',
+
+  _setDcTipo(tipo) {
+    this._dcTipoAtual = tipo;
+    const btnPct = document.getElementById('dc-btn-pct');
+    const btnVal = document.getElementById('dc-btn-val');
+    const prefix = document.getElementById('dc-prefix');
+    if (btnPct) {
+      btnPct.style.background = tipo === '%' ? 'var(--brand)' : 'var(--bg)';
+      btnPct.style.color      = tipo === '%' ? '#fff' : 'var(--text-muted)';
+    }
+    if (btnVal) {
+      btnVal.style.background = tipo === 'R$' ? 'var(--brand)' : 'var(--bg)';
+      btnVal.style.color      = tipo === 'R$' ? '#fff' : 'var(--text-muted)';
+    }
+    if (prefix) prefix.textContent = tipo === 'R$' ? 'R$' : '%';
+    const id = this._pedidoSelecionado;
+    if (id) this._atualizarPreviewDesconto(id, null);
+  },
+
+  _atualizarPreviewDesconto(idReq, menorPrecoArg) {
+    const previewEl = document.getElementById('dc-preview');
+    if (!previewEl) return;
+    const fmt = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+    // Usa o argumento ou tenta pegar do estado atual
+    const menorPreco = menorPrecoArg || this._mapaUltimoMenorPreco || 0;
+    const tipo  = this._dcTipoAtual || '%';
+    const valor = parseFloat(document.getElementById('dc-valor')?.value || '0') || 0;
+
+    if (!menorPreco || valor <= 0) {
+      previewEl.innerHTML = 'Informe o desconto para ver o preço negociado.';
+      return;
+    }
+
+    let precoFinal;
+    if (tipo === '%') {
+      if (valor >= 100) { previewEl.innerHTML = '<span style="color:#dc2626;">Percentual inválido.</span>'; return; }
+      precoFinal = menorPreco * (1 - valor / 100);
+    } else {
+      precoFinal = Math.max(0, menorPreco - valor);
+    }
+    const saving = menorPreco - precoFinal;
+    previewEl.innerHTML = `Sobre o melhor preço <strong>${fmt(menorPreco)}</strong> → preço negociado <strong style="color:var(--success-dark);">${fmt(precoFinal)}</strong> · saving <strong>${fmt(saving)} (${((saving/menorPreco)*100).toFixed(1)}%)</strong>`;
+  },
+
+  async _salvarDescontoCompradorUI(idReq, menorPreco) {
+    const tipo  = this._dcTipoAtual || '%';
+    const valor = parseFloat(document.getElementById('dc-valor')?.value || '0') || 0;
+    if (valor <= 0) { Toast.warning('Informe o desconto', 'Digite um valor de desconto maior que zero.'); return; }
+
+    let precoFinal;
+    if (tipo === '%') {
+      if (valor >= 100) { Toast.error('Percentual inválido'); return; }
+      precoFinal = menorPreco * (1 - valor / 100);
+    } else {
+      precoFinal = Math.max(0, menorPreco - valor);
+    }
+    const round2 = v => Math.round(v * 100) / 100;
+
+    try {
+      await Api.post(`/api/sourcing/desconto-comprador/${idReq}`, {
+        tipo, valor: round2(valor), preco_negociado_final: round2(precoFinal)
+      });
+      Toast.success('Desconto salvo!', `Preço negociado: ${new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(precoFinal)}`);
+      this.carregarMapa(idReq);
+    } catch {
+      Toast.error('Erro ao salvar desconto');
+    }
+  },
+
+  async _limparDescontoComprador(idReq) {
+    try {
+      await Api.post(`/api/sourcing/desconto-comprador/${idReq}`, {
+        tipo: null, valor: null, preco_negociado_final: null
+      });
+      Toast.success('Desconto removido');
+      this.carregarMapa(idReq);
+    } catch {
+      Toast.error('Erro ao remover desconto');
+    }
+  },
 };

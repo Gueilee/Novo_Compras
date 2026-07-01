@@ -231,7 +231,7 @@ window.MapaCotacao = {
     /* ── Linhas de dados ────────────────────────────────── */
     const rows = [
       {
-        label: 'Valor Total da Proposta',
+        label: 'Valor Cotado pelo Fornecedor',
         icon: '💰',
         bold: true,
         cells: cotacoes.map(c => {
@@ -244,6 +244,29 @@ window.MapaCotacao = {
             </td>`;
         }).join(''),
       },
+      ...(temDescComp ? [{
+        label: 'Desconto Negociado (Comprador)',
+        icon: '🏷️',
+        bold: false,
+        cells: cotacoes.map(c => {
+          if (!c.selecionado) return `<td class="${c.preco_unitario === menorPreco ? 'col-best' : ''}">—</td>`;
+          return `<td class="col-sel" style="color:#059669;font-weight:700;">
+            ${dcTipo === '%' ? `${dcVal}%` : this._fmt(dcVal)}
+            <div style="font-size:7.5pt;color:#555;font-weight:400;">Negociado pelo comprador</div>
+          </td>`;
+        }).join(''),
+      }, {
+        label: 'Preço Final Negociado',
+        icon: '✅',
+        bold: true,
+        cells: cotacoes.map(c => {
+          if (!c.selecionado) return `<td class="${c.preco_unitario === menorPreco ? 'col-best' : ''}">—</td>`;
+          return `<td class="col-sel">
+            <div class="price-val" style="color:#059669;">${this._fmt(pnf)}</div>
+            <div class="price-base">preço final</div>
+          </td>`;
+        }).join(''),
+      }] : []),
       {
         label: 'Detalhamento por Item',
         icon: '📋',
@@ -423,13 +446,25 @@ async function aprConfirmar(idReq) {
     })();
 
     /* ── Bloco de decisão ───────────────────────────────── */
+    const pnf    = d.preco_negociado_final;
+    const dcTipo = d.desconto_comprador_tipo;
+    const dcVal  = d.desconto_comprador_valor;
+    const temDescComp = pnf && dcVal && dcVal > 0;
+    const precoExibido = selecionado
+      ? (temDescComp && pnf < selecionado.preco_unitario ? pnf : selecionado.preco_unitario)
+      : null;
+
     const decisaoBlock = selecionado
       ? `<div class="decisao-box decisao-ok">
           <div class="decisao-title">✓ Fornecedor Selecionado</div>
           <div class="decisao-fornecedor">${selecionado.nome}</div>
           <div class="decisao-sub">
-            Preço: <strong>${this._fmt(selecionado.preco_unitario)}</strong> &nbsp;·&nbsp;
-            Prazo: <strong>${selecionado.prazo} dias úteis</strong> &nbsp;·&nbsp;
+            ${temDescComp ? `
+            Preço cotado: <strong>${this._fmt(selecionado.preco_unitario)}</strong>
+            &nbsp;·&nbsp; Desconto comprador: <strong style="color:#059669;">${dcTipo === '%' ? dcVal + '%' : this._fmt(dcVal)}</strong>
+            &nbsp;·&nbsp; <strong>Preço final: ${this._fmt(pnf)}</strong>
+            ` : `Preço: <strong>${this._fmt(selecionado.preco_unitario)}</strong>`}
+            &nbsp;·&nbsp; Prazo: <strong>${selecionado.prazo} dias úteis</strong> &nbsp;·&nbsp;
             Pgto: <strong>${selecionado.pagamento || '—'}</strong>
           </div>
           ${aprovadores.length ? `<div style="margin-top:8px;font-size:7.5pt;color:#555;border-top:1px solid rgba(5,150,105,.2);padding-top:6px;">
