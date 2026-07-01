@@ -296,16 +296,24 @@ document.addEventListener('click', function() {
 /* ── NOTIFICATION COUNTER ─────────────────────────────────── */
 async function refreshNotifBadge() {
   try {
-    const [aprovs, sourcing, pendentes] = await Promise.all([
+    const [aprovs, sourcing, pendentes, aprovReq] = await Promise.all([
       Api.get('/api/aprovacoes/pendentes'),
       Api.get('/api/sourcing/pedidos-aprovados'),
-      Api.get('/api/usuarios/pendentes-acesso').catch(() => [])
+      Api.get('/api/usuarios/pendentes-acesso').catch(() => []),
+      Api.get('/api/aprovacao-req/pendentes').catch(() => [])
     ]);
-    const total = (aprovs.pedidos?.length || 0) + (sourcing?.length || 0) + (pendentes?.length || 0);
+    const nAprovReq = (aprovReq || []).length;
+    const total = (aprovs.pedidos?.length || 0) + (sourcing?.length || 0) + (pendentes?.length || 0) + nAprovReq;
     const badge = document.getElementById('header-notif-count');
     if (badge) {
       badge.textContent = total;
       badge.classList.toggle('hidden', total === 0);
+    }
+    // Badge no nav item específico
+    const navBadge = document.getElementById('nav-badge-aprovacao-req');
+    if (navBadge) {
+      navBadge.textContent = nAprovReq;
+      navBadge.classList.toggle('hidden', nAprovReq === 0);
     }
   } catch { /* silently fail */ }
 }
@@ -353,15 +361,17 @@ async function _loadNotifPanel() {
   body.innerHTML = '<div class="fp-loading"><div class="spinner" style="width:20px;height:20px;"></div></div>';
 
   try {
-    const [aprovData, sourData, pendData] = await Promise.allSettled([
+    const [aprovData, sourData, pendData, aprovReqData] = await Promise.allSettled([
       Api.get('/api/aprovacoes/pendentes'),
       Api.get('/api/sourcing/pedidos-aprovados'),
-      Api.get('/api/usuarios/pendentes-acesso')
+      Api.get('/api/usuarios/pendentes-acesso'),
+      Api.get('/api/aprovacao-req/pendentes')
     ]);
 
-    const aprovList = aprovData.status === 'fulfilled' ? (aprovData.value.pedidos || []) : [];
-    const sourList  = sourData.status  === 'fulfilled' ? (sourData.value || []) : [];
-    const pendList  = pendData.status  === 'fulfilled' ? (pendData.value || []) : [];
+    const aprovList    = aprovData.status    === 'fulfilled' ? (aprovData.value.pedidos || []) : [];
+    const sourList     = sourData.status     === 'fulfilled' ? (sourData.value || []) : [];
+    const pendList     = pendData.status     === 'fulfilled' ? (pendData.value || []) : [];
+    const aprovReqList = aprovReqData.status === 'fulfilled' ? (aprovReqData.value || []) : [];
 
     let html = '';
 
@@ -408,6 +418,29 @@ async function _loadNotifPanel() {
         html += `<div style="padding:8px 16px;font-size:11.5px;color:var(--brand);cursor:pointer;font-weight:600;"
                       onclick="closeNotifPanel();App.navigate('aprovacoes')">
                    + ${aprovList.length - 6} mais aguardando →
+                 </div>`;
+      }
+    }
+
+    // Seção: Aprovação do Requisitante
+    if (aprovReqList.length > 0) {
+      html += `<div class="fp-section-title" style="color:#7c3aed;"><i class="fa-solid fa-user-check"></i> Aguardando Aprovação do Requisitante (${aprovReqList.length})</div>`;
+      aprovReqList.slice(0, 5).forEach(p => {
+        const id = p.id || '—';
+        const forn = p.fornecedor ? ` · ${p.fornecedor}` : '';
+        html += `
+          <div class="fp-notif-item" onclick="closeNotifPanel();App.navigate('aprovacao-req')">
+            <div class="fp-notif-dot" style="background:#7c3aed;"></div>
+            <div class="fp-notif-text">
+              Req. #${id}${forn}
+              <div class="fp-notif-sub">Mapa enviado — aguardando aprovação do requisitante</div>
+            </div>
+          </div>`;
+      });
+      if (aprovReqList.length > 5) {
+        html += `<div style="padding:8px 16px;font-size:11.5px;color:#7c3aed;cursor:pointer;font-weight:600;"
+                      onclick="closeNotifPanel();App.navigate('aprovacao-req')">
+                   + ${aprovReqList.length - 5} mais aguardando →
                  </div>`;
       }
     }

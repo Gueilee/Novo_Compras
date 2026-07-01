@@ -43,7 +43,8 @@ async function _route(method, path, body) {
   if (full === 'GET /dashboard-dados') return _dashboardDados(path);
 
   // Saving
-  if (full === 'GET /api/saving/dashboard') return _savingDashboard(path);
+  if (full === 'GET /api/saving/dashboard')    return _savingDashboard(path);
+  if (full === 'GET /api/saving/consolidado')  return _savingConsolidado(path);
 
   // Formulário de Intake
   if (full === 'GET /api/opcoes-formulario') return _opcoesFormulario();
@@ -84,6 +85,11 @@ async function _route(method, path, body) {
   if (method === 'GET' && mEstoque) return _verificarEstoque(+mEstoque[1]);
   const mUsarEst = basePath.match(/^\/api\/sourcing\/usar-estoque\/(\d+)$/);
   if (method === 'POST' && mUsarEst) return _usarEstoque(+mUsarEst[1], body);
+
+  // Aprovação do Requisitante (entre Sourcing e Entregas)
+  if (full === 'GET /api/aprovacao-req/pendentes') return _aprovReqPendentes();
+  const mAprovReq = basePath.match(/^\/api\/aprovacao-req\/(\d+)$/);
+  if (method === 'POST' && mAprovReq) return _decidirAprovReq(+mAprovReq[1], body);
 
   // Entregas (Confirmação de Recebimento)
   if (full === 'GET /api/entregas/pendentes') return _entregasPendentes();
@@ -494,6 +500,192 @@ async function _savingDashboard(path) {
   };
 }
 
+// ── Saving Consolidado (Compras + Contas Fixas) ───────────
+async function _savingConsolidado(path) {
+  const [compras, fixas] = await Promise.all([
+    _calcSavingCompras(path),
+    _savingContasFixas()
+  ]);
+  return { compras, fixas };
+}
+
+async function _calcSavingCompras(path) {
+  const qp         = new URLSearchParams((path || '').split('?')[1] || '');
+  const filterComp = qp.get('comprador') || '';
+  const filterUnit = qp.get('unidade')   || '';
+
+  const _emptyCompras = (opts = {compradores:[],unidades:[]}) => ({
+    pedidos: [], compradores: [],
+    por_mes: Array.from({length:12}, (_,i) => ({mes:i+1,saving:0,saving_forn:0,saving_comp:0,saving_mercado:0,count:0})),
+    kpis: { total_saving:0, pct_saving:0, count:0 }, opts
+  });
+
+  let q = _sb.from('requisicoes')
+    .select('id_sharepoint,comprador,unidade,data_solicitacao,fornecedor,valor_fechado,status,preco_negociado_final')
+    .in('status', ['Aguardando Entrega','Recebido','Concluído'])
+    .not('valor_fechado', 'is', null).gt('valor_fechado', 0)
+    .order('id_sharepoint', { ascending: false });
+  if (filterComp) q = q.eq('comprador', filterComp);
+  if (filterUnit)  q = q.eq('unidade',   filterUnit);
+
+  const { data: reqs, error } = await q;
+  if (error) _err(error);
+
+  const { data: allFin } = await _sb.from('requisicoes')
+    .select('comprador,unidade').in('status', ['Aguardando Entrega','Recebido','Concluído']);
+  const opts = {
+    compradores: [...new Set((allFin||[]).map(r=>r.comprador).filter(Boolean))].sort(),
+    unidades:    [...new Set((allFin||[]).map(r=>r.unidade).filter(Boolean))].sort()
+  };
+
+  if (!reqs || !reqs.length) return _emptyCompras(opts);
+
+  const ids = reqs.map(r => r.id_sharepoint);
+  const { data: lances } = await _sb.from('lances_fornecedor')
+    .select('id_requisicao,preco_unitario,preco_original,selecionado')
+    .in('id_requisicao', ids).gt('preco_unitario', 0);
+
+  const byReq = {};
+  for (const l of (lances||[])) {
+    if (!byReq[l.id_requisicao]) byReq[l.id_requisicao] = [];
+    byReq[l.id_requisicao].push(l);
+  }
+
+  const pedidos = [];
+  let totalSaving = 0, totalBase = 0;
+  const porMes = Array.from({length:12}, (_,i) => ({mes:i+1,saving:0,saving_forn:0,saving_comp:0,saving_mercado:0,count:0}));
+
+  for (const r of reqs) {
+    const reqLances = byReq[r.id_sharepoint] || [];
+    if (!reqLances.length) continue;
+    const selLance = reqLances.find(l => l.selecionado);
+    if (!selLance) continue;
+
+    const precoLance = selLance.preco_unitario;
+    const precoFinal = (r.preco_negociado_final && r.preco_negociado_final > 0 && r.preco_negociado_final < precoLance)
+      ? r.preco_negociado_final : precoLance;
+    const maxQuote = Math.max(...reqLances.map(l => l.preco_unitario));
+    const baseline = (selLance.preco_original && selLance.preco_original > precoFinal)
+      ? selLance.preco_original : maxQuote;
+
+    const savingAbs = baseline > precoFinal ? +(baseline - precoFinal).toFixed(2) : 0;
+    if (savingAbs <= 0) continue;
+    const savingPct = +(savingAbs / baseline * 100).toFixed(2);
+
+    // Saving breakdown por origem
+    const savingForn = selLance.preco_original > 0 && selLance.preco_original > selLance.preco_unitario
+      ? +(selLance.preco_original - selLance.preco_unitario).toFixed(2) : 0;
+    const savingComp = r.preco_negociado_final > 0 && r.preco_negociado_final < selLance.preco_unitario
+      ? +(selLance.preco_unitario - r.preco_negociado_final).toFixed(2) : 0;
+    const savingMercado = Math.max(0, +(savingAbs - savingForn - savingComp).toFixed(2));
+
+    totalSaving += savingAbs;
+    totalBase   += baseline;
+
+    // Agrupa por mês
+    let mesIdx = null;
+    if (r.data_solicitacao) {
+      try {
+        const d2 = new Date(r.data_solicitacao);
+        if (!isNaN(d2)) mesIdx = d2.getMonth();
+        else { const p = r.data_solicitacao.split('/'); if (p.length===3) mesIdx = parseInt(p[1],10)-1; }
+      } catch {}
+    }
+    if (mesIdx !== null && mesIdx >= 0 && mesIdx < 12) {
+      porMes[mesIdx].saving        += savingAbs;
+      porMes[mesIdx].saving_forn   += savingForn;
+      porMes[mesIdx].saving_comp   += savingComp;
+      porMes[mesIdx].saving_mercado += savingMercado;
+      porMes[mesIdx].count++;
+    }
+
+    pedidos.push({
+      id: r.id_sharepoint, comprador: r.comprador||'—', unidade: r.unidade||'—',
+      data: r.data_solicitacao, fornecedor: r.fornecedor||'—', status: r.status,
+      n_cotacoes: reqLances.length,
+      preco_base:  +baseline.toFixed(2), preco_final: +precoFinal.toFixed(2),
+      saving_abs: savingAbs, saving_pct: savingPct,
+      saving_forn: savingForn, saving_comp: savingComp, saving_mercado: savingMercado
+    });
+  }
+
+  const byComp = {};
+  for (const p of pedidos) {
+    if (!byComp[p.comprador]) byComp[p.comprador] = {nome:p.comprador,saving:0,base:0,count:0};
+    byComp[p.comprador].saving += p.saving_abs;
+    byComp[p.comprador].base   += p.preco_base;
+    byComp[p.comprador].count++;
+  }
+  const compradores = Object.values(byComp)
+    .map(c => ({...c, pct: c.base>0 ? +(c.saving/c.base*100).toFixed(1) : 0}))
+    .sort((a,b) => b.saving - a.saving);
+
+  const pctTotal = totalBase > 0 ? +(totalSaving/totalBase*100).toFixed(1) : 0;
+  return {
+    pedidos, compradores, por_mes: porMes, opts,
+    kpis: { total_saving: +totalSaving.toFixed(2), pct_saving: pctTotal, count: pedidos.length }
+  };
+}
+
+async function _savingContasFixas() {
+  const anoRef   = new Date().getFullYear();
+  const mesAtual = new Date().getMonth() + 1; // 1-indexed
+
+  const { data: contratos } = await _sb.from('contas_fixas')
+    .select('id,nome,fornecedor,categoria,unidade,valor_anual,valor_mensal,orcado_mensais,status,lancamentos_cf(*)');
+
+  const porMes = Array.from({length:12}, (_,i) => ({mes:i+1,orcado:0,pago:0,saving:0}));
+  let totalOrcado = 0, totalPago = 0;
+  const porContrato = [];
+
+  for (const c of (contratos||[])) {
+    if (c.status === 'cancelado') continue;
+    const lancsAno = (c.lancamentos_cf||[]).filter(l => l.ano === anoRef);
+    const pagoPorMes = {};
+    for (const l of lancsAno) pagoPorMes[l.mes] = (pagoPorMes[l.mes]||0) + (l.valor||0);
+
+    const orc = c.orcado_mensais || {};
+    let contOrcado = 0, contPago = 0, contSaving = 0;
+
+    for (let m = 1; m <= mesAtual; m++) {
+      const orcadoMes = (orc[String(m)] ?? orc[m]) ?? (c.valor_mensal || 0);
+      if (!orcadoMes || orcadoMes <= 0) continue;
+      const pagoMes = pagoPorMes[m] || 0;
+      if (pagoMes <= 0) continue; // só conta meses com pagamento registrado
+      const savingMes = Math.max(0, orcadoMes - pagoMes);
+      contOrcado  += orcadoMes;
+      contPago    += pagoMes;
+      contSaving  += savingMes;
+      porMes[m-1].orcado += orcadoMes;
+      porMes[m-1].pago   += pagoMes;
+      porMes[m-1].saving += savingMes;
+    }
+
+    totalOrcado += contOrcado;
+    totalPago   += contPago;
+
+    porContrato.push({
+      id: c.id, nome: c.nome||'—', fornecedor: c.fornecedor||'—',
+      categoria: c.categoria||'—', unidade: c.unidade||'—',
+      valor_mensal: c.valor_mensal||0, valor_anual: c.valor_anual||0,
+      orcado: +contOrcado.toFixed(2), pago: +contPago.toFixed(2),
+      saving_abs: +contSaving.toFixed(2),
+      saving_pct: contOrcado > 0 ? +(contSaving/contOrcado*100).toFixed(1) : 0
+    });
+  }
+
+  const totalSaving = Math.max(0, totalOrcado - totalPago);
+  return {
+    saving_abs:   +totalSaving.toFixed(2),
+    saving_pct:   totalOrcado > 0 ? +(totalSaving/totalOrcado*100).toFixed(1) : 0,
+    total_orcado: +totalOrcado.toFixed(2),
+    total_pago:   +totalPago.toFixed(2),
+    n_contratos:  (contratos||[]).length,
+    por_contrato: porContrato.sort((a,b) => b.saving_abs - a.saving_abs),
+    por_mes:      porMes
+  };
+}
+
 // ── Orçamentos (listagem completa — consumido calculado de requisições) ────
 async function _listarOrcamentos() {
   const [{ data: orcs }, { data: reqs }] = await Promise.all([
@@ -541,7 +733,8 @@ async function _atividadeRecente() {
   const cores = {
     'Aguardando Aprovação': '#f59e0b', 'Aprovado': '#01E18E',
     'Reprovado': '#ff2f69', 'Aguardando Cotação': '#422c76',
-    'Em Cotação': '#422c76', 'Aguardando Entrega': '#f59e0b',
+    'Em Cotação': '#422c76', 'Aguardando Aprovação Requisitante': '#7c3aed',
+    'Aguardando Entrega': '#f59e0b',
     'Recebido': '#01E18E', 'Concluído': '#01E18E', 'Bloqueado': '#ff2f69'
   };
   return (logs || []).map(l => ({
@@ -892,11 +1085,11 @@ async function _selecionarFornecedor(id, body) {
     ? precoNeg : precoLance;
 
   await _sb.from('requisicoes').update({
-    status: 'Aguardando Entrega', fornecedor: nomeForn,
+    status: 'Aguardando Aprovação Requisitante', fornecedor: nomeForn,
     valor_fechado: valorFechado,
     updated_at: new Date().toISOString()
   }).eq('id_sharepoint', id);
-  _logBuscaReq(id, 'Aguardando Entrega').catch(() => {});
+  _logBuscaReq(id, 'Aguardando Aprovação Requisitante').catch(() => {});
   return { status: 'ok', fornecedor: nomeForn };
 }
 
@@ -1065,6 +1258,80 @@ async function _realizarMatch(id, body) {
 async function _nfUploads(id) {
   const { data } = await _sb.from('nf_uploads').select('*').eq('id_pedido', id).order('enviado_em', { ascending: false });
   return (data || []).map(u => ({ ...u, tipo: u.tipo || 'PDF', tamanho_kb: u.tamanho_kb || 0 }));
+}
+
+// ── Aprovação do Requisitante ──────────────────────────────
+async function _aprovReqPendentes() {
+  const { data, error } = await _sb.from('requisicoes')
+    .select('id_sharepoint, unidade, comprador, setor, data_solicitacao, status, fornecedor, valor_fechado, preco_negociado_final, desconto_comprador_tipo, desconto_comprador_valor, itens_requisicao(descricao,quantidade,unidade_medida)')
+    .eq('status', 'Aguardando Aprovação Requisitante')
+    .order('id_sharepoint', { ascending: false })
+    .limit(200);
+  if (error) _err(error);
+
+  // Para cada req, busca o menor preço original (antes do desconto) para calcular saving
+  const result = await Promise.all((data || []).map(async r => {
+    const { data: lances } = await _sb.from('lances_fornecedor')
+      .select('preco_unitario, cnpj_fornecedor, selecionado')
+      .eq('id_requisicao', r.id_sharepoint)
+      .gt('preco_unitario', 0)
+      .order('preco_unitario', { ascending: true });
+
+    const lanceSelecionado = (lances || []).find(l => l.selecionado);
+    const menorLance = (lances || [])[0];
+    const precoForn = lanceSelecionado?.preco_unitario || menorLance?.preco_unitario || r.valor_fechado;
+    const precoFinal = r.preco_negociado_final || r.valor_fechado;
+    const maxLance = lances?.length ? Math.max(...lances.map(l => l.preco_unitario)) : 0;
+    const saving = maxLance > 0 && precoFinal > 0 ? Math.max(0, maxLance - precoFinal) : 0;
+    const savingPct = maxLance > 0 ? (saving / maxLance * 100) : 0;
+
+    return {
+      id:            r.id_sharepoint,
+      unidade:       r.unidade,
+      setor:         r.setor,
+      comprador:     r.comprador,
+      data:          r.data_solicitacao,
+      fornecedor:    r.fornecedor,
+      valor_fechado: precoFinal || r.valor_fechado,
+      preco_forn:    precoForn,
+      preco_negociado_final: r.preco_negociado_final,
+      desconto_comprador_tipo:  r.desconto_comprador_tipo,
+      desconto_comprador_valor: r.desconto_comprador_valor,
+      saving_abs:    +saving.toFixed(2),
+      saving_pct:    +savingPct.toFixed(2),
+      n_cotacoes:    (lances || []).length,
+      itens_count:   (r.itens_requisicao || []).length,
+      itens_preview: (r.itens_requisicao || []).slice(0, 3)
+        .map(i => `${i.quantidade}x ${i.descricao}`).join(', ')
+    };
+  }));
+
+  return result;
+}
+
+async function _decidirAprovReq(id, body) {
+  const { acao, motivo, aprovado_por } = body;
+  const novoStatus = acao === 'aprovar' ? 'Aguardando Entrega' : 'Em Cotação';
+  const upd = {
+    status:     novoStatus,
+    updated_at: new Date().toISOString()
+  };
+  if (acao === 'aprovar' && aprovado_por) {
+    upd.aprovado_req_por = aprovado_por;
+  }
+  if (acao === 'devolver' && motivo) {
+    // Acrescenta ao campo observacoes sem perder histórico
+    const { data: req } = await _sb.from('requisicoes')
+      .select('observacoes').eq('id_sharepoint', id).single();
+    const prev = req?.observacoes || '';
+    upd.observacoes = prev
+      ? `${prev}\n[Devolvido] ${motivo}`
+      : `[Devolvido] ${motivo}`;
+  }
+  const { error } = await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
+  if (error) _err(error);
+  _logBuscaReq(id, novoStatus).catch(() => {});
+  return { status: 'ok', novo_status: novoStatus };
 }
 
 // ── Entregas pendentes (Aguardando Entrega + Recebido) ─────

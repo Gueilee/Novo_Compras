@@ -94,6 +94,17 @@
         <span>Fornecedores & Cotação</span>
       </div>
 
+      <div class="nav-item" id="nav-aprovacao-req" onclick="App.navigate('aprovacao-req')" style="position:relative;">
+        <i class="fa-solid fa-user-check"></i>
+        <span>Aprovação do Requisitante</span>
+        <span id="nav-badge-aprovacao-req" class="hidden" style="
+          position:absolute;right:10px;top:50%;transform:translateY(-50%);
+          background:#ef4444;color:#fff;font-size:10px;font-weight:800;
+          min-width:18px;height:18px;border-radius:9px;display:flex;
+          align-items:center;justify-content:center;padding:0 5px;line-height:1;
+        "></span>
+      </div>
+
       <div class="nav-item" id="nav-entregas" onclick="App.navigate('entregas')">
         <i class="fa-solid fa-truck-ramp-box"></i>
         <span>Confirmação de Entrega</span>
@@ -357,7 +368,8 @@
 <script src="js/pages/contratos.js?v=22"></script>
 <script src="js/pages/consulta.js?v=22"></script>
 <script src="js/pages/estoque.js?v=22"></script>
-<script src="js/pages/saving.js?v=22"></script>
+<script src="js/pages/saving.js?v=26"></script>
+<script src="js/pages/aprovacao-req.js?v=26"></script>
 <script src="js/pages/fornecedores.js?v=22"></script>
 <script src="js/pages/configuracoes.js?v=24"></script>
 
