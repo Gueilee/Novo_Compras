@@ -569,11 +569,6 @@ window.Pages.sourcing = {
     const seg  = document.getElementById('sourcing-seg-input')?.value || '';
     const text = (document.getElementById('sourcing-text-input')?.value || '').trim();
 
-    if (!seg && !text) {
-      Toast.warning('Preencha ao menos um campo', 'Informe o segmento ou o nome/CNPJ do fornecedor.');
-      return;
-    }
-
     this._segmentoAtual = seg;
     const container = document.getElementById('sourcing-fornecedores');
     container.innerHTML = `<div class="loading-center"><div class="spinner"></div><span>Buscando...</span></div>`;

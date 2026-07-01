@@ -877,35 +877,34 @@ async function _dispararEmailConvite(body) {
 }
 
 async function _fornecedoresPorSegmento(segmento) {
-  // Step 1: find category IDs matching the segment name
+  const seenCnpjs = new Set();
+  let fornecedores = [];
+
+  // Step 1: via junction table (fornecedores_segmentos → categorias)
   const { data: cats } = await _sb.from('categorias').select('id').ilike('segmento', `%${segmento}%`);
   const catIds = (cats || []).map(c => c.id);
-
-  let fornecedores = [];
   if (catIds.length) {
-    // Step 2: get CNPJs linked to those categories (explicit — no PostgREST FK join)
     const { data: links } = await _sb.from('fornecedores_segmentos')
-      .select('cnpj_fornecedor')
-      .in('id_categoria', catIds);
+      .select('cnpj_fornecedor').in('id_categoria', catIds);
     const cnpjs = [...new Set((links || []).map(l => l.cnpj_fornecedor).filter(Boolean))];
-
     if (cnpjs.length) {
-      // Step 3: fetch full supplier records by CNPJ
-      const { data: fs } = await _sb.from('fornecedores')
-        .select('*')
-        .in('cnpj', cnpjs)
-        .order('razao_social');
-      fornecedores = fs || [];
+      const { data: fs } = await _sb.from('fornecedores').select('*').in('cnpj', cnpjs).order('razao_social');
+      (fs || []).forEach(f => { seenCnpjs.add(_normCnpj(f.cnpj)); fornecedores.push(f); });
     }
   }
 
-  // Fallback: if the junction table returned nothing, show ALL suppliers
-  // (handles suppliers imported without segment linking)
+  // Step 2: via segmentos_interesse array field (suppliers who completed cadastro)
+  const { data: byInteresse } = await _sb.from('fornecedores')
+    .select('*').contains('segmentos_interesse', [segmento]).order('razao_social');
+  for (const f of (byInteresse || [])) {
+    const key = _normCnpj(f.cnpj);
+    if (!seenCnpjs.has(key)) { seenCnpjs.add(key); fornecedores.push(f); }
+  }
+
+  // Fallback: show ALL suppliers (covers imported suppliers with no segment data)
   if (!fornecedores.length) {
     const { data: all } = await _sb.from('fornecedores')
-      .select('*')
-      .order('razao_social')
-      .limit(500);
+      .select('*').order('razao_social').limit(500);
     fornecedores = all || [];
   }
 
@@ -2037,22 +2036,10 @@ async function _catalogoDetalhe(path) {
 
 // ── Sourcing — segmentos ───────────────────────────────────
 async function _sourcingSegmentos() {
-  // Priority: return only segments that have at least one supplier linked
-  const { data: links } = await _sb.from('fornecedores_segmentos').select('id_categoria').limit(2000);
-  const linkedIds = [...new Set((links || []).map(l => l.id_categoria).filter(Boolean))];
-
-  if (linkedIds.length) {
-    const { data: cats } = await _sb.from('categorias')
-      .select('segmento')
-      .in('id', linkedIds)
-      .order('segmento');
-    const segs = [...new Set((cats || []).map(c => c.segmento).filter(Boolean))].sort();
-    if (segs.length) return segs;
-  }
-
-  // Fallback: all categories (no suppliers linked yet)
+  // Return all distinct segments from categorias (not filtered by junction table,
+  // since imported suppliers have segmentos_interesse = NULL and no junction entries)
   const { data } = await _sb.from('categorias').select('segmento').order('segmento');
-  return (data || []).map(c => c.segmento).filter(Boolean);
+  return [...new Set((data || []).map(c => c.segmento).filter(Boolean))].sort();
 }
 
 // ── Contas Fixas — excluir lançamento ─────────────────────
