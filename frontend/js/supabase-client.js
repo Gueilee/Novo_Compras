@@ -1263,7 +1263,7 @@ async function _nfUploads(id) {
 // ── Aprovação do Requisitante ──────────────────────────────
 async function _aprovReqPendentes() {
   const { data, error } = await _sb.from('requisicoes')
-    .select('id_sharepoint, unidade, comprador, setor, data_solicitacao, status, fornecedor, valor_fechado, preco_negociado_final, desconto_comprador_tipo, desconto_comprador_valor, itens_requisicao(descricao,quantidade,unidade_medida)')
+    .select('id_sharepoint, unidade, comprador, setor, data_solicitacao, status, fornecedor, valor_fechado, preco_negociado_final, desconto_comprador_tipo, desconto_comprador_valor, itens_requisicao(descricao,quantidade)')
     .eq('status', 'Aguardando Aprovação Requisitante')
     .order('id_sharepoint', { ascending: false })
     .limit(200);
