@@ -397,7 +397,7 @@ async function _savingDashboard(path) {
   // 1. Requisições concluídas com valor fechado
   let q = _sb.from('requisicoes')
     .select('id_sharepoint, comprador, unidade, data_solicitacao, fornecedor, valor_fechado, status, preco_negociado_final')
-    .in('status', ['Aguardando Entrega', 'Recebido', 'Concluído'])
+    .in('status', ['Aguardando Entrega', 'Aguardando Conciliação', 'Encerrado'])
     .not('valor_fechado', 'is', null)
     .gt('valor_fechado', 0)
     .order('id_sharepoint', { ascending: false });
@@ -480,7 +480,7 @@ async function _savingDashboard(path) {
   // 6. Opções de filtro (dataset completo, não filtrado)
   const { data: allFin } = await _sb.from('requisicoes')
     .select('comprador, unidade')
-    .in('status', ['Aguardando Entrega', 'Recebido', 'Concluído']);
+    .in('status', ['Aguardando Entrega', 'Aguardando Conciliação', 'Encerrado']);
   const opts = {
     compradores: [...new Set((allFin || []).map(r => r.comprador).filter(Boolean))].sort(),
     unidades:    [...new Set((allFin || []).map(r => r.unidade).filter(Boolean))].sort()
@@ -522,7 +522,7 @@ async function _calcSavingCompras(path) {
 
   let q = _sb.from('requisicoes')
     .select('id_sharepoint,comprador,unidade,data_solicitacao,fornecedor,valor_fechado,status,preco_negociado_final')
-    .in('status', ['Aguardando Entrega','Recebido','Concluído'])
+    .in('status', ['Aguardando Entrega','Aguardando Conciliação','Encerrado'])
     .not('valor_fechado', 'is', null).gt('valor_fechado', 0)
     .order('id_sharepoint', { ascending: false });
   if (filterComp) q = q.eq('comprador', filterComp);
@@ -532,7 +532,7 @@ async function _calcSavingCompras(path) {
   if (error) _err(error);
 
   const { data: allFin } = await _sb.from('requisicoes')
-    .select('comprador,unidade').in('status', ['Aguardando Entrega','Recebido','Concluído']);
+    .select('comprador,unidade').in('status', ['Aguardando Entrega','Aguardando Conciliação','Encerrado']);
   const opts = {
     compradores: [...new Set((allFin||[]).map(r=>r.comprador).filter(Boolean))].sort(),
     unidades:    [...new Set((allFin||[]).map(r=>r.unidade).filter(Boolean))].sort()
@@ -731,11 +731,14 @@ async function _atividadeRecente() {
     .order('created_at', { ascending: false })
     .limit(20);
   const cores = {
-    'Aguardando Aprovação': '#f59e0b', 'Aprovado': '#01E18E',
-    'Reprovado': '#ff2f69', 'Aguardando Cotação': '#422c76',
-    'Em Cotação': '#422c76', 'Aguardando Aprovação Requisitante': '#7c3aed',
-    'Aguardando Entrega': '#f59e0b',
-    'Recebido': '#01E18E', 'Concluído': '#01E18E', 'Bloqueado': '#ff2f69'
+    'Aguardando Aprovação do Gestor':    '#f59e0b',
+    'Fornecedores & Cotação':            '#422c76',
+    'Aguardando Aprovação Requisitante': '#7c3aed',
+    'Aguardando Entrega':                '#f59e0b',
+    'Aguardando Conciliação':            '#3b82f6',
+    'Encerrado':                         '#01E18E',
+    'Reprovado':                         '#ff2f69',
+    'Bloqueado':                         '#ff2f69'
   };
   return (logs || []).map(l => ({
     data:    l.created_at || '',
@@ -788,7 +791,7 @@ async function _criarRequisicao(body) {
     observacoes: body.observacoes, justificativa: body.justificativa,
     segmento_compra: body.segmento_compra || null,
     tipo_despesa:    body.tipo_despesa    || null,
-    status: 'Aguardando Aprovação',
+    status: 'Aguardando Aprovação do Gestor',
     data_solicitacao: new Date().toLocaleDateString('pt-BR')
   }).select().single();
   if (error) _err(error);
@@ -807,7 +810,7 @@ async function _criarRequisicao(body) {
       } else { _err(eItens); }
     }
   }
-  _logAtividade(req.id_sharepoint, 'Aguardando Aprovação', body.comprador, body.unidade).catch(() => {});
+  _logAtividade(req.id_sharepoint, 'Aguardando Aprovação do Gestor', body.comprador, body.unidade).catch(() => {});
   return { id: req.id_sharepoint, id_pedido: req.id_sharepoint, status: 'ok' };
 }
 
@@ -815,7 +818,7 @@ async function _criarRequisicao(body) {
 async function _aprovacoesPendentes() {
   const { data, error } = await _sb.from('requisicoes')
     .select('*, itens_requisicao(*)')
-    .eq('status', 'Aguardando Aprovação')
+    .eq('status', 'Aguardando Aprovação do Gestor')
     .order('id_sharepoint', { ascending: false });
   if (error) _err(error);
   const pedidos = (data || []).map(r => ({
@@ -829,7 +832,7 @@ async function _aprovacoesPendentes() {
 }
 
 async function _aprovarRequisicao(id, body) {
-  const novoStatus = body.acao === 'aprovar' ? 'Aguardando Cotação' : 'Reprovado';
+  const novoStatus = body.acao === 'aprovar' ? 'Fornecedores & Cotação' : 'Reprovado';
   const upd = { status: novoStatus, updated_at: new Date().toISOString() };
   if (body.justificativa) upd.observacoes = body.justificativa;
   const { error } = await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
@@ -842,7 +845,7 @@ async function _aprovarRequisicao(id, body) {
 async function _pedidosAprovados() {
   const { data, error } = await _sb.from('requisicoes')
     .select('id_sharepoint, comprador, unidade, data_solicitacao, status, itens_requisicao(segmento_historico), lances_fornecedor(id, preco_unitario)')
-    .in('status', ['Aguardando Cotação', 'Em Cotação', 'Aprovado Gestor'])
+    .in('status', ['Fornecedores & Cotação', 'Aprovado Gestor'])
     .order('id_sharepoint', { ascending: false });
   if (error) _err(error);
   return (data || []).map(r => {
@@ -871,7 +874,7 @@ async function _dispararEmailConvite(body) {
   }
   // Avança status para "Em Cotação" (convites foram disparados)
   await _sb.from('requisicoes')
-    .update({ status: 'Em Cotação', updated_at: new Date().toISOString() })
+    .update({ status: 'Fornecedores & Cotação', updated_at: new Date().toISOString() })
     .eq('id_sharepoint', reqId);
   return { status: 'ok' };
 }
@@ -910,7 +913,7 @@ async function _fornecedoresPorSegmento(segmento) {
 
   const { data: hist } = await _sb.from('requisicoes')
     .select('data_solicitacao, valor_fechado, fornecedor, itens_requisicao(descricao, quantidade)')
-    .eq('status', 'Concluído').limit(5);
+    .eq('status', 'Encerrado').limit(5);
   return {
     fornecedores,
     historico_precos: (hist || []).map(h => ({
@@ -963,10 +966,10 @@ async function _salvarCotacao(body) {
     }).select().single();
     if (error) _err(error);
     lanceId = novo.id;
-    // Avança status se ainda em 'Aguardando Cotação'
-    await _sb.from('requisicoes').update({ status: 'Em Cotação', updated_at: new Date().toISOString() })
-      .eq('id_sharepoint', body.id_requisicao).eq('status', 'Aguardando Cotação');
-    _logBuscaReq(body.id_requisicao, 'Em Cotação').catch(() => {});
+    // Avança status se ainda em 'Fornecedores & Cotação'
+    await _sb.from('requisicoes').update({ status: 'Fornecedores & Cotação', updated_at: new Date().toISOString() })
+      .eq('id_sharepoint', body.id_requisicao).eq('status', 'Fornecedores & Cotação');
+    _logBuscaReq(body.id_requisicao, 'Fornecedores & Cotação').catch(() => {});
   }
   // Salva itens se vieram
   if (body.itens?.length) {
@@ -1045,7 +1048,7 @@ async function _usarEstoque(id, body) {
   }
 
   // Marca requisição como Concluída
-  await _sb.from('requisicoes').update({ status: 'Concluido' }).eq('id', id);
+  await _sb.from('requisicoes').update({ status: 'Encerrado' }).eq('id', id);
 
   return { status: 'ok', requisicao: id, itens_baixados: itens.length };
 }
@@ -1193,7 +1196,7 @@ async function _historicoCotacoes(path) {
 async function _recebimentoPendentes() {
   const { data, error } = await _sb.from('requisicoes')
     .select('id_sharepoint, fornecedor, status')
-    .eq('status', 'Recebido').order('id_sharepoint', { ascending: false }).limit(50);
+    .eq('status', 'Aguardando Conciliação').order('id_sharepoint', { ascending: false }).limit(50);
   if (error) _err(error);
   const seen = new Set();
   return (data || []).filter(r => { if (seen.has(r.id_sharepoint)) return false; seen.add(r.id_sharepoint); return true; })
@@ -1225,10 +1228,10 @@ async function _realizarMatch(id, body) {
 
   const aprovado = divergencias.length === 0;
   if (aprovado) {
-    const upd = { status: 'Concluído', valor_fechado: body.valor_nf, updated_at: new Date().toISOString() };
+    const upd = { status: 'Encerrado', valor_fechado: body.valor_nf, updated_at: new Date().toISOString() };
     if (temNegociacao) upd.preco_negociado_final = body.preco_negociado_final;
     await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
-    _logBuscaReq(id, 'Concluído').catch(() => {});
+    _logBuscaReq(id, 'Encerrado').catch(() => {});
   }
 
   // Monta detalhes de aprovação incluindo saving se houver
@@ -1310,7 +1313,7 @@ async function _aprovReqPendentes() {
 
 async function _decidirAprovReq(id, body) {
   const { acao, motivo, aprovado_por } = body;
-  const novoStatus = acao === 'aprovar' ? 'Aguardando Entrega' : 'Em Cotação';
+  const novoStatus = acao === 'aprovar' ? 'Aguardando Entrega' : 'Fornecedores & Cotação';
   const upd = {
     status:     novoStatus,
     updated_at: new Date().toISOString()
@@ -1337,7 +1340,7 @@ async function _decidirAprovReq(id, body) {
 async function _entregasPendentes() {
   const { data, error } = await _sb.from('requisicoes')
     .select('id_sharepoint, unidade, comprador, data_solicitacao, status, fornecedor, valor_fechado, itens_requisicao(descricao,quantidade)')
-    .in('status', ['Aguardando Entrega', 'Recebido'])
+    .in('status', ['Aguardando Entrega', 'Aguardando Conciliação'])
     .order('id_sharepoint', { ascending: false })
     .limit(300);
   if (error) _err(error);
@@ -1357,7 +1360,7 @@ async function _entregasPendentes() {
 
 // ── Confirmar recebimento (Aguardando Entrega → Recebido) ──
 async function _confirmarRecebimento(id, body) {
-  const upd = { status: 'Recebido', updated_at: new Date().toISOString() };
+  const upd = { status: 'Aguardando Conciliação', updated_at: new Date().toISOString() };
   if (body.obs) {
     const { data: req } = await _sb.from('requisicoes')
       .select('observacoes').eq('id_sharepoint', id).single();
@@ -1368,7 +1371,7 @@ async function _confirmarRecebimento(id, body) {
   }
   const { error } = await _sb.from('requisicoes').update(upd).eq('id_sharepoint', id);
   if (error) _err(error);
-  _logBuscaReq(id, 'Recebido').catch(() => {});
+  _logBuscaReq(id, 'Aguardando Conciliação').catch(() => {});
   return { status: 'ok' };
 }
 
@@ -1707,7 +1710,7 @@ async function _listarRequisicoes(path) {
   if (status && status !== 'todos') {
     const statArr = status.split(',').map(s => s.trim()).filter(Boolean);
     if (statArr.includes('abertos')) {
-      query = query.not('status', 'in', '("Concluído","Reprovado","Cancelado")');
+      query = query.not('status', 'in', '("Encerrado","Reprovado","Cancelado")');
     } else if (statArr.length === 1) {
       query = query.eq('status', statArr[0]);
     } else if (statArr.length > 1) {
@@ -1777,8 +1780,8 @@ async function _requisicoesPorUnidade() {
     map[u].total++;
     // Sum ALL valor_fechado (POs emitidas), not only Concluído
     if (r.valor_fechado) map[u].total_valor += r.valor_fechado;
-    if (r.status === 'Concluído') map[u].concluidos++;
-    if (['Aguardando Cotação','Em Cotação','Aguardando Entrega','Recebido'].includes(r.status)) map[u].em_andamento++;
+    if (r.status === 'Encerrado') map[u].concluidos++;
+    if (['Fornecedores & Cotação','Aguardando Aprovação Requisitante','Aguardando Entrega','Aguardando Conciliação'].includes(r.status)) map[u].em_andamento++;
     if (r.status === 'Reprovado') map[u].reprovados++;
     // Map id_sharepoint → id so the template's r.id works correctly
     if (map[u].recentes.length < 3) map[u].recentes.push({
@@ -2300,7 +2303,7 @@ async function _getCadastroFornecedor(path) {
 async function _listarPendentesAtribuicao() {
   const { data, error } = await _sb.from('requisicoes')
     .select('id_sharepoint, comprador, unidade, setor, data_solicitacao, status, justificativa, itens_requisicao(descricao, quantidade)')
-    .eq('status', 'Aguardando Cotação')
+    .eq('status', 'Fornecedores & Cotação')
     .order('id_sharepoint', { ascending: false });
   if (error) _err(error);
   return (data || []).map(r => ({

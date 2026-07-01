@@ -334,8 +334,9 @@ function _buildFlow() {
     { label: 'Aprovação do Gestor',    done: true  },
     { label: 'Cotação & Fornecedor',   done: true  },
     { label: 'Aprovação do Requisitante', active: true },
-    { label: 'Aguardando Entrega',     done: false },
-    { label: 'Concluído',              done: false },
+    { label: 'Aguardando Entrega',        done: false },
+    { label: 'Aguardando Conciliação',    done: false },
+    { label: 'Encerrado',                 done: false },
   ];
   const html = steps.map((s, i) => {
     const cls = s.active ? 'ar-flow-active' : s.done ? 'ar-flow-done' : '';
@@ -552,7 +553,7 @@ async function confirmarDevolver(id) {
       acao:   'devolver',
       motivo: motivo
     });
-    Toast.warning('Devolvido ao comprador.', `Req. #${id} retornou para "Em Cotação". O comprador poderá renegociar.`);
+    Toast.warning('Devolvido ao comprador.', `Req. #${id} retornou para "Fornecedores & Cotação". O comprador poderá renegociar.`);
     if (card) {
       card.style.transition = 'all .4s ease';
       card.style.opacity    = '0';

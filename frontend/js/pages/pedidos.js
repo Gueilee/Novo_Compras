@@ -475,8 +475,8 @@ window.Pages.pedidos = {
 
   _htmlList(data) {
     const s = this._st;
-    const concluidos  = data.items.filter(i =>  i.status?.includes('Concluí')).length;
-    const emAberto    = data.items.filter(i => !i.status?.includes('Concluí') && i.status !== 'Reprovado').length;
+    const concluidos  = data.items.filter(i =>  i.status === 'Encerrado').length;
+    const emAberto    = data.items.filter(i =>  i.status !== 'Encerrado' && i.status !== 'Reprovado').length;
     const comValor    = data.items.filter(i => i.valor).length;
     const totalValor  = data.items.reduce((a, i) => a + (i.valor || 0), 0);
 
@@ -925,13 +925,12 @@ window.Pages.pedidos = {
 
   /* ── WORKFLOW STEPS DEFINITION ───────────────────────────── */
   _STEPS: [
-    { status: 'Aguardando Aprovação do Gestor', label: 'Aguardando Aprovação', icon: 'fa-clock',                color: '#f59e0b', pct: 5  },
-    { status: 'Aguardando Cotação',             label: 'Aguardando Cotação',   icon: 'fa-magnifying-glass-dollar', color: '#3B82F6', pct: 20 },
-    { status: '15% - Em Orçamento',             label: 'Em Orçamento',         icon: 'fa-file-invoice-dollar', color: '#8B5CF6', pct: 35 },
-    { status: '30% Em Negociação',              label: 'Em Negociação',         icon: 'fa-handshake',           color: '#422c76', pct: 55 },
-    { status: '50% - Aguardando Aprovação',     label: 'Aprovação Final',       icon: 'fa-user-shield',         color: '#ff2f69', pct: 70 },
-    { status: '75% - PO Emitida',               label: 'PO Emitida',           icon: 'fa-file-contract',       color: '#01E18E', pct: 85 },
-    { status: '100% Concluído',                 label: 'Concluído',             icon: 'fa-circle-check',        color: '#01E18E', pct: 100},
+    { status: 'Aguardando Aprovação do Gestor',    label: 'Aguardando Aprovação do Gestor', icon: 'fa-clock',                    color: '#f59e0b', pct: 16 },
+    { status: 'Fornecedores & Cotação',            label: 'Fornecedores & Cotação',         icon: 'fa-magnifying-glass-dollar',  color: '#3B82F6', pct: 33 },
+    { status: 'Aguardando Aprovação Requisitante', label: 'Aguardando Aprovação Req.',      icon: 'fa-user-check',               color: '#7c3aed', pct: 50 },
+    { status: 'Aguardando Entrega',                label: 'Aguardando Entrega',             icon: 'fa-truck',                    color: '#422c76', pct: 67 },
+    { status: 'Aguardando Conciliação',            label: 'Aguardando Conciliação',         icon: 'fa-scale-balanced',           color: '#3b82f6', pct: 83 },
+    { status: 'Encerrado',                         label: 'Encerrado',                      icon: 'fa-circle-check',             color: '#01E18E', pct: 100},
   ],
 
   /* ── OPEN UPDATE DRAWER ──────────────────────────────────── */

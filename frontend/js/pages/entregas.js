@@ -1,5 +1,5 @@
 /* ── ENTREGAS PAGE (Confirmação de Recebimento) ──────────────
-   Gerencia o fluxo pós-PO: Aguardando Entrega → Recebido → Conciliação
+   Gerencia o fluxo pós-PO: Aguardando Entrega → Aguardando Conciliação → Encerrado
    ─────────────────────────────────────────────────────────── */
 window.Pages = window.Pages || {};
 
@@ -79,8 +79,8 @@ window.Pages.entregas = {
           </div>
           <div>
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--success-dark);">Próximo</div>
-            <div style="font-size:13px;font-weight:600;color:var(--text);">Recebido</div>
-            <div style="font-size:11px;color:var(--text-muted);">Aguardando conciliação</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);">Aguardando Conciliação</div>
+            <div style="font-size:11px;color:var(--text-muted);">NF aguarda conciliação</div>
           </div>
         </div>
 
@@ -97,7 +97,7 @@ window.Pages.entregas = {
           <div>
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.7);">Final</div>
             <div style="font-size:13px;font-weight:600;color:#fff;">Conciliação</div>
-            <div style="font-size:11px;color:rgba(255,255,255,.7);">NF conciliada → Concluído</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.7);">NF conciliada → Encerrado</div>
           </div>
         </div>
 
@@ -135,7 +135,7 @@ window.Pages.entregas = {
                          margin-bottom:-2px;font-size:13px;font-weight:700;color:var(--text-muted);cursor:pointer;
                          display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s;">
             <i class="fa-solid fa-box-open"></i>
-            Recebidos
+            Ag. Conciliação
             <span id="ent-badge-recebidos"
                   style="background:var(--success-surface);color:var(--success-dark);border-radius:20px;
                          padding:2px 8px;font-size:11px;font-weight:700;">0</span>
@@ -202,7 +202,7 @@ window.Pages.entregas = {
   _renderKPIs() {
     const all       = this._data || [];
     const pendentes = all.filter(r => r.status === 'Aguardando Entrega');
-    const recebidos = all.filter(r => r.status === 'Recebido');
+    const recebidos = all.filter(r => r.status === 'Aguardando Conciliação');
     const valorTransito = pendentes.reduce((s, r) => s + (r.valor_fechado || 0), 0);
 
     const bp = document.getElementById('ent-badge-pendentes');
@@ -246,7 +246,7 @@ window.Pages.entregas = {
         </div>
         <div>
           <div style="font-size:28px;font-weight:800;color:var(--text);line-height:1;">${recebidos.length}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Recebidos — Ag. Conciliação</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Ag. Conciliação</div>
         </div>
       </div>
       <div class="card" style="padding:20px;display:flex;align-items:center;gap:16px;">
@@ -284,7 +284,7 @@ window.Pages.entregas = {
 
     const b = this._busca.toLowerCase();
     const items = (this._data || []).filter(r => {
-      if (this._tab === 'pendentes' ? r.status !== 'Aguardando Entrega' : r.status !== 'Recebido') return false;
+      if (this._tab === 'pendentes' ? r.status !== 'Aguardando Entrega' : r.status !== 'Aguardando Conciliação') return false;
       if (b && !`#${r.id} ${r.fornecedor || ''} ${r.itens_preview || ''} ${r.comprador || ''}`.toLowerCase().includes(b)) return false;
       if (this._unidades.length    && !this._unidades.includes(r.unidade))     return false;
       if (this._compradores.length && !this._compradores.includes(r.comprador)) return false;
@@ -321,7 +321,7 @@ window.Pages.entregas = {
     const tagBg      = isPend ? 'var(--warning-surface)' : 'var(--success-surface)';
     const tagColor   = isPend ? 'var(--warning-dark)' : 'var(--success-dark)';
     const tagIcon    = isPend ? 'fa-clock' : 'fa-box-open';
-    const tagText    = isPend ? 'Aguardando Entrega' : 'Recebido';
+    const tagText    = isPend ? 'Aguardando Entrega' : 'Aguardando Conciliação';
 
     return `
       <div style="background:#fff;border:1px solid var(--border);border-left:4px solid ${borderCol};
@@ -571,7 +571,7 @@ window.Pages.entregas = {
                border:1px solid #fcd34d;border-radius:9px;margin-bottom:22px;">
             <i class="fa-solid fa-triangle-exclamation" style="color:var(--warning-dark);flex-shrink:0;margin-top:1px;font-size:13px;"></i>
             <span style="font-size:12px;color:var(--text);line-height:1.5;">
-              Ao confirmar, a requisição será movida para <strong>Recebido</strong> e ficará disponível
+              Ao confirmar, a requisição será movida para <strong>Aguardando Conciliação</strong> e ficará disponível
               para conciliação com a Nota Fiscal. Esta ação não pode ser desfeita.
             </span>
           </div>
@@ -611,7 +611,7 @@ window.Pages.entregas = {
     try {
       await Api.post(`/api/entregas/confirmar/${id}`, { obs, data_recebimento: data });
       this._fecharModal();
-      Toast.success('Entrega confirmada!', `Req. #${id} movida para "Recebido" — pronta para conciliação.`);
+      Toast.success('Entrega confirmada!', `Req. #${id} movida para "Aguardando Conciliação" — pronta para conciliação da NF.`);
       await this.carregarDados();
     } catch (e) {
       Toast.error('Erro ao confirmar', e.message || 'Verifique a API e tente novamente.');

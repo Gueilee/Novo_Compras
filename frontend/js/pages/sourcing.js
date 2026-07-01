@@ -213,7 +213,7 @@ window.Pages.sourcing = {
         const displayStatus = p.status === 'Aprovado Gestor' ? 'Aprovado Gestor'
           : (p.propostas_recebidas || 0) > 0 ? 'Proposta Recebida'
           : (p.convites_enviados || 0) > 0 ? 'Aguardando Retorno'
-          : 'Aguardando Cotação';
+          : 'Fornecedores & Cotação';
         if (!statuses.includes(displayStatus)) return false;
       }
       if (compradores.length && !compradores.includes(p.comprador)) return false;
@@ -232,7 +232,7 @@ window.Pages.sourcing = {
                  value="${busca.replace(/"/g, '&quot;')}" id="sou-busca"
                  oninput="Pages.sourcing._onSouBusca(this.value)">
         </div>
-        ${msHtml('sou-ms-stat', ['Aguardando Cotação','Aguardando Retorno','Proposta Recebida','Aprovado Gestor'], statuses, 'Status', "Pages.sourcing._toggleSouStatus(")}
+        ${msHtml('sou-ms-stat', ['Fornecedores & Cotação','Aguardando Retorno','Proposta Recebida','Aprovado Gestor'], statuses, 'Status', "Pages.sourcing._toggleSouStatus(")}
         ${compradoresOpts.length ? msHtml('sou-ms-comp', compradoresOpts, compradores, 'Responsável', "Pages.sourcing._toggleSouComprador(") : ''}
         <span class="sou-filter-count">${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}</span>
       </div>`;
@@ -262,13 +262,13 @@ window.Pages.sourcing = {
                   return `<span class="sou-badge sou-badge-gestor"><i class="fa-solid fa-thumbs-up"></i> Aprovado Gestor</span>`;
                 if ((p.propostas_recebidas || 0) > 0) {
                   const n = p.propostas_recebidas;
-                  return `<span class="sou-badge sou-badge-cotacao"><i class="fa-solid fa-check-circle"></i> Em Cotação</span>` +
+                  return `<span class="sou-badge sou-badge-cotacao"><i class="fa-solid fa-check-circle"></i> Fornecedores & Cotação</span>` +
                          `<span class="sou-badge sou-badge-proposta"><i class="fa-solid fa-bell"></i> ${n} proposta${n > 1 ? 's' : ''}</span>`;
                 }
                 if ((p.convites_enviados || 0) > 0) {
                   return `<span class="sou-badge sou-badge-retorno"><i class="fa-solid fa-clock"></i> Aguardando Retorno</span>`;
                 }
-                return `<span class="sou-badge sou-badge-aguardando"><i class="fa-solid fa-hourglass-half"></i> Aguardando Cotação</span>`;
+                return `<span class="sou-badge sou-badge-aguardando"><i class="fa-solid fa-hourglass-half"></i> Fornecedores & Cotação</span>`;
               })();
               const isSel = this._pedidoSelecionado === p.id;
               return `
@@ -700,7 +700,7 @@ window.Pages.sourcing = {
       if (pidx >= 0) {
         const p = this._todosPedidos[pidx];
         this._todosPedidos[pidx] = {
-          ...p, status: 'Em Cotação',
+          ...p, status: 'Fornecedores & Cotação',
           convites_enviados: (p.convites_enviados || 0) + 1
         };
         this._renderPedidosList();

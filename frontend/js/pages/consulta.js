@@ -294,7 +294,7 @@ window.Pages.consulta = {
   _renderListaShell(loading = false, items = []) {
     const { busca, statuses, unidades, compradores } = this._filters;
     const hasFilter = busca || statuses.length || unidades.length || compradores.length;
-    const STATUS_OPTS = ['Aguardando Aprovação do Gestor','Em Cotação','Aguardando Conciliação','Concluído','Reprovado','Cancelado'];
+    const STATUS_OPTS = ['Aguardando Aprovação do Gestor','Fornecedores & Cotação','Aguardando Aprovação Requisitante','Aguardando Entrega','Aguardando Conciliação','Encerrado','Reprovado','Cancelado'];
 
     return `
     <div class="card" style="padding:0;overflow:hidden;">
@@ -831,11 +831,12 @@ window.Pages.consulta = {
   ════════════════════════════════════════════════════════ */
   _statusClass(s) {
     const m = {
-      'Concluído': 'verde', 'Finalizado': 'verde',
+      'Encerrado': 'verde', 'Finalizado': 'verde',
       'Aguardando Conciliação': 'azul',
-      'Em Cotação': 'roxo',
-      'Aguardando Aprovação': 'amber',
+      'Fornecedores & Cotação': 'roxo',
+      'Aguardando Aprovação Requisitante': 'roxo',
       'Aguardando Aprovação do Gestor': 'amber',
+      'Aguardando Entrega': 'amber',
       'Reprovado': 'red', 'Cancelado': 'red',
     };
     return m[s] || 'cinza';
