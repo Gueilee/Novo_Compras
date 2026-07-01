@@ -219,53 +219,6 @@ window.Pages.recebimento = {
 
           <div style="height:1px;background:var(--border);margin-bottom:28px;"></div>
 
-          <!-- Seção: Desconto Adicional / Saving Manual -->
-          <div style="margin-bottom:28px;">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-              <div style="width:28px;height:28px;background:#d1fae5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#059669;flex-shrink:0;">
-                <i class="fa-solid fa-arrow-trend-down" style="font-size:13px;"></i>
-              </div>
-              <span style="font-size:14px;font-weight:700;color:var(--text);">Registrar Desconto Adicional</span>
-              <span style="font-size:11px;color:var(--text-muted);">(opcional — salva no Painel de Saving)</span>
-              <label class="cfg-toggle" style="margin-left:auto;" title="Registrar saving manual">
-                <input type="checkbox" id="rec-sav-toggle" onchange="Pages.recebimento._toggleSaving(this.checked)">
-                <span class="cfg-toggle-slider"></span>
-              </label>
-            </div>
-            <div id="rec-sav-fields" style="display:none;background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:var(--r-md);padding:18px 20px;">
-              <div style="font-size:12.5px;color:#065f46;margin-bottom:14px;line-height:1.5;">
-                <i class="fa-solid fa-circle-info" style="margin-right:5px;"></i>
-                Use quando conseguir um desconto após a seleção do fornecedor (negociação por telefone, e-mail etc.).
-                Informe o preço final acordado — a diferença será registrada como saving no seu indicador.
-                Se a NF vier com valor menor que a PO, o sistema não irá bloquear por divergência de preço.
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
-                <div class="form-group" style="margin:0;">
-                  <label class="form-label" style="color:#065f46;font-weight:700;">
-                    Preço final negociado com o fornecedor (R$)
-                  </label>
-                  <input type="number" class="form-control" id="rec-sav-preco"
-                         min="0" step="0.01" placeholder="0,00"
-                         style="height:44px;font-size:14px;border-color:#059669;background:#fff;"
-                         oninput="Pages.recebimento._calcSaving()">
-                  <div style="font-size:11px;color:#64748b;margin-top:4px;">
-                    Valor do PO de referência:
-                    <strong id="rec-sav-ref-po">—</strong>
-                  </div>
-                </div>
-                <div style="display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:4px;">
-                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">
-                    Saving calculado
-                  </div>
-                  <div id="rec-sav-valor" style="font-size:26px;font-weight:800;color:#94a3b8;line-height:1.1;">—</div>
-                  <div id="rec-sav-pct"   style="font-size:12px;color:#94a3b8;margin-top:4px;"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style="height:1px;background:var(--border);margin-bottom:28px;"></div>
-
           <!-- Botão executar -->
           <button class="btn btn-primary btn-lg btn-block" style="height:52px;font-size:15px;font-weight:700;letter-spacing:0.3px;"
                   onclick="Pages.recebimento.realizarMatch()">
@@ -555,41 +508,6 @@ window.Pages.recebimento = {
     if (el) el.style.display = checked ? '' : 'none';
   },
 
-  _toggleSaving(checked) {
-    const el = document.getElementById('rec-sav-fields');
-    if (el) el.style.display = checked ? '' : 'none';
-    if (checked) {
-      // Exibe o valor de referência da PO no campo
-      const refEl = document.getElementById('rec-sav-ref-po');
-      if (refEl) refEl.textContent = this._valorPO > 0
-        ? `R$ ${this._valorPO.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-        : '(não disponível)';
-      document.getElementById('rec-sav-preco')?.focus();
-    }
-  },
-
-  _calcSaving() {
-    const precoNeg = parseFloat(document.getElementById('rec-sav-preco')?.value);
-    const valorEl  = document.getElementById('rec-sav-valor');
-    const pctEl    = document.getElementById('rec-sav-pct');
-    const base     = this._valorPO;
-
-    const _clear = () => {
-      if (valorEl) { valorEl.textContent = '—'; valorEl.style.color = '#94a3b8'; }
-      if (pctEl)   { pctEl.textContent = ''; }
-    };
-
-    if (!precoNeg || precoNeg <= 0 || !base || precoNeg >= base) { _clear(); return; }
-
-    const saving = base - precoNeg;
-    const pct    = (saving / base) * 100;
-    if (valorEl) {
-      valorEl.textContent = `R$ ${saving.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      valorEl.style.color = '#059669';
-    }
-    if (pctEl) pctEl.textContent = `${pct.toFixed(1)}% abaixo do valor da PO`;
-  },
-
   async realizarMatch() {
     const nf    = document.getElementById('rec-nf')?.value?.trim();
     const qtd   = parseFloat(document.getElementById('rec-qtd')?.value);
@@ -598,15 +516,6 @@ window.Pages.recebimento = {
     if (!nf)              { Toast.warning('Campo obrigatório', 'Informe o número da NF.'); return; }
     if (!qtd || qtd <= 0) { Toast.warning('Campo obrigatório', 'Informe a quantidade recebida.'); return; }
     if (!valor || valor <= 0) { Toast.warning('Campo obrigatório', 'Informe o valor da NF.'); return; }
-
-    // Saving manual: lê preço negociado se toggle ativo
-    const savToggle = document.getElementById('rec-sav-toggle');
-    let precoNegFinal = null;
-    if (savToggle?.checked) {
-      const v = parseFloat(document.getElementById('rec-sav-preco')?.value);
-      if (!v || v <= 0) { Toast.warning('Campo obrigatório', 'Informe o preço final negociado ou desative o toggle de desconto.'); return; }
-      precoNegFinal = v;
-    }
 
     const resEl = document.getElementById('rec-resultado');
     resEl.innerHTML = `
@@ -629,7 +538,6 @@ window.Pages.recebimento = {
 
     try {
       const matchBody = { numero_nf: nf, qtd_recebida: qtd, valor_nf: valor };
-      if (precoNegFinal) matchBody.preco_negociado_final = precoNegFinal;
       const res = await Api.post(`/api/recebimento/match/${this._pedidoAtual}`, matchBody);
 
       const approved = res.status === 'APROVADO';

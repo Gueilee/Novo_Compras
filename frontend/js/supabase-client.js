@@ -56,6 +56,11 @@ async function _route(method, path, body) {
   const mAprov = basePath.match(/^\/api\/aprovacoes\/(\d+)$/);
   if (method === 'POST' && mAprov) return _aprovarRequisicao(+mAprov[1], body);
 
+  // Atribuição de comprador
+  if (full === 'GET /api/atribuicao/pendentes') return _listarPendentesAtribuicao();
+  const mAtrib = basePath.match(/^\/api\/atribuicao\/(\d+)$/);
+  if (method === 'PATCH' && mAtrib) return _atribuirComprador(+mAtrib[1], body);
+
   // Sourcing
   if (full === 'GET /api/sourcing/segmentos') return _sourcingSegmentos();
   if (full === 'GET /api/sourcing/pedidos-aprovados') return _pedidosAprovados();
@@ -1510,9 +1515,17 @@ async function _configOpcoes() {
 async function _verificarUsuario(path) {
   const params = new URLSearchParams(path.split('?')[1] || '');
   const email  = params.get('email') || '';
-  if (!email) return { ativo: 0 };
-  const { data } = await _sb.from('usuarios').select('ativo').ilike('email', email).maybeSingle();
-  return { ativo: data?.ativo ?? 0 };
+  if (!email) return { ativo: 0, nome: '', cargo: '' };
+  const { data } = await _sb.from('usuarios')
+    .select('id, nome, email, cargo, ativo, unidade')
+    .ilike('email', email).maybeSingle();
+  return {
+    ativo:    data?.ativo   ?? 0,
+    nome:     data?.nome    || '',
+    cargo:    data?.cargo   || '',
+    unidade:  data?.unidade || '',
+    id:       data?.id      || null,
+  };
 }
 
 async function _listarUsuarios() {
@@ -1905,6 +1918,35 @@ async function _getCadastroFornecedor(path) {
     .select('*')
     .eq('cnpj', cnpj).maybeSingle();
   return data || null;
+}
+
+// ── Atribuição de Comprador ────────────────────────────────
+async function _listarPendentesAtribuicao() {
+  const { data, error } = await _sb.from('requisicoes')
+    .select('id_sharepoint, comprador, unidade, setor, data_solicitacao, status, justificativa, itens_requisicao(descricao, quantidade)')
+    .eq('status', 'Aguardando Cotação')
+    .order('id_sharepoint', { ascending: false });
+  if (error) _err(error);
+  return (data || []).map(r => ({
+    id:         r.id_sharepoint,
+    solicitante: r.comprador,
+    comprador:  r.comprador,
+    unidade:    r.unidade,
+    setor:      r.setor,
+    data:       r.data_solicitacao,
+    justificativa: r.justificativa,
+    itens:      (r.itens_requisicao || []).map(i => ({ descricao: i.descricao, quantidade: i.quantidade })),
+  }));
+}
+
+async function _atribuirComprador(id, body) {
+  if (!body.comprador) throw new Error('Comprador não informado');
+  const { error } = await _sb.from('requisicoes')
+    .update({ comprador: body.comprador, updated_at: new Date().toISOString() })
+    .eq('id_sharepoint', id);
+  if (error) _err(error);
+  _logAtividade(id, `Comprador atribuído: ${body.comprador}`, body.comprador, null).catch(() => {});
+  return { status: 'ok' };
 }
 
 async function _listarFornecedoresGestao(path) {

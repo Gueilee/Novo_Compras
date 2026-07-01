@@ -84,6 +84,11 @@
         <span>Painel de Requisições</span>
       </div>
 
+      <div class="nav-item" id="nav-atribuicao" onclick="App.navigate('atribuicao')" style="display:none;">
+        <i class="fa-solid fa-user-tag"></i>
+        <span>Atribuição de Comprador</span>
+      </div>
+
       <div class="nav-item" id="nav-sourcing" onclick="App.navigate('sourcing')">
         <i class="fa-solid fa-magnifying-glass-chart"></i>
         <span>Fornecedores & Cotação</span>
@@ -334,7 +339,7 @@
 <!-- Utilities (must load first) -->
 <script src="js/utils.js?v=22"></script>
 <!-- Supabase data layer (overrides Api from utils.js) -->
-<script src="js/supabase-client.js?v=22"></script>
+<script src="js/supabase-client.js?v=23"></script>
 <script src="js/mapa-cotacao.js?v=22"></script>
 <script src="js/po-compra.js?v=22"></script>
 
@@ -343,8 +348,9 @@
 <script src="js/pages/dashboard.js?v=22"></script>
 <script src="js/pages/pedidos.js?v=22"></script>
 <script src="js/pages/intake.js?v=22"></script>
-<script src="js/pages/aprovacoes.js?v=22"></script>
-<script src="js/pages/sourcing.js?v=22"></script>
+<script src="js/pages/aprovacoes.js?v=23"></script>
+<script src="js/pages/atribuicao.js?v=23"></script>
+<script src="js/pages/sourcing.js?v=23"></script>
 <script src="js/pages/entregas.js?v=22"></script>
 <script src="js/pages/recebimento.js?v=22"></script>
 <script src="js/pages/catalogo.js?v=22"></script>
@@ -371,6 +377,22 @@
     });
     if (ok) { localStorage.removeItem('shp_user_email'); window.location.href = 'login.html'; }
   }
+</script>
+
+<!-- Visibilidade do nav item de Atribuição (restrito às gestoras de compras) -->
+<script>
+  (async function _checkNavAtribuicao() {
+    const _GESTORAS_NOMES = ['Janaina Ferreira', 'Paola Schreiber'];
+    const email = localStorage.getItem('shp_user_email') || '';
+    if (!email) return;
+    try {
+      const perfil = await Api.get(`/api/usuarios/verificar?email=${encodeURIComponent(email)}`);
+      if (_GESTORAS_NOMES.includes(perfil.nome)) {
+        const navEl = document.getElementById('nav-atribuicao');
+        if (navEl) navEl.style.display = '';
+      }
+    } catch {}
+  })();
 </script>
 
 <!-- API status check -->
