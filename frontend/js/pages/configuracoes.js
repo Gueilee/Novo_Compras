@@ -1236,76 +1236,18 @@ window.Pages.configuracoes = {
 
   /* ══════════════════════════════════════════════════════════
      TAB 4 — FORNECEDORES HOMOLOGADOS
+     Delega para Pages.fornecedores (UI completa com KPIs,
+     busca, filtros, paginação e drawer de detalhes).
   ══════════════════════════════════════════════════════════ */
   async _loadFornecedores() {
     const el = document.getElementById('cfg-content');
-    el.innerHTML = `<div style="padding:50px;text-align:center;"><div class="spinner"></div></div>`;
-    try {
-      const rows = await Api.get('/api/catalogo/fornecedores');
-      el.innerHTML = this._htmlFornecedoresTab(rows);
-    } catch {
-      el.innerHTML = `<div class="cfg-empty"><i class="fa-solid fa-circle-xmark"></i><p>Erro ao carregar fornecedores</p></div>`;
+    if (!window.Pages?.fornecedores) {
+      el.innerHTML = `<div class="cfg-empty"><i class="fa-solid fa-circle-xmark"></i><p>Módulo de fornecedores não carregado. Recarregue a página.</p></div>`;
+      return;
     }
+    el.innerHTML = `<div style="padding:0;">${Pages.fornecedores.render()}</div>`;
+    await Pages.fornecedores.init();
   },
-
-  _htmlFornecedoresTab(rows) {
-    const tableRows = !rows.length
-      ? `<tr><td colspan="6"><div class="cfg-empty"><i class="fa-solid fa-building-user"></i><p>Nenhum fornecedor cadastrado.<br>Clique em "Novo Fornecedor" para começar.</p></div></td></tr>`
-      : rows.map(f => `
-          <tr id="frow-${(f.cnpj||'').replace(/\D/g,'')}">
-            <td>
-              <div style="font-weight:600;color:var(--text);">${f.razao_social || f.nome || '—'}</div>
-              <div style="font-size:11.5px;color:var(--text-muted);">${f.cnpj || '—'}</div>
-            </td>
-            <td style="font-size:12.5px;">${f.segmento || f.categoria || '<span style="color:var(--text-subtle);">—</span>'}</td>
-            <td style="font-size:12.5px;">${f.cidade ? `${f.cidade}${f.estado ? '/' + f.estado : ''}` : '<span style="color:var(--text-subtle);">—</span>'}</td>
-            <td style="font-size:12.5px;">${f.email || '<span style="color:var(--text-subtle);">—</span>'}</td>
-            <td style="font-size:12.5px;">${f.telefone || '<span style="color:var(--text-subtle);">—</span>'}</td>
-            <td style="text-align:center;white-space:nowrap;">
-              <button class="cfg-act-btn cfg-act-edit"
-                      onclick="Pages.configuracoes._editFornecedor('${(f.cnpj||'').replace(/\D/g,'')}')"
-                      title="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
-              <button class="cfg-act-btn cfg-act-del"
-                      onclick="Pages.configuracoes._delFornecedor('${(f.cnpj||'').replace(/\D/g,'')}','${(f.razao_social||f.nome||'').replace(/'/g,'')}')"
-                      title="Excluir"><i class="fa-solid fa-trash"></i></button>
-            </td>
-          </tr>`).join('');
-
-    return `
-      <div class="cfg-card">
-        <div class="cfg-card-hdr">
-          <span class="cfg-card-title">
-            <i class="fa-solid fa-building-user"></i>
-            Fornecedores Homologados
-            <span class="badge badge-gray" style="margin-left:4px;">${rows.length}</span>
-          </span>
-          <button class="btn btn-outline btn-sm" onclick="Pages.configuracoes._linkCadastroFornecedor()"
-                  title="Gerar link para o fornecedor preencher o próprio cadastro">
-            <i class="fa-solid fa-link"></i> Link de Auto-Cadastro
-          </button>
-          <button class="btn btn-primary btn-sm" onclick="Pages.configuracoes._newFornecedor()">
-            <i class="fa-solid fa-plus"></i> Novo Fornecedor
-          </button>
-        </div>
-        <div class="cfg-table-wrap">
-          <table class="cfg-table">
-            <thead>
-              <tr>
-                <th>Razão Social / CNPJ</th>
-                <th>Segmento</th>
-                <th>Cidade/UF</th>
-                <th>E-mail</th>
-                <th>Telefone</th>
-                <th style="width:72px;text-align:center;">Ações</th>
-              </tr>
-            </thead>
-            <tbody>${tableRows}</tbody>
-          </table>
-        </div>
-      </div>`;
-  },
-
-  _newFornecedor() { this._openFornecedorDrawer(null); },
 
   _linkCadastroFornecedor() {
     const base = window.location.href.split('#')[0].replace(/\/[^/]*$/, '/');
