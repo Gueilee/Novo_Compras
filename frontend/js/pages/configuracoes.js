@@ -45,6 +45,14 @@ window.Pages.configuracoes = {
                 onclick="Pages.configuracoes._switchTab('categorias')">
           <i class="fa-solid fa-tags"></i> Categorias
         </button>
+        <button class="cfg-tab" data-tab="segmentos"
+                onclick="Pages.configuracoes._switchTab('segmentos')">
+          <i class="fa-solid fa-layer-group"></i> Segmentos de Compra
+        </button>
+        <button class="cfg-tab" data-tab="despesas"
+                onclick="Pages.configuracoes._switchTab('despesas')">
+          <i class="fa-solid fa-receipt"></i> Tipos de Despesa
+        </button>
       </div>
 
       <!-- Content -->
@@ -225,6 +233,8 @@ window.Pages.configuracoes = {
     else if (tab === 'orcamento')   this._loadOrcamento();
     else if (tab === 'fornecedores') this._loadFornecedores();
     else if (tab === 'categorias')  this._loadCategorias();
+    else if (tab === 'segmentos')   this._loadSegmentos();
+    else if (tab === 'despesas')    this._loadDespesas();
     else                            this._loadCompradores();
   },
 
@@ -1832,5 +1842,221 @@ window.Pages.configuracoes = {
       Toast.success('Categoria excluída', nome);
       this._loadCategorias();
     } catch { Toast.error('Erro ao excluir categoria'); }
+  },
+
+  /* ══════════════════════════════════════════════════════════
+     TAB 6 — SEGMENTOS DE COMPRA
+  ══════════════════════════════════════════════════════════ */
+  async _loadSegmentos() {
+    const el = document.getElementById('cfg-content');
+    el.innerHTML = `<div style="padding:50px;text-align:center;"><div class="spinner"></div></div>`;
+    try {
+      const rows = await Api.get('/api/config/segmentos-compra');
+      el.innerHTML = this._htmlListaSimples({
+        rows, entity: 'segmentos', icon: 'fa-layer-group',
+        title: 'Segmentos de Compra', desc: 'Classificação interna do tipo de compra',
+        addLabel: 'Novo Segmento',
+        onAdd:    'Pages.configuracoes._openItemDrawer("segmentos",null)',
+        onEdit:   id => `Pages.configuracoes._openItemDrawer('segmentos',${id})`,
+        onDel:    (id, nome) => `Pages.configuracoes._delItem('segmentos',${id},'${nome}')`,
+      });
+    } catch {
+      el.innerHTML = `<div class="cfg-empty"><i class="fa-solid fa-circle-xmark"></i><p>Erro ao carregar segmentos</p></div>`;
+    }
+  },
+
+  /* ══════════════════════════════════════════════════════════
+     TAB 7 — TIPOS DE DESPESA
+  ══════════════════════════════════════════════════════════ */
+  async _loadDespesas() {
+    const el = document.getElementById('cfg-content');
+    el.innerHTML = `<div style="padding:50px;text-align:center;"><div class="spinner"></div></div>`;
+    try {
+      const rows = await Api.get('/api/config/tipo-despesa');
+      el.innerHTML = this._htmlListaSimples({
+        rows, entity: 'despesas', icon: 'fa-receipt',
+        title: 'Tipos de Despesa', desc: 'Classificação contábil dos pedidos de compra',
+        addLabel: 'Novo Tipo',
+        onAdd:    'Pages.configuracoes._openItemDrawer("despesas",null)',
+        onEdit:   id => `Pages.configuracoes._openItemDrawer('despesas',${id})`,
+        onDel:    (id, nome) => `Pages.configuracoes._delItem('despesas',${id},'${nome}')`,
+      });
+    } catch {
+      el.innerHTML = `<div class="cfg-empty"><i class="fa-solid fa-circle-xmark"></i><p>Erro ao carregar tipos de despesa</p></div>`;
+    }
+  },
+
+  /* ── Renderer genérico para listas simples (segmentos / despesas) ─── */
+  _htmlListaSimples({ rows, entity, icon, title, desc, addLabel, onAdd, onEdit, onDel }) {
+    const active   = rows.filter(r => r.ativo);
+    const inactive = rows.filter(r => !r.ativo);
+
+    const rowHtml = (r) => `
+      <tr id="${entity}row-${r.id}" class="${r.ativo ? '' : 'cfg-inactive'}">
+        <td style="font-weight:500;color:var(--text);">${r.nome}</td>
+        <td>
+          ${r.ativo
+            ? '<span class="badge badge-success" style="font-size:11px;">Ativo</span>'
+            : '<span class="badge badge-gray" style="font-size:11px;">Inativo</span>'}
+        </td>
+        <td style="text-align:center;white-space:nowrap;">
+          <button class="cfg-act-btn cfg-act-edit" title="Editar"
+                  onclick="${onEdit(r.id)}">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
+          <button class="cfg-act-btn cfg-act-del" title="Excluir"
+                  onclick="${onDel(r.id, r.nome.replace(/'/g, ''))}">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>`;
+
+    const tableRows = rows.length === 0
+      ? `<tr><td colspan="3"><div class="cfg-empty">
+           <i class="fa-solid fa-${icon}"></i>
+           <p>Nenhum item cadastrado. Clique em "${addLabel}" para começar.</p>
+         </div></td></tr>`
+      : [...active, ...inactive].map(rowHtml).join('');
+
+    return `
+      <div class="cfg-card">
+        <div class="cfg-card-hdr">
+          <span class="cfg-card-title">
+            <i class="fa-solid fa-${icon}"></i>
+            ${title}
+            <span class="badge badge-gray" style="margin-left:4px;">${active.length} ativos</span>
+            ${inactive.length > 0 ? `<span class="badge badge-gray" style="margin-left:2px;opacity:.6;">${inactive.length} inativos</span>` : ''}
+          </span>
+          <button class="btn btn-primary btn-sm" onclick="${onAdd}">
+            <i class="fa-solid fa-plus"></i> ${addLabel}
+          </button>
+        </div>
+        <div style="padding:10px 22px 8px;font-size:12.5px;color:var(--text-muted);">
+          <i class="fa-solid fa-circle-info" style="color:var(--brand);margin-right:4px;"></i>
+          ${desc} — disponível como opção na tela <strong>Nova Requisição</strong>.
+        </div>
+        <div class="cfg-table-wrap">
+          <table class="cfg-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th style="width:90px;">Status</th>
+                <th style="width:72px;text-align:center;">Ações</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  /* ── Drawer genérico: novo / editar segmento ou despesa ─── */
+  async _openItemDrawer(entity, id) {
+    const isEdit  = id !== null;
+    const apiPath = entity === 'segmentos' ? '/api/config/segmentos-compra' : '/api/config/tipo-despesa';
+    const label   = entity === 'segmentos' ? 'Segmento de Compra' : 'Tipo de Despesa';
+    const reload  = entity === 'segmentos' ? () => this._loadSegmentos() : () => this._loadDespesas();
+
+    let currentNome = '', currentAtivo = true;
+    if (isEdit) {
+      try {
+        const all = await Api.get(apiPath);
+        const item = all.find(r => r.id === id);
+        if (!item) { Toast.error('Item não encontrado'); return; }
+        currentNome  = item.nome;
+        currentAtivo = item.ativo;
+      } catch { Toast.error('Erro ao carregar item'); return; }
+    }
+
+    document.getElementById('cfg-drawer-root')?.remove();
+    const root = document.createElement('div');
+    root.id = 'cfg-drawer-root';
+    root.innerHTML = `
+      <div class="cfg-backdrop" id="cfg-backdrop">
+        <div class="cfg-drawer" style="width:380px;">
+          <div class="cfg-drw-hdr">
+            <div class="cfg-drw-title">${isEdit ? `Editar ${label}` : `Novo ${label}`}</div>
+            <button class="cfg-drw-close" id="cfg-drw-close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="cfg-drw-body">
+            <div class="form-group">
+              <label class="form-label form-label-required">Nome</label>
+              <input class="form-control" id="item-drw-nome" type="text"
+                     placeholder="Digite o nome em maiúsculas..." value="${currentNome}"
+                     style="text-transform:uppercase;">
+            </div>
+            ${isEdit ? `
+            <div class="form-group">
+              <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;">
+                <span>Item Ativo</span>
+                <label class="cfg-toggle">
+                  <input type="checkbox" id="item-drw-ativo" ${currentAtivo ? 'checked' : ''}>
+                  <span class="cfg-toggle-slider"></span>
+                </label>
+              </label>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">
+                Itens inativos não aparecem nas opções da Nova Requisição.
+              </div>
+            </div>` : ''}
+          </div>
+          <div class="cfg-drw-footer">
+            <button class="btn btn-outline" id="item-drw-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="item-drw-save">
+              <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Salvar' : `Criar ${label}`}
+            </button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+
+    const close = () => root.remove();
+    document.getElementById('cfg-drw-close').addEventListener('click', close);
+    document.getElementById('item-drw-cancel').addEventListener('click', close);
+    document.getElementById('cfg-backdrop').addEventListener('click', e => {
+      if (e.target.id === 'cfg-backdrop') close();
+    });
+    setTimeout(() => document.getElementById('item-drw-nome')?.focus(), 80);
+
+    document.getElementById('item-drw-save').addEventListener('click', async () => {
+      const nome  = (document.getElementById('item-drw-nome').value || '').trim().toUpperCase();
+      const ativo = isEdit ? document.getElementById('item-drw-ativo').checked : true;
+      if (!nome) { Toast.warning('Campo obrigatório', 'Informe o nome.'); return; }
+
+      const btn = document.getElementById('item-drw-save');
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      try {
+        if (isEdit) {
+          await Api.patch(`${apiPath}/${id}`, { nome, ativo });
+          Toast.success(`${label} atualizado`, nome);
+        } else {
+          await Api.post(apiPath, { nome });
+          Toast.success(`${label} criado`, nome);
+        }
+        close();
+        reload();
+      } catch (err) {
+        Toast.error('Erro ao salvar', err.message || '');
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Salvar' : `Criar ${label}`}`;
+      }
+    });
+  },
+
+  async _delItem(entity, id, nome) {
+    const label   = entity === 'segmentos' ? 'segmento' : 'tipo de despesa';
+    const apiPath = entity === 'segmentos' ? '/api/config/segmentos-compra' : '/api/config/tipo-despesa';
+    const reload  = entity === 'segmentos' ? () => this._loadSegmentos() : () => this._loadDespesas();
+    const ok = await Modal.confirm({
+      icon: 'danger',
+      title: `Excluir ${label}?`,
+      body: `<strong>${nome || 'O item selecionado'}</strong> será removido permanentemente da lista de opções.`,
+      confirmText: 'Excluir', confirmClass: 'btn-danger',
+    });
+    if (!ok) return;
+    try {
+      await Api.delete(`${apiPath}/${id}`);
+      Toast.success(`${label.charAt(0).toUpperCase() + label.slice(1)} excluído`, nome);
+      reload();
+    } catch { Toast.error(`Erro ao excluir ${label}`); }
   },
 };

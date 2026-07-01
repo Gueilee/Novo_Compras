@@ -9,6 +9,8 @@ window.Pages.intake = {
   _macros: {},
   _unidades: [],
   _setores: [],
+  _segmentos: [],
+  _despesas: [],
 
   render() {
     return `
@@ -87,6 +89,23 @@ window.Pages.intake = {
             <textarea class="form-control" id="in-justificativa" rows="3"
                       placeholder="Explique o motivo desta solicitação: reposição de estoque, novo projeto, substituição de equipamento..."
                       style="resize:vertical;"></textarea>
+          </div>
+        </div>
+        <div class="form-grid form-grid-2 mt-2">
+          <div class="form-group">
+            <label class="form-label form-label-required">Segmento de Compra</label>
+            <select class="form-control" id="in-segmento-compra">
+              <option value="">Carregando...</option>
+            </select>
+            <input type="text" class="form-control mt-1" id="in-segmento-outro"
+                   placeholder="Descreva o segmento..."
+                   style="display:none;text-transform:uppercase;">
+          </div>
+          <div class="form-group">
+            <label class="form-label form-label-required">Tipo de Despesa</label>
+            <select class="form-control" id="in-tipo-despesa">
+              <option value="">Carregando...</option>
+            </select>
           </div>
         </div>
 
@@ -234,14 +253,40 @@ window.Pages.intake = {
         });
       }
 
-      // ── 2. Categorias: busca do endpoint de formulário ──
-      const dados = await Api.get('/api/opcoes-formulario');
+      // ── 2. Categorias + Segmentos + Despesas ──────────────────
+      const [dados, segsRaw, despsRaw] = await Promise.all([
+        Api.get('/api/opcoes-formulario'),
+        Api.get('/api/config/segmentos-compra').catch(() => []),
+        Api.get('/api/config/tipo-despesa').catch(() => []),
+      ]);
+
       this._macros = dados.categorias || {};
-      // Garante uppercase
       const allCats = Object.values(this._macros).flat()
         .map(c => (c || '').toUpperCase()).filter(Boolean);
-      // Remove duplicatas e ordena
       this._categorias = [...new Set(allCats)].sort();
+
+      this._segmentos = (segsRaw || []).filter(s => s.ativo).map(s => s.nome);
+      this._despesas  = (despsRaw || []).filter(d => d.ativo).map(d => d.nome);
+
+      // Popula select de Segmento de Compra
+      const selSeg = document.getElementById('in-segmento-compra');
+      if (selSeg) {
+        selSeg.innerHTML = '<option value="">Selecione...</option>' +
+          this._segmentos.map(s => `<option value="${s}">${s}</option>`).join('') +
+          '<option value="__outro__">OUTRO (descreva abaixo)</option>';
+        selSeg.addEventListener('change', () => {
+          const outro = document.getElementById('in-segmento-outro');
+          if (outro) outro.style.display = selSeg.value === '__outro__' ? '' : 'none';
+          if (selSeg.value === '__outro__') outro.focus();
+        });
+      }
+
+      // Popula select de Tipo de Despesa
+      const selDesp = document.getElementById('in-tipo-despesa');
+      if (selDesp) {
+        selDesp.innerHTML = '<option value="">Selecione...</option>' +
+          this._despesas.map(d => `<option value="${d}">${d}</option>`).join('');
+      }
 
       this._updateItemsVisibility();
       this.adicionarLinha(true);
@@ -454,10 +499,19 @@ window.Pages.intake = {
     const comprador    = document.getElementById('in-comprador')?.value?.trim();
     const justificativa = document.getElementById('in-justificativa')?.value?.trim();
 
-    if (!unidade)      { Toast.warning('Campo obrigatório', 'Selecione a unidade solicitante.'); return; }
-    if (!setor)        { Toast.warning('Campo obrigatório', 'Selecione o setor/departamento.'); return; }
-    if (!comprador)    { Toast.warning('Campo obrigatório', 'Informe o nome do solicitante.'); return; }
-    if (!justificativa){ Toast.warning('Campo obrigatório', 'Informe a justificativa da solicitação.'); return; }
+    // Segmento de compra (com suporte a "OUTRO" livre)
+    const segSel   = document.getElementById('in-segmento-compra')?.value;
+    const segOutro = document.getElementById('in-segmento-outro')?.value?.trim().toUpperCase();
+    const segmento_compra = segSel === '__outro__' ? (segOutro || '') : (segSel || '');
+
+    const tipo_despesa = document.getElementById('in-tipo-despesa')?.value;
+
+    if (!unidade)        { Toast.warning('Campo obrigatório', 'Selecione a unidade solicitante.'); return; }
+    if (!setor)          { Toast.warning('Campo obrigatório', 'Selecione o setor/departamento.'); return; }
+    if (!comprador)      { Toast.warning('Campo obrigatório', 'Informe o nome do solicitante.'); return; }
+    if (!justificativa)  { Toast.warning('Campo obrigatório', 'Informe a justificativa da solicitação.'); return; }
+    if (!segmento_compra){ Toast.warning('Campo obrigatório', 'Selecione o segmento de compra.'); return; }
+    if (!tipo_despesa)   { Toast.warning('Campo obrigatório', 'Selecione o tipo de despesa.'); return; }
 
     const rows = document.querySelectorAll('#intake-items-body tr[data-id]');
     const itens = Array.from(rows).map(tr => {
@@ -500,7 +554,7 @@ window.Pages.intake = {
     btn.innerHTML = `<span class="spinner-sm"></span> Enviando...`;
 
     try {
-      const result = await Api.post('/requisicoes', { unidade, setor, comprador, justificativa, itens });
+      const result = await Api.post('/requisicoes', { unidade, setor, comprador, justificativa, segmento_compra, tipo_despesa, itens });
       const reqId = result.id_pedido;
 
       // Upload any attached files

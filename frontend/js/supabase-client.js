@@ -199,6 +199,20 @@ async function _route(method, path, body) {
   if (method === 'PATCH'  && mCatId) return _atualizarCategoria(+mCatId[1], body);
   if (method === 'DELETE' && mCatId) return _deletarCategoria(+mCatId[1]);
 
+  // Segmentos de Compra
+  if (full === 'GET /api/config/segmentos-compra')  return _listarSegmentosCompra();
+  if (full === 'POST /api/config/segmentos-compra') return _criarSegmentoCompra(body);
+  const mSegComp = basePath.match(/^\/api\/config\/segmentos-compra\/(\d+)$/);
+  if (method === 'PATCH'  && mSegComp) return _atualizarSegmentoCompra(+mSegComp[1], body);
+  if (method === 'DELETE' && mSegComp) return _deletarSegmentoCompra(+mSegComp[1]);
+
+  // Tipos de Despesa
+  if (full === 'GET /api/config/tipo-despesa')  return _listarTipoDespesa();
+  if (full === 'POST /api/config/tipo-despesa') return _criarTipoDespesa(body);
+  const mTipDesp = basePath.match(/^\/api\/config\/tipo-despesa\/(\d+)$/);
+  if (method === 'PATCH'  && mTipDesp) return _atualizarTipoDespesa(+mTipDesp[1], body);
+  if (method === 'DELETE' && mTipDesp) return _deletarTipoDespesa(+mTipDesp[1]);
+
   // Controle de Estoque
   if (full === 'GET /api/estoque')           return _listarEstoque();
   if (full === 'GET /api/estoque/busca')     return _buscarEstoque(path);
@@ -576,6 +590,8 @@ async function _criarRequisicao(body) {
   const { data: req, error } = await _sb.from('requisicoes').insert({
     unidade: body.unidade, setor: body.setor, comprador: body.comprador,
     observacoes: body.observacoes, justificativa: body.justificativa,
+    segmento_compra: body.segmento_compra || null,
+    tipo_despesa:    body.tipo_despesa    || null,
     status: 'Aguardando Aprovação',
     data_solicitacao: new Date().toLocaleDateString('pt-BR')
   }).select().single();
@@ -1760,6 +1776,62 @@ async function _atualizarCategoria(id, body) {
 
 async function _deletarCategoria(id) {
   const { error } = await _sb.from('categorias').delete().eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+// ── Segmentos de Compra ────────────────────────────────────
+async function _listarSegmentosCompra() {
+  const { data, error } = await _sb.from('segmentos_compra').select('id, nome, ativo, ordem').order('ordem').order('nome');
+  if (error) _err(error);
+  return data || [];
+}
+async function _criarSegmentoCompra(body) {
+  const nome = (body.nome || '').trim().toUpperCase();
+  if (!nome) throw new Error('Nome obrigatório');
+  const { data, error } = await _sb.from('segmentos_compra').insert({ nome, ativo: true, ordem: body.ordem || 999 }).select().single();
+  if (error) _err(error);
+  return data;
+}
+async function _atualizarSegmentoCompra(id, body) {
+  const upd = {};
+  if (body.nome  !== undefined) upd.nome  = (body.nome || '').trim().toUpperCase();
+  if (body.ativo !== undefined) upd.ativo = !!body.ativo;
+  if (body.ordem !== undefined) upd.ordem = body.ordem;
+  const { error } = await _sb.from('segmentos_compra').update(upd).eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+async function _deletarSegmentoCompra(id) {
+  const { error } = await _sb.from('segmentos_compra').delete().eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+
+// ── Tipos de Despesa ───────────────────────────────────────
+async function _listarTipoDespesa() {
+  const { data, error } = await _sb.from('tipo_despesa').select('id, nome, ativo, ordem').order('ordem').order('nome');
+  if (error) _err(error);
+  return data || [];
+}
+async function _criarTipoDespesa(body) {
+  const nome = (body.nome || '').trim().toUpperCase();
+  if (!nome) throw new Error('Nome obrigatório');
+  const { data, error } = await _sb.from('tipo_despesa').insert({ nome, ativo: true, ordem: body.ordem || 999 }).select().single();
+  if (error) _err(error);
+  return data;
+}
+async function _atualizarTipoDespesa(id, body) {
+  const upd = {};
+  if (body.nome  !== undefined) upd.nome  = (body.nome || '').trim().toUpperCase();
+  if (body.ativo !== undefined) upd.ativo = !!body.ativo;
+  if (body.ordem !== undefined) upd.ordem = body.ordem;
+  const { error } = await _sb.from('tipo_despesa').update(upd).eq('id', id);
+  if (error) _err(error);
+  return { status: 'ok' };
+}
+async function _deletarTipoDespesa(id) {
+  const { error } = await _sb.from('tipo_despesa').delete().eq('id', id);
   if (error) _err(error);
   return { status: 'ok' };
 }
