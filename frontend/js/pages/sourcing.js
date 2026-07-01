@@ -1095,7 +1095,7 @@ window.Pages.sourcing = {
         <div style="font-size:12px;font-weight:700;color:#065f46;margin-bottom:6px;">
           <i class="fa-solid fa-tags"></i> Desconto Adicional Registrado
         </div>
-        <div style="font-size:12px;color:var(--text-muted);">
+        <div style="font-size:12px;color:#475569;">
           Desconto de <strong>${tipo === '%' ? valor + '%' : fmt(valor)}</strong> aplicado sobre o melhor preço ${fmt(menorPreco)}.
           Preço negociado: <strong style="color:#059669;">${precoFinalSalvo}</strong> · Saving comprador: <strong>${savingComprador}</strong>
         </div>
@@ -1103,11 +1103,11 @@ window.Pages.sourcing = {
     }
 
     return `
-    <div id="desconto-comprador-panel" style="margin-top:14px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:16px;">
+    <div id="desconto-comprador-panel" style="margin-top:14px;background:#ffffff;border:1.5px solid #e2e8f0;border-radius:10px;padding:16px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <i class="fa-solid fa-percent" style="color:var(--brand);font-size:14px;"></i>
-        <span style="font-size:13px;font-weight:700;color:var(--text);">Desconto Adicional do Comprador</span>
-        <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">(opcional — antes de gerar o mapa)</span>
+        <i class="fa-solid fa-percent" style="color:#422c76;font-size:14px;"></i>
+        <span style="font-size:13px;font-weight:700;color:#1e293b;">Desconto Adicional do Comprador</span>
+        <span style="font-size:11px;color:#64748b;margin-left:4px;">(opcional — antes de gerar o mapa)</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div style="display:flex;border:1.5px solid #c4b5fd;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f5f3ff;">
@@ -1125,30 +1125,30 @@ window.Pages.sourcing = {
           </button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:140px;">
-          <span id="dc-prefix" style="font-size:12px;font-weight:700;color:var(--text-muted);">
+          <span id="dc-prefix" style="font-size:12px;font-weight:700;color:#64748b;">
             ${tipo === 'R$' ? 'R$' : '%'}
           </span>
           <input id="dc-valor" type="number" min="0" step="0.01" value="${valor || ''}"
             placeholder="0,00"
             oninput="Pages.sourcing._atualizarPreviewDesconto(${idReq}, ${menorPreco})"
-            style="width:110px;height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;
-            font-size:13px;font-weight:700;font-family:var(--font);background:var(--bg);color:var(--text);outline:none;">
+            style="width:110px;height:34px;padding:0 10px;border:1.5px solid #e2e8f0;border-radius:8px;
+            font-size:13px;font-weight:700;font-family:inherit;background:#f8fafc;color:#1e293b;outline:none;">
         </div>
         <button onclick="Pages.sourcing._salvarDescontoCompradorUI(${idReq}, ${menorPreco})"
-          style="height:34px;padding:0 16px;background:var(--brand);color:#fff;border:none;border-radius:8px;
+          style="height:34px;padding:0 16px;background:#422c76;color:#ffffff;border:none;border-radius:8px;
           font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;">
           <i class="fa-solid fa-floppy-disk"></i> Salvar Desconto
         </button>
         ${temDesc ? `
         <button onclick="Pages.sourcing._limparDescontoComprador(${idReq})"
-          style="height:34px;padding:0 12px;background:transparent;color:var(--text-muted);border:1.5px solid var(--border);
+          style="height:34px;padding:0 12px;background:transparent;color:#64748b;border:1.5px solid #e2e8f0;
           border-radius:8px;font-size:12px;cursor:pointer;" title="Remover desconto">
           <i class="fa-solid fa-xmark"></i>
         </button>` : ''}
       </div>
-      <div id="dc-preview" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:18px;">
+      <div id="dc-preview" style="margin-top:10px;font-size:12px;color:#64748b;min-height:18px;">
         ${precoFinalSalvo
-          ? `Sobre o melhor preço <strong>${fmt(menorPreco)}</strong> → preço negociado <strong style="color:var(--success-dark);">${precoFinalSalvo}</strong> · saving <strong>${savingComprador}</strong>`
+          ? `Sobre o melhor preço <strong>${fmt(menorPreco)}</strong> → preço negociado <strong style="color:#059669;">${precoFinalSalvo}</strong> · saving <strong>${savingComprador}</strong>`
           : `Informe o desconto para ver o preço negociado.`}
       </div>
     </div>`;
@@ -1197,7 +1197,7 @@ window.Pages.sourcing = {
       precoFinal = Math.max(0, menorPreco - valor);
     }
     const saving = menorPreco - precoFinal;
-    previewEl.innerHTML = `Sobre o melhor preço <strong>${fmt(menorPreco)}</strong> → preço negociado <strong style="color:var(--success-dark);">${fmt(precoFinal)}</strong> · saving <strong>${fmt(saving)} (${((saving/menorPreco)*100).toFixed(1)}%)</strong>`;
+    previewEl.innerHTML = `Sobre o melhor preço <strong>${fmt(menorPreco)}</strong> → preço negociado <strong style="color:#059669;">${fmt(precoFinal)}</strong> · saving <strong>${fmt(saving)} (${((saving/menorPreco)*100).toFixed(1)}%)</strong>`;
   },
 
   async _salvarDescontoCompradorUI(idReq, menorPreco) {
