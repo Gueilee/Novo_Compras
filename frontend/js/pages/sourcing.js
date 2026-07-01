@@ -1110,17 +1110,17 @@ window.Pages.sourcing = {
         <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">(opcional — antes de gerar o mapa)</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="display:flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0;">
+        <div style="display:flex;border:1.5px solid #c4b5fd;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f5f3ff;">
           <button id="dc-btn-pct" onclick="Pages.sourcing._setDcTipo('%')"
-            style="padding:6px 14px;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:background .15s;
-            background:${tipo === '%' ? 'var(--brand)' : 'var(--bg)'};
-            color:${tipo === '%' ? '#fff' : 'var(--text-muted)'};">
+            style="padding:7px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:all .15s;
+            background:${tipo === '%' ? '#422c76' : 'transparent'};
+            color:${tipo === '%' ? '#ffffff' : '#6d28d9'};">
             % Percentual
           </button>
           <button id="dc-btn-val" onclick="Pages.sourcing._setDcTipo('R$')"
-            style="padding:6px 14px;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:background .15s;
-            background:${tipo === 'R$' ? 'var(--brand)' : 'var(--bg)'};
-            color:${tipo === 'R$' ? '#fff' : 'var(--text-muted)'};">
+            style="padding:7px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:all .15s;
+            background:${tipo === 'R$' ? '#422c76' : 'transparent'};
+            color:${tipo === 'R$' ? '#ffffff' : '#6d28d9'};">
             R$ Valor fixo
           </button>
         </div>
@@ -1162,12 +1162,12 @@ window.Pages.sourcing = {
     const btnVal = document.getElementById('dc-btn-val');
     const prefix = document.getElementById('dc-prefix');
     if (btnPct) {
-      btnPct.style.background = tipo === '%' ? 'var(--brand)' : 'var(--bg)';
-      btnPct.style.color      = tipo === '%' ? '#fff' : 'var(--text-muted)';
+      btnPct.style.background = tipo === '%' ? '#422c76' : 'transparent';
+      btnPct.style.color      = tipo === '%' ? '#ffffff' : '#6d28d9';
     }
     if (btnVal) {
-      btnVal.style.background = tipo === 'R$' ? 'var(--brand)' : 'var(--bg)';
-      btnVal.style.color      = tipo === 'R$' ? '#fff' : 'var(--text-muted)';
+      btnVal.style.background = tipo === 'R$' ? '#422c76' : 'transparent';
+      btnVal.style.color      = tipo === 'R$' ? '#ffffff' : '#6d28d9';
     }
     if (prefix) prefix.textContent = tipo === 'R$' ? 'R$' : '%';
     const id = this._pedidoSelecionado;
