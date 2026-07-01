@@ -744,7 +744,11 @@ async function _salvarCotacao(body) {
   let lanceId;
   if (existing) {
     await _sb.from('lances_fornecedor').update({
-      preco_unitario: body.preco_unitario, prazo_entrega_dias: body.prazo_entrega,
+      preco_unitario:  body.preco_unitario,
+      preco_original:  body.preco_original || body.preco_unitario,
+      desconto_tipo:   body.desconto_tipo  || null,
+      desconto_valor:  body.desconto_valor || null,
+      prazo_entrega_dias: body.prazo_entrega,
       pagamento: body.pagamento, validade_dias: body.validade_dias,
       observacoes: body.observacoes, frete_incluso: body.frete_incluso,
       imposto_incluso: body.imposto_incluso, data_resposta: _now()
@@ -753,7 +757,10 @@ async function _salvarCotacao(body) {
   } else {
     const { data: novo, error } = await _sb.from('lances_fornecedor').insert({
       id_requisicao: body.id_requisicao, cnpj_fornecedor: cnpjN,
-      preco_unitario: body.preco_unitario, preco_original: body.preco_unitario,
+      preco_unitario:  body.preco_unitario,
+      preco_original:  body.preco_original || body.preco_unitario,
+      desconto_tipo:   body.desconto_tipo  || null,
+      desconto_valor:  body.desconto_valor || null,
       prazo_entrega_dias: body.prazo_entrega,
       pagamento: body.pagamento, validade_dias: body.validade_dias,
       observacoes: body.observacoes, frete_incluso: body.frete_incluso,

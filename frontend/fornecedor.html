@@ -390,6 +390,57 @@
       font-size: 11px; color: #7c3aed; margin-top: 3px;
       text-align: right;
     }
+
+    /* ── Desconto ────────────────────────────────────────────── */
+    .desc-section {
+      background: rgba(255,255,255,.05);
+      border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+    .desc-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
+      font-size: 11.5px; font-weight: 700; color: rgba(255,255,255,.6);
+      text-transform: uppercase; letter-spacing: .07em;
+    }
+    .desc-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 16px; border-radius: 8px; cursor: pointer;
+      font-size: 12.5px; font-weight: 700;
+      border: 1.5px solid rgba(255,255,255,.15);
+      background: rgba(255,255,255,.05); color: rgba(255,255,255,.55);
+      font-family: 'Inter', sans-serif; transition: all .15s;
+    }
+    .desc-toggle:hover { border-color: rgba(167,139,250,.5); color: rgba(255,255,255,.85); }
+    .desc-toggle.active {
+      background: rgba(167,139,250,.2);
+      border-color: #a78bfa;
+      color: #fff;
+    }
+    .desc-input-row {
+      display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    }
+    .desc-tipo-prefix {
+      font-size: 14px; font-weight: 800; color: #a78bfa;
+      min-width: 28px; text-align: center;
+    }
+    .desc-preview {
+      margin-top: 12px; padding: 12px 14px;
+      background: rgba(167,139,250,.08);
+      border: 1px solid rgba(167,139,250,.2);
+      border-radius: 10px;
+    }
+    .desc-preview-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12.5px; color: rgba(255,255,255,.5); margin-bottom: 5px;
+    }
+    .desc-preview-row.final {
+      font-size: 17px; font-weight: 800; color: #a78bfa;
+      border-top: 1px solid rgba(167,139,250,.2); padding-top: 8px; margin-top: 4px; margin-bottom: 0;
+    }
+    .desc-preview-row.discount-row { color: #f87171; }
   </style>
 </head>
 <body>
@@ -835,6 +886,53 @@
           <div class="price-banner-total" id="pb-total" style="font-size:28px;">R$ 0,00</div>
         </div>
         <div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:4px;" id="pb-detail"></div>
+      </div>
+
+      <!-- Desconto opcional -->
+      <div id="desconto-wrap" style="display:none;">
+        <div class="desc-section">
+          <div class="desc-header">
+            <i class="fa-solid fa-tag" style="color:#a78bfa;"></i>
+            Desconto (opcional)
+            <span style="font-size:11px;color:rgba(255,255,255,.35);font-weight:500;text-transform:none;letter-spacing:0;">
+              — atraia o comprador com uma oferta especial
+            </span>
+          </div>
+
+          <!-- Tipo de desconto -->
+          <div style="display:flex;gap:8px;">
+            <button id="desc-btn-pct" class="desc-toggle active" onclick="setDescontoTipo('%')">
+              <i class="fa-solid fa-percent"></i> Percentual
+            </button>
+            <button id="desc-btn-val" class="desc-toggle" onclick="setDescontoTipo('R$')">
+              <i class="fa-solid fa-brazilian-real-sign"></i> Valor fixo
+            </button>
+          </div>
+
+          <!-- Valor do desconto -->
+          <div class="desc-input-row">
+            <span class="desc-tipo-prefix" id="desc-prefix">%</span>
+            <input type="number" class="form-control" id="f-desconto"
+                   placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700;text-align:right;"
+                   oninput="calcularTotal()">
+          </div>
+
+          <!-- Preview resultado -->
+          <div id="desc-preview" class="desc-preview" style="display:none;">
+            <div class="desc-preview-row">
+              <span>Subtotal bruto</span>
+              <span id="desc-original">—</span>
+            </div>
+            <div class="desc-preview-row discount-row">
+              <span id="desc-label-tipo">Desconto</span>
+              <span id="desc-valor-label">—</span>
+            </div>
+            <div class="desc-preview-row final">
+              <span>Preço final</span>
+              <span id="desc-final">—</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Prazo (mantém grid separado) -->
@@ -1439,6 +1537,13 @@ async function carregarRequisicao() {
         if (freteEl && _cotacaoExistente.frete_incluso != null) freteEl.checked = !!_cotacaoExistente.frete_incluso;
         const impEl = document.getElementById('f-imposto');
         if (impEl && _cotacaoExistente.imposto_incluso != null) impEl.checked = !!_cotacaoExistente.imposto_incluso;
+
+        // Desconto anterior
+        if (_cotacaoExistente.desconto_tipo && _cotacaoExistente.desconto_valor > 0) {
+          setDescontoTipo(_cotacaoExistente.desconto_tipo);
+          const descEl = document.getElementById('f-desconto');
+          if (descEl) descEl.value = _cotacaoExistente.desconto_valor;
+        }
       }
     }
 
@@ -1489,27 +1594,66 @@ function renderItensPrecos() {
 }
 
 function calcularTotal() {
-  let total = 0;
+  let totalBruto = 0;
   let detalhes = [];
   _itensCotacao.forEach((it, i) => {
     const input = document.getElementById(`preco-item-${i}`);
     const preco = parseFloat(input?.value) || 0;
     const sub = preco * it.quantidade;
-    total += sub;
+    totalBruto += sub;
     const subEl = document.getElementById(`sub-item-${i}`);
     if (subEl) subEl.textContent = preco > 0 ? `Subtotal: ${Fmt.currency(sub)}` : 'Subtotal: —';
     if (preco > 0) detalhes.push(`${it.descricao}: ${Fmt.currency(preco)} × ${it.quantidade}`);
   });
-  const banner = document.getElementById('price-banner');
-  const totalEl = document.getElementById('pb-total');
-  const detEl = document.getElementById('pb-detail');
-  if (total > 0) {
-    if (totalEl) totalEl.textContent = Fmt.currency(total);
-    if (detEl) detEl.textContent = detalhes.join('  ·  ');
-    if (banner) banner.style.display = '';
+
+  const banner       = document.getElementById('price-banner');
+  const totalEl      = document.getElementById('pb-total');
+  const detEl        = document.getElementById('pb-detail');
+  const descWrap     = document.getElementById('desconto-wrap');
+  const descPreview  = document.getElementById('desc-preview');
+
+  if (totalBruto > 0) {
+    // Calcular desconto
+    const isPct        = document.getElementById('desc-btn-pct')?.classList.contains('active');
+    const descontoNum  = parseFloat(document.getElementById('f-desconto')?.value) || 0;
+    let descontoAbs    = 0;
+    let totalFinal     = totalBruto;
+
+    if (descontoNum > 0) {
+      descontoAbs = isPct ? totalBruto * (descontoNum / 100) : descontoNum;
+      totalFinal  = Math.max(0, totalBruto - descontoAbs);
+    }
+
+    if (totalEl) totalEl.textContent = Fmt.currency(totalFinal);
+    if (detEl)   detEl.textContent   = detalhes.join('  ·  ');
+    if (banner)  banner.style.display = '';
+    if (descWrap) descWrap.style.display = '';
+
+    // Preview do desconto
+    if (descontoNum > 0) {
+      document.getElementById('desc-original').textContent  = Fmt.currency(totalBruto);
+      document.getElementById('desc-label-tipo').textContent = isPct ? `Desconto (${descontoNum}%)` : 'Desconto (R$)';
+      document.getElementById('desc-valor-label').textContent = `− ${Fmt.currency(descontoAbs)}`;
+      document.getElementById('desc-final').textContent     = Fmt.currency(totalFinal);
+      if (descPreview) descPreview.style.display = '';
+    } else {
+      if (descPreview) descPreview.style.display = 'none';
+    }
   } else {
-    if (banner) banner.style.display = 'none';
+    if (banner)  banner.style.display = 'none';
+    if (descWrap) descWrap.style.display = 'none';
   }
+}
+
+function setDescontoTipo(tipo) {
+  const isPct = tipo === '%';
+  document.getElementById('desc-btn-pct')?.classList.toggle('active', isPct);
+  document.getElementById('desc-btn-val')?.classList.toggle('active', !isPct);
+  const prefix = document.getElementById('desc-prefix');
+  if (prefix) prefix.textContent = tipo;
+  const input = document.getElementById('f-desconto');
+  if (input) input.placeholder = isPct ? '0' : '0,00';
+  calcularTotal();
 }
 
 /* ── Toggle cards ───────────────────────────────────────────── */
@@ -1559,8 +1703,18 @@ async function enviar() {
     quantidade: it.quantidade,
     preco_unitario: parseFloat(document.getElementById(`preco-item-${i}`)?.value) || 0
   }));
-  const total = itensPrecos.reduce((s, it) => s + it.quantidade * it.preco_unitario, 0);
+  const totalBruto = itensPrecos.reduce((s, it) => s + it.quantidade * it.preco_unitario, 0);
   const algumPreco = itensPrecos.some(it => it.preco_unitario > 0);
+
+  // Desconto
+  const descontoTipo = document.getElementById('desc-btn-pct')?.classList.contains('active') ? '%' : 'R$';
+  const descontoValor = parseFloat(document.getElementById('f-desconto')?.value) || 0;
+  let totalFinal = totalBruto;
+  if (descontoValor > 0) {
+    totalFinal = descontoTipo === '%'
+      ? totalBruto * (1 - descontoValor / 100)
+      : Math.max(0, totalBruto - descontoValor);
+  }
 
   if (!nome)              { Toast.warning('Campo obrigatório','Informe a Razão Social da empresa.'); return; }
   if (!algumPreco)        { Toast.warning('Campo obrigatório','Informe o preço de pelo menos um item.'); return; }
@@ -1575,7 +1729,11 @@ async function enviar() {
     // 1. Enviar cotação
     await Api.post('/api/cotacao/enviar', {
       id_requisicao: parseInt(REQ_ID), cnpj_fornecedor: cnpjV,
-      preco_unitario: round2(total), prazo_entrega: prazo,
+      preco_unitario: round2(totalFinal),
+      preco_original: round2(totalBruto),
+      desconto_tipo:  descontoValor > 0 ? descontoTipo  : null,
+      desconto_valor: descontoValor > 0 ? descontoValor : null,
+      prazo_entrega: prazo,
       pagamento: pagto, validade_dias: parseInt(valid),
       observacoes: obs || null, frete_incluso: frete, imposto_incluso: imposto,
       itens: itensPrecos
