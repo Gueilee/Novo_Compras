@@ -176,6 +176,7 @@ async function _route(method, path, body) {
 
   // Usuários CRUD (specific paths before generic /:id)
   if (full === 'POST /api/usuarios/solicitar-acesso')    return _solicitarAcesso(body);
+  if (full === 'POST /api/usuarios/convidar')            return _convidarUsuario(body);
   if (full === 'GET /api/usuarios/pendentes-acesso')     return _usuariosPendentes();
   if (full === 'POST /api/usuarios/importar-historico')  return { inseridos: 0, ignorados: 0 };
   if (method === 'GET' && path.startsWith('/api/usuarios/verificar')) return _verificarUsuario(path);
@@ -1903,6 +1904,21 @@ async function _rejeitarUsuario(id) {
   return { status: 'ok' };
 }
 
+async function _convidarUsuario(body) {
+  const accessToken = localStorage.getItem('shp_auth_token');
+  const res = await fetch(`${_SB_URL}/functions/v1/invite-user`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken || _SB_KEY}`,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Erro ao enviar convite');
+  return data;
+}
+
 // ── Compradores CRUD ───────────────────────────────────────
 async function _atualizarComprador(id, body) {
   const { error } = await _sb.from('compradores_responsabilidade').update({
@@ -2408,3 +2424,13 @@ window.SbUploadCotacaoDoc = async function(idRequisicao, cnpj, file) {
   });
   return publicUrl;
 };
+
+
+// ── Inicializa sessão Supabase com o token armazenado ─────
+(async function _initSession() {
+  const at = localStorage.getItem('shp_auth_token');
+  const rt = localStorage.getItem('shp_auth_refresh');
+  if (at && rt) {
+    await _sb.auth.setSession({ access_token: at, refresh_token: rt }).catch(() => {});
+  }
+})();

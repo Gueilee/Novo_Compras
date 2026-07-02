@@ -32,3 +32,22 @@ Thumbs.db
 data/
 backend/carga_*.py
 backend/ajuste_coluna.py
+
+# Secrets e variáveis de ambiente — NUNCA comitar
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.cert
+secrets/
+
+# Arquivos de exportação/importação do banco
+backend/export_*.json
+backend/import_*.sql
+backend/insert_*.sql
+backend/sql_chunks/
+
+# Office temporários
+~$*.xlsx
+~$*.docx

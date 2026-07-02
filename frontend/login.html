@@ -6,7 +6,7 @@
   <title>Login | Compras Vendemmia</title>
   <!-- Guard: skip login if already authenticated -->
   <script>
-    if (localStorage.getItem('shp_user_email')) {
+    if (localStorage.getItem('shp_user_email') && localStorage.getItem('shp_auth_token')) {
       window.location.replace('index.html');
     }
   </script>
@@ -627,7 +627,7 @@
           <input type="checkbox" id="remember-me">
           <span class="checkbox-label">Lembrar de mim</span>
         </label>
-        <a href="#" class="forgot-link">Esqueci a senha</a>
+        <a href="#" class="forgot-link" onclick="openForgotModal();return false;">Esqueci a senha</a>
       </div>
 
       <button type="submit" class="btn-login" id="btn-login">
@@ -715,7 +715,10 @@
     }
   }
 
-  /* ── Login handler ── */
+  const _SB_URL = 'https://ayuypxbipvuayyiatbir.supabase.co';
+  const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dXlweGJpcHZ1YXl5aWF0YmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDg0MTQsImV4cCI6MjA5MjYyNDQxNH0.a_uCBEuB8oLX94d3n936HX6we9rLV_19hOfLfCpapmM';
+
+  /* ── Login handler (Supabase Auth real) ── */
   async function handleLogin(e) {
     e.preventDefault();
 
@@ -734,19 +737,103 @@
     errEl.classList.remove('show');
 
     try {
-      await new Promise(r => setTimeout(r, 900));
+      // 1. Autenticar via Supabase Auth
+      const authRes = await fetch(`${_SB_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { 'apikey': _SB_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: senha }),
+      });
+      const authData = await authRes.json();
+      if (!authRes.ok) {
+        const msg = authData.error_description || authData.msg || authData.error || '';
+        throw new Error(msg.includes('Invalid login credentials') || msg.includes('invalid_grant')
+          ? 'E-mail ou senha incorretos. Verifique e tente novamente.'
+          : msg || 'Erro ao autenticar.');
+      }
 
-      // Salva o e-mail do usuário logado para validação no sistema
-      localStorage.setItem('shp_user_email', email);
+      // 2. Verificar se o usuário está ativo no sistema
+      const usuRes = await fetch(
+        `${_SB_URL}/rest/v1/usuarios?email=ilike.${encodeURIComponent(email)}&select=id,nome,email,cargo,unidade,ativo,perfil&limit=1`,
+        { headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${authData.access_token}` } }
+      );
+      const usuList = await usuRes.json();
+      const usuario = Array.isArray(usuList) ? usuList[0] : null;
+
+      if (!usuario || !usuario.ativo) {
+        // Encerrar sessão recém-criada
+        await fetch(`${_SB_URL}/auth/v1/logout`, {
+          method: 'POST',
+          headers: { 'apikey': _SB_KEY, 'Authorization': `Bearer ${authData.access_token}` },
+        }).catch(() => {});
+        throw new Error('Sua conta está inativa. Entre em contato com o administrador do sistema.');
+      }
+
+      // 3. Salvar sessão no localStorage
+      localStorage.setItem('shp_user_email',  email);
+      localStorage.setItem('shp_user_nome',   usuario.nome || email);
+      localStorage.setItem('shp_user_perfil', usuario.perfil || 'usuario');
+      localStorage.setItem('shp_auth_token',  authData.access_token);
+      localStorage.setItem('shp_auth_refresh', authData.refresh_token || '');
 
       btn.innerHTML = `<i class="fa-solid fa-circle-check"></i> Acesso liberado!`;
       btn.style.background = '#01E18E';
       setTimeout(() => { window.location.href = 'index.html'; }, 600);
 
-    } catch {
+    } catch (err) {
       btn.disabled = false;
       btn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Entrar no Sistema`;
-      showError('Usuário ou senha incorretos. Tente novamente.');
+      showError(err.message || 'Erro ao autenticar. Tente novamente.');
+    }
+  }
+
+  /* ── Modal Esqueci a Senha ── */
+  function openForgotModal() {
+    const modal = document.getElementById('forgot-modal');
+    modal.style.display = 'flex';
+    // Pré-preenche o e-mail digitado no login
+    const emailLogin = document.getElementById('login-email').value.trim();
+    if (emailLogin) document.getElementById('forgot-email').value = emailLogin;
+    document.getElementById('forgot-content').style.display  = 'block';
+    document.getElementById('forgot-success').style.display  = 'none';
+    document.getElementById('forgot-error').style.display    = 'none';
+    setTimeout(() => document.getElementById('forgot-email').focus(), 80);
+  }
+
+  function closeForgotModal() {
+    document.getElementById('forgot-modal').style.display = 'none';
+  }
+
+  async function sendForgotPassword() {
+    const email = document.getElementById('forgot-email').value.trim();
+    const errEl = document.getElementById('forgot-error');
+    errEl.style.display = 'none';
+
+    if (!email) {
+      errEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i><span>Informe o e-mail cadastrado.</span>';
+      errEl.style.display = 'flex'; return;
+    }
+
+    const btn = document.getElementById('btn-forgot-send');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner" style="border-top-color:#fff;border-color:rgba(255,255,255,.3)"></span> Enviando...';
+
+    try {
+      await fetch(`${_SB_URL}/auth/v1/recover`, {
+        method: 'POST',
+        headers: { 'apikey': _SB_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          gotrue_meta_security: {},
+        }),
+      });
+      // Sempre exibir sucesso (não revelar se o e-mail existe)
+      document.getElementById('forgot-content').style.display  = 'none';
+      document.getElementById('forgot-success').style.display  = 'block';
+    } catch {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar link';
+      errEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i><span>Erro ao enviar. Tente novamente.</span>';
+      errEl.style.display = 'flex';
     }
   }
 
@@ -824,24 +911,84 @@
     }
   }
 
-  /* Shake keyframe via JS */
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes shake {
-      0%,100% { transform: translateX(0); }
-      20%      { transform: translateX(-5px); }
-      40%      { transform: translateX(5px); }
-      60%      { transform: translateX(-4px); }
-      80%      { transform: translateX(4px); }
-    }
-  `;
-  document.head.appendChild(style);
-
   /* ── Auto-focus ── */
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('login-email')?.focus();
+    // Fechar modal com Escape
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeForgotModal();
+    });
   });
 </script>
+
+<!-- ── Modal: Esqueci a Senha ── -->
+<div id="forgot-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);
+            align-items:center;justify-content:center;z-index:999;
+            backdrop-filter:blur(4px);"
+     onclick="if(event.target===this)closeForgotModal()">
+  <div style="background:#fff;border-radius:20px;padding:36px 32px;
+              width:100%;max-width:390px;box-shadow:0 20px 60px rgba(0,0,0,0.22);">
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:22px;">
+      <div style="width:56px;height:56px;border-radius:50%;background:#ede9fb;
+                  color:#422c76;font-size:22px;display:flex;align-items:center;
+                  justify-content:center;margin:0 auto 14px;">
+        <i class="fa-solid fa-key"></i>
+      </div>
+      <h3 style="margin:0 0 6px;font-size:18px;font-weight:800;color:#414042;">Recuperar Senha</h3>
+      <p style="margin:0;font-size:13px;color:#888899;line-height:1.5;">
+        Informe seu e-mail e enviaremos um link para redefinir a senha.
+      </p>
+    </div>
+
+    <!-- Conteúdo do formulário -->
+    <div id="forgot-content">
+      <div class="form-group">
+        <label class="form-label">E-mail cadastrado</label>
+        <div class="input-wrap">
+          <i class="fa-solid fa-envelope input-icon"></i>
+          <input type="email" class="form-control" id="forgot-email"
+                 placeholder="seu@email.com" autocomplete="email"
+                 onkeydown="if(event.key==='Enter')sendForgotPassword()">
+        </div>
+      </div>
+      <div id="forgot-error" class="login-error" style="margin-bottom:10px;display:none;"></div>
+      <button type="button" class="btn-login" id="btn-forgot-send" onclick="sendForgotPassword()"
+              style="margin-bottom:8px;">
+        <i class="fa-solid fa-paper-plane"></i> Enviar link de recuperação
+      </button>
+      <button type="button" onclick="closeForgotModal()"
+              style="width:100%;background:none;border:none;font-size:13px;
+                     color:#888899;cursor:pointer;padding:6px;">
+        Cancelar
+      </button>
+    </div>
+
+    <!-- Sucesso -->
+    <div id="forgot-success" style="display:none;text-align:center;padding:4px 0;">
+      <i class="fa-solid fa-circle-check" style="color:#01E18E;font-size:46px;margin-bottom:14px;"></i>
+      <h4 style="margin:0 0 8px;font-size:16px;color:#414042;">E-mail enviado!</h4>
+      <p style="font-size:13px;color:#888899;margin:0 0 20px;line-height:1.55;">
+        Se este e-mail estiver cadastrado, você receberá as instruções em breve.<br>
+        <span style="font-size:12px;">Verifique também a caixa de spam.</span>
+      </p>
+      <button type="button" class="btn-login" onclick="closeForgotModal()">
+        <i class="fa-solid fa-check"></i> Entendi
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%      { transform: translateX(-5px); }
+    40%      { transform: translateX(5px); }
+    60%      { transform: translateX(-4px); }
+    80%      { transform: translateX(4px); }
+  }
+</style>
 
 </body>
 </html>

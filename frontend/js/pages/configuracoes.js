@@ -297,10 +297,13 @@ window.Pages.configuracoes = {
       </div>`;
 
     // ── Tabela de usuários cadastrados ───────────────────────
+    const _perfilLabel = p => ({ admin: 'Admin', gestor: 'Gestor', usuario: 'Usuário', visualizador: 'Visualizador' }[p] || 'Usuário');
+    const _perfilColor = p => p === 'admin' ? '#422c76' : p === 'gestor' ? '#7c3aed' : '#888899';
+
     const tableRows = rows.length === 0
-      ? `<tr><td colspan="7"><div class="cfg-empty">
+      ? `<tr><td colspan="8"><div class="cfg-empty">
            <i class="fa-solid fa-users"></i>
-           <p>Nenhum usuário cadastrado ainda.<br>Clique em "Novo Usuário" para começar.</p>
+           <p>Nenhum usuário cadastrado ainda.<br>Clique em "Convidar Usuário" para começar.</p>
          </div></td></tr>`
       : rows.map(u => `
           <tr class="${u.ativo ? '' : 'cfg-inactive'}" id="urow-${u.id}">
@@ -328,12 +331,22 @@ window.Pages.configuracoes = {
                 : '<span style="color:var(--text-subtle);font-size:12px;">Sem gestor</span>'}
             </td>
             <td>
+              <span class="badge" style="background:${_perfilColor(u.perfil)}20;color:${_perfilColor(u.perfil)};">
+                ${_perfilLabel(u.perfil)}
+              </span>
+            </td>
+            <td>
               <span class="badge ${u.ativo ? 'badge-success' : 'badge-gray'}">
                 ${u.ativo ? 'Ativo' : 'Inativo'}
               </span>
             </td>
             <td style="font-size:11.5px;color:var(--text-muted);">${(u.criado_em || '').split('T')[0] || u.criado_em || '—'}</td>
             <td style="text-align:center;white-space:nowrap;">
+              <button class="cfg-act-btn" title="Enviar convite / redefinir senha"
+                      style="color:var(--brand);"
+                      onclick="Pages.configuracoes._convidarUsuario(${u.id},'${u.email}','${u.nome.replace(/'/g,'')}','${u.perfil||'usuario'}')">
+                <i class="fa-solid fa-envelope-circle-check"></i>
+              </button>
               <button class="cfg-act-btn" title="${u.ativo ? 'Desativar usuário' : 'Ativar usuário'}"
                       style="color:${u.ativo ? 'var(--warning-deeper,#b45309)' : 'var(--success-deeper,#007a50)'};"
                       onclick="Pages.configuracoes._toggleAtivo(${u.id}, ${u.ativo}, '${u.nome.replace(/'/g,'')}')">
@@ -361,10 +374,16 @@ window.Pages.configuracoes = {
             Usuários & Gestores
             <span class="badge badge-gray" style="margin-left:4px;">${rows.length}</span>
           </span>
-          <button class="btn btn-primary btn-sm"
-                  onclick="Pages.configuracoes._newUsuario()">
-            <i class="fa-solid fa-plus"></i> Novo Usuário
-          </button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm"
+                    onclick="Pages.configuracoes._newUsuario()">
+              <i class="fa-solid fa-plus"></i> Novo Usuário
+            </button>
+            <button class="btn btn-primary btn-sm"
+                    onclick="Pages.configuracoes._abrirModalConvite()">
+              <i class="fa-solid fa-envelope-circle-check"></i> Convidar Usuário
+            </button>
+          </div>
         </div>
         <div class="cfg-table-wrap">
           <table class="cfg-table">
@@ -374,9 +393,10 @@ window.Pages.configuracoes = {
                 <th>Unidade</th>
                 <th>Cargo</th>
                 <th>Gestor Imediato</th>
+                <th>Perfil</th>
                 <th>Status</th>
                 <th>Criado em</th>
-                <th style="width:88px;text-align:center;">Ações</th>
+                <th style="width:108px;text-align:center;">Ações</th>
               </tr>
             </thead>
             <tbody>${tableRows}</tbody>
@@ -465,6 +485,15 @@ window.Pages.configuracoes = {
               </div>
             </div>
             <div class="form-group">
+              <label class="form-label">Perfil de Acesso</label>
+              <select id="cfg-u-perfil" class="form-control">
+                <option value="usuario"      ${(u?.perfil||'usuario') === 'usuario'      ? 'selected' : ''}>Usuário — cria requisições</option>
+                <option value="gestor"       ${u?.perfil === 'gestor'                    ? 'selected' : ''}>Gestor — aprova requisições da equipe</option>
+                <option value="admin"        ${u?.perfil === 'admin'                     ? 'selected' : ''}>Admin — acesso total ao sistema</option>
+                <option value="visualizador" ${u?.perfil === 'visualizador'              ? 'selected' : ''}>Visualizador — somente consulta</option>
+              </select>
+            </div>
+            <div class="form-group">
               <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;">
                 <span>Usuário Ativo</span>
                 <label class="cfg-toggle">
@@ -505,6 +534,7 @@ window.Pages.configuracoes = {
         unidade:     document.getElementById('cfg-u-unidade').value || null,
         cargo:       document.getElementById('cfg-u-cargo').value.trim() || null,
         gestor_nome: document.getElementById('cfg-u-gestor').value.trim() || null,
+        perfil:      document.getElementById('cfg-u-perfil').value || 'usuario',
         ativo:       document.getElementById('cfg-u-ativo').checked ? 1 : 0,
       };
       const btn = document.getElementById('cfg-u-save');
@@ -523,6 +553,104 @@ window.Pages.configuracoes = {
         btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Salvar Alterações' : 'Criar Usuário'}`;
       }
     });
+  },
+
+  /* ── Convite de usuário ─────────────────────────────────── */
+  _abrirModalConvite() {
+    const root = document.createElement('div');
+    root.id = 'cfg-convite-root';
+    root.innerHTML = `
+      <div class="cfg-backdrop" id="cfg-convite-backdrop">
+        <div class="cfg-drawer" style="max-width:440px;">
+          <div class="cfg-drw-hdr">
+            <div class="cfg-drw-title">
+              <i class="fa-solid fa-envelope-circle-check" style="color:var(--brand);"></i>
+              Convidar Usuário
+            </div>
+            <button class="cfg-drw-close" id="cfg-convite-close">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="cfg-drw-body">
+            <div style="background:var(--brand-surface,#ede9fb);border-radius:10px;padding:12px 16px;
+                        font-size:13px;color:var(--brand);margin-bottom:20px;display:flex;gap:10px;align-items:flex-start;">
+              <i class="fa-solid fa-circle-info" style="margin-top:2px;flex-shrink:0;"></i>
+              <span>O usuário receberá um e-mail com um link para criar a senha e acessar o sistema.</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label form-label-required">E-mail</label>
+              <div style="position:relative;">
+                <i class="fa-solid fa-envelope" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#aaa;font-size:13px;pointer-events:none;"></i>
+                <input id="cfg-inv-email" class="form-control" type="email"
+                       placeholder="usuario@vendemmia.com.br" style="padding-left:36px;">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label form-label-required">Nome completo</label>
+              <input id="cfg-inv-nome" class="form-control" type="text" placeholder="Nome completo">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Perfil de Acesso</label>
+              <select id="cfg-inv-perfil" class="form-control">
+                <option value="usuario">Usuário — cria requisições</option>
+                <option value="gestor">Gestor — aprova requisições da equipe</option>
+                <option value="admin">Admin — acesso total ao sistema</option>
+                <option value="visualizador">Visualizador — somente consulta</option>
+              </select>
+            </div>
+          </div>
+          <div class="cfg-drw-footer">
+            <button class="btn btn-outline" id="cfg-inv-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="cfg-inv-send">
+              <i class="fa-solid fa-paper-plane"></i> Enviar Convite
+            </button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+
+    const close = () => root.remove();
+    document.getElementById('cfg-convite-close').addEventListener('click', close);
+    document.getElementById('cfg-inv-cancel').addEventListener('click', close);
+    document.getElementById('cfg-convite-backdrop').addEventListener('click', e => {
+      if (e.target === document.getElementById('cfg-convite-backdrop')) close();
+    });
+
+    document.getElementById('cfg-inv-send').addEventListener('click', async () => {
+      const email  = document.getElementById('cfg-inv-email').value.trim();
+      const nome   = document.getElementById('cfg-inv-nome').value.trim();
+      const perfil = document.getElementById('cfg-inv-perfil').value;
+      if (!email || !nome) { Toast.warning('Campos obrigatórios', 'Informe nome e e-mail.'); return; }
+      const btn = document.getElementById('cfg-inv-send');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando...';
+      try {
+        await Api.post('/api/usuarios/convidar', { email, nome, perfil });
+        Toast.success('Convite enviado', `E-mail enviado para ${email}`);
+        close();
+        this._loadUsuarios();
+      } catch (err) {
+        Toast.error('Erro ao enviar convite', err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Convite';
+      }
+    });
+  },
+
+  async _convidarUsuario(id, email, nome, perfil) {
+    const ok = await Modal.confirm({
+      icon: 'info',
+      title: 'Enviar convite?',
+      body: `Será enviado um e-mail para <strong>${email}</strong> com um link para ${id ? 'redefinir a senha e acessar' : 'criar a senha e acessar'} o sistema.`,
+      confirmText: 'Enviar',
+    });
+    if (!ok) return;
+    try {
+      await Api.post('/api/usuarios/convidar', { email, nome, perfil: perfil || 'usuario' });
+      Toast.success('Convite enviado', `E-mail enviado para ${email}`);
+    } catch (err) {
+      Toast.error('Erro ao enviar convite', err.message);
+    }
   },
 
   async _importarHistorico() {

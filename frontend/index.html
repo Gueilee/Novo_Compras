@@ -6,7 +6,7 @@
   <title>Compras Vendemmia</title>
   <!-- Guard: redireciona para login se não autenticado -->
   <script>
-    if (!localStorage.getItem('shp_user_email')) {
+    if (!localStorage.getItem('shp_user_email') || !localStorage.getItem('shp_auth_token')) {
       window.location.replace('login.html');
     }
   </script>
@@ -345,7 +345,7 @@
 <!-- Utilities (must load first) -->
 <script src="js/utils.js?v=26"></script>
 <!-- Supabase data layer (overrides Api from utils.js) -->
-<script src="js/supabase-client.js?v=29"></script>
+<script src="js/supabase-client.js?v=30"></script>
 <script src="js/mapa-cotacao.js?v=26"></script>
 <script src="js/po-compra.js?v=22"></script>
 
@@ -366,7 +366,7 @@
 <script src="js/pages/saving.js?v=26"></script>
 <script src="js/pages/aprovacao-req.js?v=29"></script>
 <script src="js/pages/fornecedores.js?v=22"></script>
-<script src="js/pages/configuracoes.js?v=27"></script>
+<script src="js/pages/configuracoes.js?v=28"></script>
 
 <!-- App router (must load last) -->
 <script src="js/app.js?v=26"></script>
@@ -382,7 +382,20 @@
       confirmClass: 'btn-danger',
       cancelText: 'Cancelar',
     });
-    if (ok) { localStorage.removeItem('shp_user_email'); window.location.href = 'login.html'; }
+    if (ok) {
+      // Encerrar sessão no Supabase
+      const _sbUrl = 'https://ayuypxbipvuayyiatbir.supabase.co';
+      const _sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dXlweGJpcHZ1YXl5aWF0YmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDg0MTQsImV4cCI6MjA5MjYyNDQxNH0.a_uCBEuB8oLX94d3n936HX6we9rLV_19hOfLfCpapmM';
+      const token = localStorage.getItem('shp_auth_token');
+      if (token) {
+        fetch(`${_sbUrl}/auth/v1/logout`, {
+          method: 'POST',
+          headers: { 'apikey': _sbKey, 'Authorization': `Bearer ${token}` },
+        }).catch(() => {});
+      }
+      ['shp_user_email','shp_user_nome','shp_user_perfil','shp_auth_token','shp_auth_refresh'].forEach(k => localStorage.removeItem(k));
+      window.location.href = 'login.html';
+    }
   }
 </script>
 

@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  compras:
+    image: ghcr.io/vendemmia-logistica/compras:latest
+    container_name: compras
+    restart: unless-stopped
+    ports:
+      - "80:80"
